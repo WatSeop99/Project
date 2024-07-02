@@ -24,5 +24,4 @@ private:
 	UINT m_CBVSRVUAVDescriptorSize = 0;
 	D3D12_CPU_DESCRIPTOR_HANDLE m_CPUDescriptorHandle = { 0xffffffffffffffff, };
 	D3D12_GPU_DESCRIPTOR_HANDLE m_GPUDescriptorHandle = { 0xffffffffffffffff, };
-	CRITICAL_SECTION m_AllocatedCountLock;
 };

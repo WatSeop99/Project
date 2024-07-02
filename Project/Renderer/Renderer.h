@@ -15,16 +15,8 @@ const UINT MAX_PENDING_FRAME_NUM = SWAP_CHAIN_FRAME_COUNT - 1;
 class Renderer
 {
 public:
-	struct ThreadParameter
-	{
-		int ThreadIndex;
-	};
-
-public:
 	Renderer();
 	~Renderer();
-
-	static Renderer* Get() { return s_pRenderer; }
 
 	void Initizlie();
 
@@ -37,6 +29,8 @@ public:
 	void Clear();
 
 	LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
 
 protected:
 	void initMainWidndow();
@@ -66,8 +60,7 @@ protected:
 	void waitForFenceValue();
 
 private:
-	static Renderer* s_pRenderer;
-	static ResourceManager* m_pResourceManager;
+	ResourceManager* m_pResourceManager = nullptr;
 
 	HWND m_hMainWindow = nullptr;
 
@@ -85,17 +78,6 @@ private:
 	ID3D12CommandAllocator* m_pCommandAllocator = nullptr;
 	ID3D12GraphicsCommandList* m_pCommandList = nullptr;
 
-	HANDLE m_hBeginShadowPass[LIGHT_THREADS] = { nullptr, };
-	HANDLE m_hFinishShadowPass[LIGHT_THREADS] = { nullptr, };
-	HANDLE m_hLightHandles[LIGHT_THREADS] = { nullptr, };
-
-	HANDLE m_hBeginRenderPass[NUM_THREADS] = { nullptr, };
-	HANDLE m_hFinishMainRenderPass[NUM_THREADS] = { nullptr, };
-	HANDLE m_hThreadHandles[NUM_THREADS] = { nullptr, };
-
-	ThreadParameter m_LightParameters[LIGHT_THREADS];
-	ThreadParameter m_ThreadParameters[NUM_THREADS];
-
 	HANDLE m_hFenceEvent = nullptr;
 	ID3D12Fence* m_pFence = nullptr;
 	UINT64 m_FenceValue = 0;
@@ -105,6 +87,7 @@ private:
 	ID3D12Resource* m_pRenderTargets[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
 	ID3D12Resource* m_pFloatBuffer = nullptr;
 	ID3D12Resource* m_pPrevBuffer = nullptr;
+	ID3D12Resource* m_pDefaultDepthStencil = nullptr;
 	UINT m_MainRenderTargetOffset = 0xffffffff;
 	UINT m_FloatBufferRTVOffset = 0xffffffff;
 	UINT m_FloatBufferSRVOffset = 0xffffffff;
@@ -121,8 +104,6 @@ private:
 	ConstantBuffer m_GlobalConstant;
 	ConstantBuffer m_LightConstant;
 	ConstantBuffer m_ReflectionGlobalConstant;
-
-	ID3D12Resource* m_pDefaultDepthStencil = nullptr;
 
 	Texture m_EnvTexture;
 	Texture m_IrradianceTexture;

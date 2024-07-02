@@ -4,8 +4,6 @@
 #include "Renderer.h"
 
 Renderer* g_pRendrer = nullptr;
-Renderer* Renderer::s_pRenderer = nullptr;
-ResourceManager* Renderer::m_pResourceManager = nullptr;
 
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -14,14 +12,12 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 Renderer::Renderer()
 {
-	s_pRenderer = this;
-	g_pRendrer = s_pRenderer;
+	g_pRendrer = this;
 	m_Camera.SetAspectRatio((float)m_ScreenWidth / (float)m_ScreenHeight);
 }
 
 Renderer::~Renderer()
 {
-	s_pRenderer = nullptr;
 	g_pRendrer = nullptr;
 	Clear();
 }
@@ -93,7 +89,7 @@ int Renderer::Run()
 				s_PrevFrameCheckTick = curTick;
 
 				WCHAR txt[64];
-				swprintf_s(txt, L"KHU  %uFPS", s_FrameCount);
+				swprintf_s(txt, L"DX12  %uFPS", s_FrameCount);
 				SetWindowText(m_hMainWindow, txt);
 
 				s_FrameCount = 0;
@@ -151,18 +147,6 @@ void Renderer::Clear()
 	}
 	m_FenceValue = 0;
 	SAFE_RELEASE(m_pFence);
-
-	for (int i = 0; i < LIGHT_THREADS; ++i)
-	{
-		CloseHandle(m_hBeginShadowPass[i]);
-		CloseHandle(m_hFinishShadowPass[i]);
-	}
-	for (int i = 0; i < NUM_THREADS; ++i)
-	{
-		CloseHandle(m_hBeginRenderPass[i]);
-		CloseHandle(m_hFinishMainRenderPass[i]);
-		CloseHandle(m_hThreadHandles[i]);
-	}
 
 	m_pMirror = nullptr;
 	if (m_pCharacter)

@@ -21,16 +21,12 @@ void DynamicDescriptorPool::Initialize(ID3D12Device5* pDevice, UINT maxDescripto
 
 	m_CPUDescriptorHandle = m_pDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	m_GPUDescriptorHandle = m_pDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
-
-	InitializeCriticalSection(&m_AllocatedCountLock);
 }
 
 HRESULT DynamicDescriptorPool::AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE* pCPUDescriptor, D3D12_GPU_DESCRIPTOR_HANDLE* pGPUDescriptorHandle, UINT descriptorCount)
 {
-	EnterCriticalSection(&m_AllocatedCountLock);
 	if (m_AllocatedDescriptorCount + descriptorCount > m_MaxDescriptorCount)
 	{
-		LeaveCriticalSection(&m_AllocatedCountLock);
 		return E_FAIL;
 	}
 
@@ -42,16 +38,13 @@ HRESULT DynamicDescriptorPool::AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE*
 	*pCPUDescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_CPUDescriptorHandle, m_AllocatedDescriptorCount, m_CBVSRVUAVDescriptorSize);
 	*pGPUDescriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_GPUDescriptorHandle, m_AllocatedDescriptorCount, m_CBVSRVUAVDescriptorSize);
 	m_AllocatedDescriptorCount += descriptorCount;
-	LeaveCriticalSection(&m_AllocatedCountLock);
 
 	return S_OK;
 }
 
 void DynamicDescriptorPool::Reset()
 {
-	EnterCriticalSection(&m_AllocatedCountLock);
 	m_AllocatedDescriptorCount = 0;
-	LeaveCriticalSection(&m_AllocatedCountLock);
 }
 
 void DynamicDescriptorPool::Clear()
@@ -62,8 +55,6 @@ void DynamicDescriptorPool::Clear()
 	m_CPUDescriptorHandle = { 0xffffffffffffffff };
 	m_GPUDescriptorHandle = { 0xffffffffffffffff };
 	SAFE_RELEASE(m_pDescriptorHeap);
-
-	DeleteCriticalSection(&m_AllocatedCountLock);
 
 	m_pDevice = nullptr;
 }

@@ -1,5 +1,12 @@
 #pragma once
 
+struct Container
+{
+	ULONGLONG MemSize;
+	ULONGLONG ElemCount;
+	BYTE Data[1];
+};
+
 void GetHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);
 void GetSoftwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);
 void SetDebugLayerInfo(ID3D12Device* pD3DDevice);
