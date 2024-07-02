@@ -14,17 +14,21 @@ public:
 
 	void Initialize();
 
-	void Run();
+	int Run();
 
-	void Update();
+	void Update(const float DELTA_TIME);
 
 	void Clear();
 
 protected:
 	void initScene();
 
+	void updateAnimation(const float DELTA_TIME);
+
 private:
 	Renderer* m_pRenderer = nullptr;
+
+	Timer m_Timer;
 
 	// data
 	/*std::vector<Model*> m_RenderObjects;

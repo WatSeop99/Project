@@ -112,7 +112,7 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>E:\workspace\task\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\OWL_Git\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -128,7 +128,7 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>E:\workspace\task\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\OWL_Git\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -138,6 +138,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="App\App.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Graphics\Camera.h" />
     <ClInclude Include="Graphics\ConstantBuffer.h" />
@@ -164,9 +165,11 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Util\IndexCreator.h" />
+    <ClInclude Include="Util\LinkedList.h" />
     <ClInclude Include="Util\Utility.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="App\App.cpp" />
     <ClCompile Include="Graphics\Camera.cpp" />
     <ClCompile Include="Graphics\ConstantBuffer.cpp" />
     <ClCompile Include="Graphics\GraphicsUtil.cpp" />
@@ -187,6 +190,7 @@
     <ClCompile Include="Renderer\ResourceManager.cpp" />
     <ClCompile Include="Renderer\Timer.cpp" />
     <ClCompile Include="Util\IndexCreator.cpp" />
+    <ClCompile Include="Util\LinkedList.cpp" />
     <ClCompile Include="Util\Utility.cpp" />
   </ItemGroup>
   <ItemGroup>

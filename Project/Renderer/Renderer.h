@@ -31,6 +31,7 @@ public:
 	LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
+	inline HWND GetWindow() { return m_hMainWindow; }
 
 protected:
 	void initMainWidndow();

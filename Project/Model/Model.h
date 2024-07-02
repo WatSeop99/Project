@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnimationData.h"
+#include "../Util/LinkedList.h"
 #include "Mesh.h"
 #include "MeshInfo.h"
 
@@ -44,6 +45,8 @@ public:
 	DirectX::BoundingSphere BoundingSphere;
 
 	std::string Name;
+
+	ListElem LinkInGame;
 
 protected:
 	Mesh* m_pBoundingBoxMesh = nullptr;

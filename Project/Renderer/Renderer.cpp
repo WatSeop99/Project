@@ -108,7 +108,7 @@ void Renderer::Update(const float DELTA_TIME)
 	updateGlobalConstants(DELTA_TIME);
 	updateLightConstants(DELTA_TIME);
 
-	if (m_pMirror)
+	/*if (m_pMirror)
 	{
 		m_pMirror->UpdateConstantBuffers();
 	}
@@ -119,7 +119,7 @@ void Renderer::Update(const float DELTA_TIME)
 	}
 
 	m_pCharacter->UpdateConstantBuffers();
-	updateAnimation(DELTA_TIME);
+	updateAnimation(DELTA_TIME);*/
 }
 
 void Renderer::Render()
@@ -527,7 +527,7 @@ void Renderer::initMainWidndow()
 		NULL,						// hCursor
 		(HBRUSH)(COLOR_WINDOW + 1),	// hbrBackground
 		nullptr,					// lpszMenuName
-		L"KHUKHU",					// lpszClassName
+		L"OWL_",					// lpszClassName
 		NULL						// hIconSm
 	};
 
@@ -539,7 +539,7 @@ void Renderer::initMainWidndow()
 	RECT wr = { 0, 0, (long)m_ScreenWidth, (long)m_ScreenHeight };
 	BOOL bResult = AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 	m_hMainWindow = CreateWindow(wc.lpszClassName,
-								 L"KHU",
+								 L"DX12",
 								 WS_OVERLAPPEDWINDOW,
 								 100,							// 윈도우 좌측 상단의 x 좌표
 								 100,							// 윈도우 좌측 상단의 y 좌표

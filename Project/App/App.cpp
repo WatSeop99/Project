@@ -15,8 +15,69 @@ void App::Initialize()
 
 }
 
-void App::Run()
+int App::Run()
 {
+	MSG msg = { 0, };
+
+	while (msg.message != WM_QUIT)
+	{
+		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		else
+		{
+			m_Timer.Tick();
+
+			static UINT s_FrameCount = 0;
+			static UINT64 s_PrevUpdateTick = 0;
+			static UINT64 s_PrevFrameCheckTick = 0;
+			static HWND s_hMainWindow = m_pRenderer->GetWindow();
+
+			float frameTime = (float)m_Timer.GetElapsedSeconds();
+			float frameChange = 2.0f * frameTime;
+			UINT64 curTick = GetTickCount64();
+
+			++s_FrameCount;
+
+			Update(frameChange);
+			s_PrevUpdateTick = curTick;
+			m_pRenderer->Render();
+
+			if (curTick - s_PrevFrameCheckTick > 1000)
+			{
+				s_PrevFrameCheckTick = curTick;
+
+				WCHAR txt[64];
+				swprintf_s(txt, L"DX12  %uFPS", s_FrameCount);
+				SetWindowText(s_hMainWindow, txt);
+
+				s_FrameCount = 0;
+			}
+		}
+	}
+
+	return (int)msg.wParam;
+}
+
+void App::Update(const float DELTA_TIME)
+{
+	m_pRenderer->Update(DELTA_TIME);
+	if (m_pMirror)
+	{
+		m_pMirror->UpdateConstantBuffers();
+	}
+
+	Model* pModel = (Model*)m_pRenderObjectsHead->pItem;
+	while (pModel)
+	{
+		pModel->UpdateConstantBuffers();
+		pModel = (Model*)pModel->LinkInGame.pNext->pItem;
+	}
+
+	m_pCharacter->UpdateConstantBuffers();
+	updateAnimation(DELTA_TIME);
 }
 
 void App::Clear()
@@ -25,6 +86,18 @@ void App::Clear()
 	{
 		delete m_Lights;
 		m_Lights = nullptr;
+	}
+	if (m_LightSpheres)
+	{
+		delete m_LightSpheres;
+		m_LightSpheres = nullptr;
+	}
+
+	while (m_pRenderObjectsHead)
+	{
+		Model* pElem = (Model*)m_pRenderObjectsHead->pItem;
+		UnLinkElemFromList(&m_pRenderObjectsHead, &m_pRenderObjectsTail, &pElem->LinkInGame);
+		delete pElem;
 	}
 }
 
@@ -47,24 +120,6 @@ void App::initScene()
 	Light* pLightData = (Light*)m_Lights->Data;
 	Model** pLightSphereData = (Model**)m_Lights->Data;
 
-	{
-		m_pRenderObjectsHead = new ListElem;
-		m_pRenderObjectsTail = new ListElem;
-		if (m_pRenderObjectsHead == nullptr)
-		{
-			__debugbreak();
-		}
-		if (m_pRenderObjectsTail == nullptr)
-		{
-			__debugbreak();
-		}
-		memset(m_pRenderObjectsHead, 0, sizeof(ListElem));
-		memset(m_pRenderObjectsTail, 0, sizeof(ListElem));
-
-		m_pRenderObjectsHead->pNext = m_pRenderObjectsTail;
-		m_pRenderObjectsTail->pPrev = m_pRenderObjectsHead;
-	}
-
 	// 환경맵 텍스쳐 로드.
 	{
 		m_EnvTexture.InitializeWithDDS(pResourceManager, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
@@ -75,7 +130,6 @@ void App::initScene()
 
 	// 조명 설정.
 	{
-
 		// 조명 0.
 		pLightData[0].Property.Radiance = Vector3(3.0f);
 		pLightData[0].Property.FallOffEnd = 10.0f;
@@ -117,9 +171,9 @@ void App::initScene()
 			MakeSphere(&sphere, 1.0f, 20, 20);
 
 			pLightSphereData[i] = new Model(pResourceManager, { sphere });
-			pLightSphereData[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
+			pLightSphereData[i]->UpdateWorld(Matrix::CreateTranslation(pLightData[i].Property.Position));
 
-			MaterialConstant* pSphereMaterialConst = (MaterialConstant*)m_LightSpheres[i]->Meshes[0]->MaterialConstant.pData;
+			MaterialConstant* pSphereMaterialConst = (MaterialConstant*)pLightSphereData[i]->Meshes[0]->MaterialConstant.pData;
 			pSphereMaterialConst->AlbedoFactor = Vector3(0.0f);
 			pSphereMaterialConst->EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
 			pLightSphereData[i]->bCastShadow = false; // 조명 표시 물체들은 그림자 X.
@@ -135,7 +189,7 @@ void App::initScene()
 			pLightSphereData[i]->Name = "LightSphere" + std::to_string(i);
 			pLightSphereData[i]->bIsPickable = false;
 
-			m_RenderObjects.push_back(m_LightSpheres[i]); // 리스트에 등록.
+			LinkElemIntoListFIFO(&m_pRenderObjectsHead, &m_pRenderObjectsTail, &pLightSphereData[i]->LinkInGame);
 		}
 	}
 
@@ -223,7 +277,90 @@ void App::initScene()
 			pMeshConst->MetallicFactor = 0.0f;
 		}
 		m_pCharacter->UpdateWorld(Matrix::CreateScale(1.0f) * Matrix::CreateTranslation(center));
-
-		// m_RenderObjects.push_back(m_pCharacter);
 	}
+}
+
+void App::updateAnimation(const float DELTA_TIME)
+{
+	static int s_FrameCount = 0;
+
+	// States
+	// 0: idle
+	// 1: idle to walk
+	// 2: walk forward
+	// 3: walk to stop
+	static int s_State = 0;
+	SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)m_pCharacter;
+
+	switch (s_State)
+	{
+		case 0:
+		{
+			if (m_bKeyPressed[VK_UP])
+			{
+				s_State = 1;
+				s_FrameCount = 0;
+			}
+			else if (s_FrameCount ==
+					 pCharacter->AnimData.Clips[s_State].Keys[0].size() ||
+					 m_bKeyPressed[VK_UP]) // 재생이 다 끝난다면.
+			{
+				s_FrameCount = 0; // 상태 변화 없이 반복.
+			}
+		}
+		break;
+
+		case 1:
+		{
+			if (s_FrameCount == pCharacter->AnimData.Clips[s_State].Keys[0].size())
+			{
+				s_State = 2;
+				s_FrameCount = 0;
+			}
+		}
+		break;
+
+		case 2:
+		{
+			if (m_bKeyPressed[VK_RIGHT])
+			{
+				pCharacter->AnimData.AccumulatedRootTransform =
+					Matrix::CreateRotationY(DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f) *
+					pCharacter->AnimData.AccumulatedRootTransform;
+			}
+			if (m_bKeyPressed[VK_LEFT])
+			{
+				pCharacter->AnimData.AccumulatedRootTransform =
+					Matrix::CreateRotationY(-DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f) *
+					pCharacter->AnimData.AccumulatedRootTransform;
+			}
+			if (s_FrameCount == pCharacter->AnimData.Clips[s_State].Keys[0].size())
+			{
+				// 방향키를 누르고 있지 않으면 정지. (누르고 있으면 계속 걷기)
+				if (!m_bKeyPressed[VK_UP])
+				{
+					s_State = 3;
+				}
+				s_FrameCount = 0;
+			}
+		}
+		break;
+
+		case 3:
+		{
+			if (s_FrameCount == pCharacter->AnimData.Clips[s_State].Keys[0].size())
+			{
+				// s_State = 4;
+				s_State = 0;
+				s_FrameCount = 0;
+			}
+		}
+		break;
+
+		default:
+			break;
+	}
+
+	pCharacter->UpdateAnimation(s_State, s_FrameCount);
+	++s_FrameCount;
 }
