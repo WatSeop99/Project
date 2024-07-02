@@ -37,15 +37,12 @@ public:
 	void Clear();
 
 	LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-	void ThreadWork(ThreadParameter* pParameter);
-	void ThreadWork2(ThreadParameter* pParameter);
 
 protected:
 	void initMainWidndow();
 	void initDirect3D();
 	void initScene();
 	void initDescriptorHeap();
-	void initThreadAndEvent();
 
 	// for single thread.
 	void beginRender();
@@ -55,11 +52,6 @@ protected:
 	void postProcess();
 	void endRender();
 	void present();
-
-	// for multithread.
-	void preRender();
-	void midRender();
-	void postRender();
 
 	void updateGlobalConstants(const float DELTA_TIME);
 	void updateLightConstants(const float DELTA_TIME);

@@ -57,10 +57,6 @@ void Renderer::Initizlie()
 	m_ScissorRect.top = 0;
 	m_ScissorRect.right = m_ScreenWidth;
 	m_ScissorRect.bottom = m_ScreenHeight;
-
-#if !SINGLETHREAD
-	initThreadAndEvent();
-#endif
 }
 
 int Renderer::Run()
@@ -132,7 +128,6 @@ void Renderer::Update(const float DELTA_TIME)
 
 void Renderer::Render()
 {
-#if SINGLETHREAD
 	beginRender();
 
 	shadowMapRender();
@@ -143,30 +138,6 @@ void Renderer::Render()
 	endRender();
 
 	present();
-
-#else
-	DWORD waitReturn = 0;
-
-	preRender();
-	for (int i = 0; i < LIGHT_THREADS; ++i)
-	{
-		SetEvent(m_hBeginShadowPass[i]); // Tell each worker to start drawing.
-	}
-	midRender();
-	for (int i = 0; i < NUM_THREADS; ++i)
-	{
-		SetEvent(m_hBeginRenderPass[i]); // Tell each worker to start drawing.
-	}
-	postRender();
-
-	waitReturn = WaitForMultipleObjects(LIGHT_THREADS, m_hFinishShadowPass, TRUE, INFINITE);
-	m_pCommandQueue->ExecuteCommandLists(LIGHT_THREADS + 1, m_pResourceManager->m_pBatchSubmits); // Submit MID and shadows.
-
-	waitReturn = WaitForMultipleObjects(NUM_THREADS, m_hFinishMainRenderPass, TRUE, INFINITE);
-	m_pCommandQueue->ExecuteCommandLists(NUM_THREADS * 2 + 1, m_pResourceManager->m_pBatchSubmits + LIGHT_THREADS + 1); // Submit mainRender, mirrrorRender, POST
-
-	present();
-#endif
 }
 
 void Renderer::Clear()
@@ -556,147 +527,6 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
 
 	return DefWindowProc(hWnd, msg, wParam, lParam);
-}
-
-void Renderer::ThreadWork(ThreadParameter* pParameter)
-{
-	int threadIndex = pParameter->ThreadIndex;
-	ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
-	{
-		m_DynamicDescriptorPool.GetDescriptorHeap(),
-		m_pResourceManager->m_pSamplerHeap
-	};
-	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize; 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-
-	_ASSERT(threadIndex >= 0);
-	_ASSERT(threadIndex < NUM_THREADS);
-
-	while (threadIndex >= 0 && threadIndex < NUM_THREADS)
-	{
-		WaitForSingleObject(m_hBeginRenderPass[threadIndex], INFINITE);
-		
-		ID3D12GraphicsCommandList* pRenderCommandList = m_pResourceManager->m_pRenderCommandLists[threadIndex];
-		ID3D12GraphicsCommandList* pMirrorCommandList = m_pResourceManager->m_pMirrorCommandLists[threadIndex];
-
-		pRenderCommandList->RSSetViewports(1, &m_ScreenViewport);
-		pRenderCommandList->RSSetScissorRects(1, &m_ScissorRect);
-		pRenderCommandList->OMSetRenderTargets(1, &floatRtvHandle, FALSE, &dsvHandle);
-
-		// main render pass.
-		pRenderCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		switch (threadIndex)
-		{
-			case 0:
-				m_pResourceManager->SetCommonState(pRenderCommandList, Skybox);
-				m_pSkybox->Render(m_pResourceManager, pRenderCommandList, Skybox);
-				break;
-
-			case 1: case 2: case 3: case 4:
-				m_pResourceManager->SetCommonState(pRenderCommandList, Default);
-				for (UINT64 i = threadIndex - 1, size = m_RenderObjects.size(); i < size; ++i)
-				{
-					Model* pCurModel = m_RenderObjects[i];
-
-					if (pCurModel->bIsVisible)
-					{
-						pCurModel->Render(m_pResourceManager, pRenderCommandList, Default);
-					}
-				}
-				break;
-
-			case 5:
-				m_pResourceManager->SetCommonState(pRenderCommandList, Skinned);
-				m_pCharacter->Render(m_pResourceManager, pRenderCommandList, Skinned);
-				break;
-
-			default:
-				__debugbreak();
-				break;
-		}
-
-		pRenderCommandList->Close();
-		
-
-		// mirror blend pass.
-		if (!m_pMirror)
-		{
-			goto LB_FIN;
-		}
-
-		pMirrorCommandList->RSSetViewports(1, &m_ScreenViewport);
-		pMirrorCommandList->RSSetScissorRects(1, &m_ScissorRect);
-		pMirrorCommandList->OMSetRenderTargets(1, &floatRtvHandle, FALSE, &dsvHandle);
-		pMirrorCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		switch (threadIndex)
-		{
-			case 0:
-				m_pResourceManager->SetCommonState(pMirrorCommandList, StencilMask);
-				m_pMirror->Render(m_pResourceManager, pMirrorCommandList, StencilMask);
-				break;
-
-			case 1: case 2: case 3:
-				m_pResourceManager->SetCommonState(pMirrorCommandList, ReflectionDefault);
-				for (UINT64 i = threadIndex - 1, size = m_RenderObjects.size(); i < size; i += NUM_THREADS)
-				{
-					Model* pCurModel = m_RenderObjects[i];
-					pCurModel->Render(m_pResourceManager, pMirrorCommandList, ReflectionDefault);
-				}
-				break;
-
-			case 4:
-				m_pResourceManager->SetCommonState(pMirrorCommandList, ReflectionSkinned);
-				m_pCharacter->Render(m_pResourceManager, pMirrorCommandList, ReflectionSkinned);
-				break;
-
-			case 5:
-				m_pResourceManager->SetCommonState(pMirrorCommandList, ReflectionSkybox);
-				m_pSkybox->Render(m_pResourceManager, pMirrorCommandList, ReflectionSkybox);
-				m_pResourceManager->SetCommonState(pMirrorCommandList, MirrorBlend);
-				m_pMirror->Render(m_pResourceManager, pMirrorCommandList, MirrorBlend);
-				break;
-
-			default:
-				__debugbreak();
-				break;
-		}
-
-	LB_FIN:
-		pMirrorCommandList->Close();
-		SetEvent(m_hFinishMainRenderPass[threadIndex]);
-	}
-}
-
-void Renderer::ThreadWork2(ThreadParameter* pParameter)
-{
-	int threadIndex = pParameter->ThreadIndex;
-	ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
-	{
-		m_DynamicDescriptorPool.GetDescriptorHeap(),
-		m_pResourceManager->m_pSamplerHeap
-	};
-
-	_ASSERT(threadIndex >= 0);
-	_ASSERT(threadIndex < LIGHT_THREADS);
-
-	while (threadIndex >= 0 && threadIndex < LIGHT_THREADS)
-	{
-		WaitForSingleObject(m_hBeginShadowPass[threadIndex], INFINITE);
-
-		ID3D12GraphicsCommandList* pShadowCommandList = m_pResourceManager->m_pShadowCommandLists[threadIndex];
-
-		// shadow pass.
-		pShadowCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		for (UINT64 i = threadIndex, size = m_Lights.size(); i < size; i += LIGHT_THREADS)
-		{
-			m_Lights[i].RenderShadowMap(m_pResourceManager, pShadowCommandList, m_RenderObjects, (SkinnedMeshModel*)m_pCharacter, m_pMirror);
-		}
-
-		pShadowCommandList->Close();
-		SetEvent(m_hFinishShadowPass[threadIndex]);
-	}
 }
 
 void Renderer::initMainWidndow()
@@ -1328,60 +1158,6 @@ void Renderer::initDescriptorHeap()
 	}
 }
 
-void Renderer::initThreadAndEvent()
-{
-	struct threadwrapper
-	{
-		static UINT WINAPI thunk(LPVOID lpParameter)
-		{
-			ThreadParameter* parameter = (ThreadParameter*)lpParameter;
-			Renderer::Get()->ThreadWork(parameter);
-			return 0;
-		}
-		static UINT WINAPI thunk2(LPVOID lpParameter)
-		{
-			ThreadParameter* parameter = (ThreadParameter*)lpParameter;
-			Renderer::Get()->ThreadWork2(parameter);
-			return 0;
-		}
-	};
-
-	for (int i = 0; i < LIGHT_THREADS; ++i)
-	{
-		m_hBeginShadowPass[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
-		m_hFinishShadowPass[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
-
-		m_LightParameters[i] = { i };
-		m_hLightHandles[i] = reinterpret_cast<HANDLE>(_beginthreadex(nullptr,
-																	 0,
-																	 threadwrapper::thunk2,
-																	 reinterpret_cast<LPVOID>(&m_LightParameters[i]),
-																	 0,
-																	 nullptr));
-
-		_ASSERT(m_hBeginShadowPass[i]);
-		_ASSERT(m_hFinishShadowPass[i]);
-		_ASSERT(m_hLightHandles[i]);
-	}
-	for (int i = 0; i < NUM_THREADS; ++i)
-	{
-		m_hBeginRenderPass[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
-		m_hFinishMainRenderPass[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
-
-		m_ThreadParameters[i] = { i };
-		m_hThreadHandles[i] = reinterpret_cast<HANDLE>(_beginthreadex(nullptr,
-																	  0,
-																	  threadwrapper::thunk,
-																	  reinterpret_cast<LPVOID>(&m_ThreadParameters[i]),
-																	  0,
-																	  nullptr));
-
-		_ASSERT(m_hBeginRenderPass[i]);
-		_ASSERT(m_hFinishMainRenderPass[i]);
-		_ASSERT(m_hThreadHandles[i]);
-	}
-}
-
 void Renderer::beginRender()
 {
 	HRESULT hr = S_OK;
@@ -1526,58 +1302,6 @@ void Renderer::present()
 	waitForFenceValue();
 
 	m_DynamicDescriptorPool.Reset();
-}
-
-void Renderer::preRender()
-{
-	m_pResourceManager->ResetCommandLists();
-}
-
-void Renderer::midRender()
-{
-	ID3D12GraphicsCommandList* pCommandList = m_pResourceManager->m_pCommandLists[Mid];
-
-	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-
-	const CD3DX12_RESOURCE_BARRIER RTV_BEFORE_BARRIERS[2] =
-	{
-		CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET),
-		CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET),
-	};
-	pCommandList->ResourceBarrier(2, RTV_BEFORE_BARRIERS);
-
-	const float COLOR[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
-	pCommandList->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
-	pCommandList->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
-	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-	pCommandList->Close();
-}
-
-void Renderer::postRender()
-{
-	ID3D12GraphicsCommandList* pCommandList = m_pResourceManager->m_pCommandLists[Post];
-	
-	// post processing
-	const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
-	pCommandList->ResourceBarrier(1, &BARRIER);
-	
-	ID3D12DescriptorHeap* ppDescriptorHeaps[] =
-	{
-		m_DynamicDescriptorPool.GetDescriptorHeap(),
-		m_pResourceManager->m_pSamplerHeap
-	};
-	pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-	
-	m_PostProcessor.Render(m_pResourceManager, pCommandList, m_FrameIndex);
-
-	// end render
-	const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
-	pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
-	pCommandList->Close();
 }
 
 void Renderer::updateGlobalConstants(const float DELTA_TIME)
