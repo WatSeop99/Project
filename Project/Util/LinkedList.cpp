@@ -26,7 +26,7 @@ void LinkElemIntoList(ListElem** ppHead, ListElem** ppTail, ListElem* pNew)
 
 void LinkElemIntoListFIFO(ListElem** ppHead, ListElem** ppTail, ListElem* pNew)
 {
-	if (!*ppHead)
+	if (*ppHead == nullptr)
 	{
 		*ppTail = *ppHead = pNew;
 		(*ppHead)->pNext = nullptr;
@@ -65,7 +65,9 @@ void UnLinkElemFromList(ListElem** ppHead, ListElem** ppTail, ListElem* pDel)
 	{
 #ifdef _DEBUG
 		if (pDel != (*ppHead))
+		{
 			__debugbreak();
+		}
 #endif
 		*ppHead = pNext;
 	}

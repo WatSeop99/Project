@@ -13,8 +13,11 @@ public:
 
 	void Update(ResourceManager* pManager, const float DELTA_TIME, Camera& mainCamera);
 
-	void RenderShadowMap(ResourceManager* pManager, std::vector<Model*>& renderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);
-	void RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>& renderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);
+	void RenderShadowMap(ResourceManager* pManager, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror);
+	void RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror);
+
+	/*void RenderShadowMap(ResourceManager* pManager, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);
+	void RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);*/
 
 	void Clear();
 

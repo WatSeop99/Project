@@ -22,24 +22,22 @@ void ShadowMap::Initialize(ResourceManager* pManager, UINT lightType)
 		case LIGHT_DIRECTIONAL:
 			dsvDesc.DepthOrArraySize = 4;
 			dsvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-			m_DirectionalLightShadowBuffer.Initialize(pManager, dsvDesc);
 			break;
 
 		case LIGHT_POINT:
 			dsvDesc.DepthOrArraySize = 6;
 			dsvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-			m_PointLightShadowBuffer.Initialize(pManager, dsvDesc);
 			break;
 
 		case LIGHT_SPOT:
 			dsvDesc.DepthOrArraySize = 1;
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-			m_SpotLightShadowBuffer.Initialize(pManager, dsvDesc);
 			break;
 
 		default:
 			break;
 	}
+	m_ShadowBuffer.Initialize(pManager, dsvDesc);
 
 	for (int i = 0; i < 6; ++i)
 	{
@@ -152,16 +150,17 @@ void ShadowMap::Update(ResourceManager* pManager, LightProperty& property, Camer
 	}
 }
 
-void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+void ShadowMap::Render(ResourceManager* pManager, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror)
 {
 	_ASSERT(pManager);
+	_ASSERT(pFirstRenderObject);
 
 	ID3D12GraphicsCommandList* pCommandList = pManager->m_pSingleCommandList;
 	const UINT DSV_DESCRIPTOR_SIZE = pManager->m_DSVDescriptorSize;
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle = {};
-	ID3D12Resource* pDepthStencilResource = nullptr;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_ShadowBuffer.GetDSVHandle());
+	ID3D12Resource* pDepthStencilResource = m_ShadowBuffer.GetResource();
 	CD3DX12_RESOURCE_BARRIER beforeBarrier = {};
 	CD3DX12_RESOURCE_BARRIER afterBarrier = {};
 
@@ -172,8 +171,6 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 	{
 		case LIGHT_DIRECTIONAL:
 		{
-			dsvHandle = m_DirectionalLightShadowBuffer.GetDSVHandle();
-			pDepthStencilResource = m_DirectionalLightShadowBuffer.GetResource();
 			beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			pCommandList->ResourceBarrier(1, &beforeBarrier);
 
@@ -182,13 +179,23 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 
 			pManager->SetCommonState(DepthOnlyCascadeDefault);
 			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetResource()->GetGPUVirtualAddress());
-			for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
+			/*for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
 			{
 				Model* const pCurModel = renderObjects[i];
 				if (pCurModel->bIsVisible && pCurModel->bCastShadow)
 				{
 					pCurModel->Render(pManager, DepthOnlyCascadeDefault);
 				}
+			}*/
+			ListElem* pRenderObject = &pFirstRenderObject->LinkInRenderObjects;
+			while (pRenderObject)
+			{
+				Model* pModel = pFirstRenderObject;
+				if (pModel->bIsVisible && pModel->bCastShadow)
+				{
+					pModel->Render(pManager, DepthOnlyCascadeDefault);
+				}
+				pRenderObject = pRenderObject->pNext;
 			}
 
 			pManager->SetCommonState(DepthOnlyCascadeSkinned);
@@ -206,8 +213,6 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 
 		case LIGHT_POINT:
 		{
-			dsvHandle = m_PointLightShadowBuffer.GetDSVHandle();
-			pDepthStencilResource = m_PointLightShadowBuffer.GetResource();
 			beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			pCommandList->ResourceBarrier(1, &beforeBarrier);
 
@@ -216,13 +221,23 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 
 			pManager->SetCommonState(DepthOnlyCubeDefault);
 			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
-			for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
+			/*for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
 			{
 				Model* const pCurModel = renderObjects[i];
 				if (pCurModel->bIsVisible && pCurModel->bCastShadow)
 				{
 					pCurModel->Render(pManager, DepthOnlyCubeDefault);
 				}
+			}*/
+			ListElem* pRenderObject = &pFirstRenderObject->LinkInRenderObjects;
+			while (pRenderObject)
+			{
+				Model* pModel = pFirstRenderObject;
+				if (pModel->bIsVisible && pModel->bCastShadow)
+				{
+					pModel->Render(pManager, DepthOnlyCascadeDefault);
+				}
+				pRenderObject = pRenderObject->pNext;
 			}
 
 			pManager->SetCommonState(DepthOnlyCubeSkinned);
@@ -240,8 +255,6 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 
 		case LIGHT_SPOT:
 		{
-			dsvHandle = m_SpotLightShadowBuffer.GetDSVHandle();
-			pDepthStencilResource = m_SpotLightShadowBuffer.GetResource();
 			beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			pCommandList->ResourceBarrier(1, &beforeBarrier);
 
@@ -250,13 +263,23 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 
 			pManager->SetCommonState(DepthOnlyDefault);
 			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
-			for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
+			/*for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
 			{
 				Model* const pCurModel = renderObjects[i];
 				if (pCurModel->bIsVisible && pCurModel->bCastShadow)
 				{
 					pCurModel->Render(pManager, DepthOnlyDefault);
 				}
+			}*/
+			ListElem* pRenderObject = &pFirstRenderObject->LinkInRenderObjects;
+			while (pRenderObject)
+			{
+				Model* pModel = pFirstRenderObject;
+				if (pModel->bIsVisible && pModel->bCastShadow)
+				{
+					pModel->Render(pManager, DepthOnlyCascadeDefault);
+				}
+				pRenderObject = pRenderObject->pNext;
 			}
 
 			pManager->SetCommonState(DepthOnlySkinned);
@@ -281,16 +304,17 @@ void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>& renderObj
 	pCommandList->ResourceBarrier(1, &afterBarrier);
 }
 
-void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>& renderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror)
 {
 	_ASSERT(pManager);
 	_ASSERT(pCommandList);
+	_ASSERT(pFirstRenderObject);
 
 	const UINT DSV_DESCRIPTOR_SIZE = pManager->m_DSVDescriptorSize;
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle = {};
-	ID3D12Resource* pDepthStencilResource = nullptr;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_ShadowBuffer.GetDSVHandle());
+	ID3D12Resource* pDepthStencilResource = m_ShadowBuffer.GetResource();
 	CD3DX12_RESOURCE_BARRIER beforeBarrier = {};
 	CD3DX12_RESOURCE_BARRIER afterBarrier = {};
 
@@ -301,8 +325,6 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 	{
 		case LIGHT_DIRECTIONAL:
 		{
-			dsvHandle = m_DirectionalLightShadowBuffer.GetDSVHandle();
-			pDepthStencilResource = m_DirectionalLightShadowBuffer.GetResource();
 			beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			pCommandList->ResourceBarrier(1, &beforeBarrier);
 
@@ -311,13 +333,23 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 
 			pManager->SetCommonState(pCommandList, DepthOnlyCascadeDefault);
 			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetResource()->GetGPUVirtualAddress());
-			for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
+			/*for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
 			{
 				Model* const pCurModel = renderObjects[i];
 				if (pCurModel->bIsVisible && pCurModel->bCastShadow)
 				{
 					pCurModel->Render(pManager, pCommandList, DepthOnlyCascadeDefault);
 				}
+			}*/
+			ListElem* pRenderObject = &pFirstRenderObject->LinkInRenderObjects;
+			while (pRenderObject)
+			{
+				Model* pModel = pFirstRenderObject;
+				if (pModel->bIsVisible && pModel->bCastShadow)
+				{
+					pModel->Render(pManager, pCommandList, DepthOnlyCascadeDefault);
+				}
+				pRenderObject = pRenderObject->pNext;
 			}
 
 			pManager->SetCommonState(pCommandList, DepthOnlyCascadeSkinned);
@@ -335,8 +367,6 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 
 		case LIGHT_POINT:
 		{
-			dsvHandle = m_PointLightShadowBuffer.GetDSVHandle();
-			pDepthStencilResource = m_PointLightShadowBuffer.GetResource();
 			beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			pCommandList->ResourceBarrier(1, &beforeBarrier);
 
@@ -345,13 +375,23 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 
 			pManager->SetCommonState(pCommandList, DepthOnlyCubeDefault);
 			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
-			for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
+			/*for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
 			{
 				Model* const pCurModel = renderObjects[i];
 				if (pCurModel->bIsVisible && pCurModel->bCastShadow)
 				{
 					pCurModel->Render(pManager, pCommandList, DepthOnlyCubeDefault);
 				}
+			}*/
+			ListElem* pRenderObject = &pFirstRenderObject->LinkInRenderObjects;
+			while (pRenderObject)
+			{
+				Model* pModel = pFirstRenderObject;
+				if (pModel->bIsVisible && pModel->bCastShadow)
+				{
+					pModel->Render(pManager, pCommandList, DepthOnlyCubeDefault);
+				}
+				pRenderObject = pRenderObject->pNext;
 			}
 
 			pManager->SetCommonState(pCommandList, DepthOnlyCubeSkinned);
@@ -369,8 +409,6 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 
 		case LIGHT_SPOT:
 		{
-			dsvHandle = m_SpotLightShadowBuffer.GetDSVHandle();
-			pDepthStencilResource = m_SpotLightShadowBuffer.GetResource();
 			beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			pCommandList->ResourceBarrier(1, &beforeBarrier);
 
@@ -379,13 +417,23 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 
 			pManager->SetCommonState(pCommandList, DepthOnlyDefault);
 			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
-			for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
+			/*for (UINT64 i = 0, size = renderObjects.size(); i < size; ++i)
 			{
 				Model* const pCurModel = renderObjects[i];
 				if (pCurModel->bIsVisible && pCurModel->bCastShadow)
 				{
 					pCurModel->Render(pManager, pCommandList, DepthOnlyDefault);
 				}
+			}*/
+			ListElem* pRenderObject = &pFirstRenderObject->LinkInRenderObjects;
+			while (pRenderObject)
+			{
+				Model* pModel = pFirstRenderObject;
+				if (pModel->bIsVisible && pModel->bCastShadow)
+				{
+					pModel->Render(pManager, pCommandList, DepthOnlyDefault);
+				}
+				pRenderObject = pRenderObject->pNext;
 			}
 
 			pManager->SetCommonState(pCommandList, DepthOnlySkinned);
@@ -410,12 +458,260 @@ void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCo
 	pCommandList->ResourceBarrier(1, &afterBarrier);
 }
 
+//void ShadowMap::Render(ResourceManager* pManager, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+//{
+//	_ASSERT(pManager);
+//	_ASSERT(pRenderObjects);
+//
+//	ID3D12GraphicsCommandList* pCommandList = pManager->m_pSingleCommandList;
+//	const UINT DSV_DESCRIPTOR_SIZE = pManager->m_DSVDescriptorSize;
+//	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+//
+//	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_ShadowBuffer.GetDSVHandle());
+//	ID3D12Resource* pDepthStencilResource = m_ShadowBuffer.GetResource();
+//	CD3DX12_RESOURCE_BARRIER beforeBarrier = {};
+//	CD3DX12_RESOURCE_BARRIER afterBarrier = {};
+//
+//	setShadowViewport(pCommandList);
+//	setShadowScissorRect(pCommandList);
+//
+//	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
+//	{
+//	case LIGHT_DIRECTIONAL:
+//	{
+//		beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+//		pCommandList->ResourceBarrier(1, &beforeBarrier);
+//
+//		pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+//		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+//
+//		pManager->SetCommonState(DepthOnlyCascadeDefault);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetResource()->GetGPUVirtualAddress());
+//		for (UINT64 i = 0, size = (*pRenderObjects).size(); i < size; ++i)
+//		{
+//			Model* const pCurModel = (*pRenderObjects)[i];
+//			if (pCurModel->bIsVisible && pCurModel->bCastShadow)
+//			{
+//				pCurModel->Render(pManager, DepthOnlyCascadeDefault);
+//			}
+//		}
+//
+//		pManager->SetCommonState(DepthOnlyCascadeSkinned);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//		pCharacter->Render(pManager, DepthOnlyCascadeSkinned);
+//
+//		if (pMirror && pMirror->bCastShadow)
+//		{
+//			pManager->SetCommonState(DepthOnlyCascadeDefault);
+//			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//			pMirror->Render(pManager, DepthOnlyCascadeDefault);
+//		}
+//	}
+//	break;
+//
+//	case LIGHT_POINT:
+//	{
+//		beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+//		pCommandList->ResourceBarrier(1, &beforeBarrier);
+//
+//		pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+//		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+//
+//		pManager->SetCommonState(DepthOnlyCubeDefault);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//		for (UINT64 i = 0, size = (*pRenderObjects).size(); i < size; ++i)
+//		{
+//			Model* const pCurModel = (*pRenderObjects)[i];
+//			if (pCurModel->bIsVisible && pCurModel->bCastShadow)
+//			{
+//				pCurModel->Render(pManager, DepthOnlyCubeDefault);
+//			}
+//		}
+//
+//		pManager->SetCommonState(DepthOnlyCubeSkinned);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//		pCharacter->Render(pManager, DepthOnlyCubeSkinned);
+//
+//		if (pMirror && pMirror->bCastShadow)
+//		{
+//			pManager->SetCommonState(DepthOnlyCubeDefault);
+//			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//			pMirror->Render(pManager, DepthOnlyCubeDefault);
+//		}
+//	}
+//	break;
+//
+//	case LIGHT_SPOT:
+//	{
+//		beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+//		pCommandList->ResourceBarrier(1, &beforeBarrier);
+//
+//		pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+//		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+//
+//		pManager->SetCommonState(DepthOnlyDefault);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
+//		for (UINT64 i = 0, size = (*pRenderObjects).size(); i < size; ++i)
+//		{
+//			Model* const pCurModel = (*pRenderObjects)[i];
+//			if (pCurModel->bIsVisible && pCurModel->bCastShadow)
+//			{
+//				pCurModel->Render(pManager, DepthOnlyDefault);
+//			}
+//		}
+//
+//		pManager->SetCommonState(DepthOnlySkinned);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
+//		pCharacter->Render(pManager, DepthOnlySkinned);
+//
+//		if (pMirror && pMirror->bCastShadow)
+//		{
+//			pManager->SetCommonState(DepthOnlyDefault);
+//			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
+//			pMirror->Render(pManager, DepthOnlyDefault);
+//		}
+//	}
+//	break;
+//
+//	default:
+//		break;
+//	}
+//
+//	_ASSERT(pDepthStencilResource);
+//	afterBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+//	pCommandList->ResourceBarrier(1, &afterBarrier);
+//}
+//
+//void ShadowMap::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+//{
+//	_ASSERT(pManager);
+//	_ASSERT(pCommandList);
+//	_ASSERT(pRenderObjects);
+//
+//	const UINT DSV_DESCRIPTOR_SIZE = pManager->m_DSVDescriptorSize;
+//	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+//
+//	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_ShadowBuffer.GetDSVHandle());
+//	ID3D12Resource* pDepthStencilResource = m_ShadowBuffer.GetResource();
+//	CD3DX12_RESOURCE_BARRIER beforeBarrier = {};
+//	CD3DX12_RESOURCE_BARRIER afterBarrier = {};
+//
+//	setShadowViewport(pCommandList);
+//	setShadowScissorRect(pCommandList);
+//
+//	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
+//	{
+//	case LIGHT_DIRECTIONAL:
+//	{
+//		beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+//		pCommandList->ResourceBarrier(1, &beforeBarrier);
+//
+//		pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+//		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+//
+//		pManager->SetCommonState(pCommandList, DepthOnlyCascadeDefault);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetResource()->GetGPUVirtualAddress());
+//		for (UINT64 i = 0, size = (*pRenderObjects).size(); i < size; ++i)
+//		{
+//			Model* const pCurModel = (*pRenderObjects)[i];
+//			if (pCurModel->bIsVisible && pCurModel->bCastShadow)
+//			{
+//				pCurModel->Render(pManager, pCommandList, DepthOnlyCascadeDefault);
+//			}
+//		}
+//
+//		pManager->SetCommonState(pCommandList, DepthOnlyCascadeSkinned);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//		pCharacter->Render(pManager, pCommandList, DepthOnlyCascadeSkinned);
+//
+//		if (pMirror && pMirror->bCastShadow)
+//		{
+//			pManager->SetCommonState(pCommandList, DepthOnlyCascadeDefault);
+//			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//			pMirror->Render(pManager, pCommandList, DepthOnlyCascadeDefault);
+//		}
+//	}
+//	break;
+//
+//	case LIGHT_POINT:
+//	{
+//		beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+//		pCommandList->ResourceBarrier(1, &beforeBarrier);
+//
+//		pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+//		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+//
+//		pManager->SetCommonState(pCommandList, DepthOnlyCubeDefault);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//		for (UINT64 i = 0, size = (*pRenderObjects).size(); i < size; ++i)
+//		{
+//			Model* const pCurModel = (*pRenderObjects)[i];
+//			if (pCurModel->bIsVisible && pCurModel->bCastShadow)
+//			{
+//				pCurModel->Render(pManager, pCommandList, DepthOnlyCubeDefault);
+//			}
+//		}
+//
+//		pManager->SetCommonState(pCommandList, DepthOnlyCubeSkinned);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//		pCharacter->Render(pManager, pCommandList, DepthOnlyCubeSkinned);
+//
+//		if (pMirror && pMirror->bCastShadow)
+//		{
+//			pManager->SetCommonState(pCommandList, DepthOnlyCubeDefault);
+//			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
+//			pMirror->Render(pManager, pCommandList, DepthOnlyCubeDefault);
+//		}
+//	}
+//	break;
+//
+//	case LIGHT_SPOT:
+//	{
+//		beforeBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+//		pCommandList->ResourceBarrier(1, &beforeBarrier);
+//
+//		pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+//		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+//
+//		pManager->SetCommonState(pCommandList, DepthOnlyDefault);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
+//		for (UINT64 i = 0, size = (*pRenderObjects).size(); i < size; ++i)
+//		{
+//			Model* const pCurModel = (*pRenderObjects)[i];
+//			if (pCurModel->bIsVisible && pCurModel->bCastShadow)
+//			{
+//				pCurModel->Render(pManager, pCommandList, DepthOnlyDefault);
+//			}
+//		}
+//
+//		pManager->SetCommonState(pCommandList, DepthOnlySkinned);
+//		pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
+//		pCharacter->Render(pManager, pCommandList, DepthOnlySkinned);
+//
+//		if (pMirror && pMirror->bCastShadow)
+//		{
+//			pManager->SetCommonState(pCommandList, DepthOnlyDefault);
+//			pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantBuffers[0].GetGPUMemAddr());
+//			pMirror->Render(pManager, pCommandList, DepthOnlyDefault);
+//		}
+//	}
+//	break;
+//
+//	default:
+//		break;
+//	}
+//
+//	_ASSERT(pDepthStencilResource);
+//	afterBarrier = CD3DX12_RESOURCE_BARRIER::Transition(pDepthStencilResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+//	pCommandList->ResourceBarrier(1, &afterBarrier);
+//}
+
 void ShadowMap::Clear()
 {
+	m_ShadowBuffer.Clear();
 	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
 	{
 		case LIGHT_DIRECTIONAL:
-			m_DirectionalLightShadowBuffer.Clear();
 			for (int i = 0; i < 4; ++i)
 			{
 				m_ShadowConstantBuffers[i].Clear();
@@ -424,7 +720,6 @@ void ShadowMap::Clear()
 			break;
 
 		case LIGHT_POINT:
-			m_PointLightShadowBuffer.Clear();
 			for (int i = 0; i < 6; ++i)
 			{
 				m_ShadowConstantBuffers[i].Clear();
@@ -433,7 +728,6 @@ void ShadowMap::Clear()
 			break;
 
 		case LIGHT_SPOT:
-			m_SpotLightShadowBuffer.Clear();
 			m_ShadowConstantBuffers[0].Clear();
 			break;
 
@@ -451,7 +745,7 @@ void ShadowMap::SetDescriptorHeap(ResourceManager* pManager)
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_DSVHeapSize, DSV_DESCRIPTOR_SIZE);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(pManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_CBVSRVUAVHeapSize, CBV_SRV_DESCRIPTOR_SIZE);
-	ID3D12Resource* pResource = nullptr;
+	ID3D12Resource* pResource = m_ShadowBuffer.GetResource();
 
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	ZeroMemory(&dsvDesc, sizeof(dsvDesc));
@@ -465,15 +759,13 @@ void ShadowMap::SetDescriptorHeap(ResourceManager* pManager)
 	{
 		case LIGHT_DIRECTIONAL:
 		{
-			pResource = m_DirectionalLightShadowBuffer.GetResource();
-
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
 			dsvDesc.Texture2DArray.FirstArraySlice = 0;
 			dsvDesc.Texture2DArray.MipSlice = 0;
 			dsvDesc.Texture2DArray.ArraySize = 4;
 			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
-			m_DirectionalLightShadowBuffer.SetDSVHandle(dsvHandle);
+			m_ShadowBuffer.SetDSVHandle(dsvHandle);
 
 			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
@@ -482,47 +774,43 @@ void ShadowMap::SetDescriptorHeap(ResourceManager* pManager)
 			srvDesc.Texture2DArray.FirstArraySlice = 0;
 			srvDesc.Texture2DArray.ArraySize = 4;
 			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
-			m_DirectionalLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
+			m_ShadowBuffer.SetSRVHandle(cbvSrvHandle);
 		}
 		break;
 
 		case LIGHT_POINT:
 		{
-			pResource = m_PointLightShadowBuffer.GetResource();
-
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
 			dsvDesc.Texture2DArray.FirstArraySlice = 0;
 			dsvDesc.Texture2DArray.MipSlice = 0;
 			dsvDesc.Texture2DArray.ArraySize = 6;
 			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
-			m_PointLightShadowBuffer.SetDSVHandle(dsvHandle);
+			m_ShadowBuffer.SetDSVHandle(dsvHandle);
 
 			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 			srvDesc.TextureCube.MostDetailedMip = 0;
 			srvDesc.TextureCube.MipLevels = 1;
 			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
-			m_PointLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
+			m_ShadowBuffer.SetSRVHandle(cbvSrvHandle);
 		}
 		break;
 
 		case LIGHT_SPOT:
 		{
-			pResource = m_SpotLightShadowBuffer.GetResource();
-
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 			dsvDesc.Texture2D.MipSlice = 0;
 			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
-			m_SpotLightShadowBuffer.SetDSVHandle(dsvHandle);
+			m_ShadowBuffer.SetDSVHandle(dsvHandle);
 
 			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			srvDesc.Texture2D.MostDetailedMip = 0;
 			srvDesc.Texture2D.MipLevels = 1;
 			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
-			m_SpotLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
+			m_ShadowBuffer.SetSRVHandle(cbvSrvHandle);
 		}
 		break;
 

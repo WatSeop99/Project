@@ -46,7 +46,7 @@ public:
 
 	std::string Name;
 
-	ListElem LinkInGame;
+	ListElem LinkInRenderObjects;
 
 protected:
 	Mesh* m_pBoundingBoxMesh = nullptr;

@@ -354,7 +354,7 @@ void ResourceManager::Clear()
 	m_pReflectionConstant = nullptr;
 
 	m_GlobalConstantViewStartOffset = 0xffffffff; // b0, b1
-	m_GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16`
+	m_GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
 
 	m_RTVDescriptorSize = 0;
 	m_DSVDescriptorSize = 0;
@@ -367,7 +367,7 @@ void ResourceManager::Clear()
 	m_SamplerHeapSize = 0;
 
 	// physx관련 해제.
-	if (m_pScene)
+	/*if (m_pScene)
 	{
 		m_pScene->release();
 		m_pScene = nullptr;
@@ -398,7 +398,7 @@ void ResourceManager::Clear()
 	{
 		m_pFoundation->release();
 		m_pFoundation = nullptr;
-	}
+	}*/
 
 	if (m_hFenceEvent)
 	{
@@ -2111,34 +2111,34 @@ void ResourceManager::initCommandLists()
 
 void ResourceManager::initPhysics(bool interactive)
 {
-	m_pFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, m_PhysxAllocator, m_ErrorCallback);
-	m_pPvd = PxCreatePvd(*m_pFoundation);
+	//m_pFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, m_PhysxAllocator, m_ErrorCallback);
+	//m_pPvd = PxCreatePvd(*m_pFoundation);
 
-	PxPvdTransport* pTransport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
-	m_pPvd->connect(*pTransport, PxPvdInstrumentationFlag::eALL);
+	//PxPvdTransport* pTransport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
+	//m_pPvd->connect(*pTransport, PxPvdInstrumentationFlag::eALL);
 
-	m_pPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *m_pFoundation, PxTolerancesScale(), true, m_pPvd);
-	PxInitExtensions(*m_pPhysics, m_pPvd);
+	//m_pPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *m_pFoundation, PxTolerancesScale(), true, m_pPvd);
+	//PxInitExtensions(*m_pPhysics, m_pPvd);
 
-	PxSceneDesc sceneDesc(m_pPhysics->getTolerancesScale());
-	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
-	m_pDispatcher = PxDefaultCpuDispatcherCreate(2); // 추후 스레드 갯수 수정.
-	sceneDesc.cpuDispatcher = m_pDispatcher;
-	sceneDesc.filterShader = PxDefaultSimulationFilterShader;
-	m_pScene = m_pPhysics->createScene(sceneDesc);
+	//PxSceneDesc sceneDesc(m_pPhysics->getTolerancesScale());
+	//sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
+	//m_pDispatcher = PxDefaultCpuDispatcherCreate(2); // 추후 스레드 갯수 수정.
+	//sceneDesc.cpuDispatcher = m_pDispatcher;
+	//sceneDesc.filterShader = PxDefaultSimulationFilterShader;
+	//m_pScene = m_pPhysics->createScene(sceneDesc);
 
-	PxPvdSceneClient* pPvdClient = m_pScene->getScenePvdClient();
-	if (pPvdClient)
-	{
-		pPvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS, true);
-		pPvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
-		pPvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
-	}
+	//PxPvdSceneClient* pPvdClient = m_pScene->getScenePvdClient();
+	//if (pPvdClient)
+	//{
+	//	pPvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS, true);
+	//	pPvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
+	//	pPvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
+	//}
 
-	// 추후 단계.
-	// 그라운드 세팅.
-	// 캐릭터 다리부분 메쉬에 physics 세팅. joint로 연결. 이때, 각도 설정이 중요할 듯. 과정은 샘플 참고할 것.
-	m_pMaterial = m_pPhysics->createMaterial(0.5f, 0.5f, 0.6f);
+	//// 추후 단계.
+	//// 그라운드 세팅.
+	//// 캐릭터 다리부분 메쉬에 physics 세팅. joint로 연결. 이때, 각도 설정이 중요할 듯. 과정은 샘플 참고할 것.
+	//m_pMaterial = m_pPhysics->createMaterial(0.5f, 0.5f, 0.6f);
 }
 
 UINT64 ResourceManager::fence()

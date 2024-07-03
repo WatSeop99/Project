@@ -3,11 +3,35 @@
 #include "../Graphics/Camera.h"
 #include "../Graphics/ConstantDataType.h"
 #include "DynamicDescriptorPool.h"
+#include "KnMControl.h"
 #include "../Graphics/Light.h"
 #include "../Model/Model.h"
 #include "../Model/SkinnedMeshModel.h"
 #include "../Graphics/PostProcessor.h"
 #include "Timer.h"
+
+struct InitialData
+{
+	ULONGLONG TotalRenderObject;
+	Model* pFirstModelOfList;
+	Light* pLights;
+	Model** ppLightSpheres;
+	/*std::vector<Model*>* pRenderObjects;
+	std::vector<Light>* pLights;
+	std::vector<Model*>* pLightSpheres;*/
+
+	Model* pSkybox;
+	Model* pGround;
+	Model* pMirror;
+	Model* pPickedModel;
+	Model* pCharacter;
+	DirectX::SimpleMath::Plane* pMirrorPlane;
+
+	Texture* pEnvTexture;
+	Texture* pIrradianceTexture;
+	Texture* pSpecularTexture;
+	Texture* pBRDFTexture;
+};
 
 const UINT SWAP_CHAIN_FRAME_COUNT = 2;
 const UINT MAX_PENDING_FRAME_NUM = SWAP_CHAIN_FRAME_COUNT - 1;
@@ -18,9 +42,9 @@ public:
 	Renderer();
 	~Renderer();
 
-	void Initizlie();
+	void Initizlie(Keyboard* pKeyboard, Mouse* pMouse, InitialData* pInitialData);
 
-	int Run();
+	// int Run();
 
 	void Update(const float DELTA_TIME);
 
@@ -37,7 +61,7 @@ protected:
 	void initMainWidndow();
 	void initDirect3D();
 	void initScene();
-	void initDescriptorHeap();
+	void initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture);
 
 	// for single thread.
 	void beginRender();
@@ -50,7 +74,7 @@ protected:
 
 	void updateGlobalConstants(const float DELTA_TIME);
 	void updateLightConstants(const float DELTA_TIME);
-	void updateAnimation(const float DELTA_TIME);
+	// void updateAnimation(const float DELTA_TIME);
 
 	void onMouseMove(const int MOUSE_X, const int MOUSE_Y);
 	void onMouseClick(const int MOUSE_X, const int MOUSE_Y);
@@ -96,17 +120,17 @@ private:
 	UINT m_FrameIndex = 0;
 
 	PostProcessor m_PostProcessor;
-	Timer m_Timer;
+	// Timer m_Timer;
 
 	// data
-	std::vector<Model*> m_RenderObjects;
-	std::vector<Light> m_Lights;
+	/*std::vector<Model*> m_RenderObjects;
+	std::vector<Light> m_Lights;*/
 
 	ConstantBuffer m_GlobalConstant;
 	ConstantBuffer m_LightConstant;
 	ConstantBuffer m_ReflectionGlobalConstant;
 
-	Texture m_EnvTexture;
+	/*Texture m_EnvTexture;
 	Texture m_IrradianceTexture;
 	Texture m_SpecularTexture;
 	Texture m_BRDFTexture;
@@ -117,15 +141,34 @@ private:
 	Model* m_pMirror = nullptr;
 	Model* m_pPickedModel = nullptr;
 	Model* m_pCharacter = nullptr;
-	DirectX::SimpleMath::Plane m_MirrorPlane;
+	DirectX::SimpleMath::Plane m_MirrorPlane;*/
+
+	ULONGLONG m_TotalRenderObject = 0;
+	Model* m_pFirstModelOfList = nullptr;
+	Light* m_pLights = nullptr;
+	Model** m_pLightSpheres = nullptr;
+	/*std::vector<Model*>* m_pRenderObjects = nullptr;
+	std::vector<Light>* m_pLights = nullptr;
+	std::vector<Model*>* m_pLightSpheres = nullptr;*/
+
+	Model* m_pSkybox = nullptr;
+	Model* m_pGround = nullptr;
+	Model* m_pMirror = nullptr;
+	Model* m_pPickedModel = nullptr;
+	Model* m_pCharacter = nullptr;
+	DirectX::SimpleMath::Plane* m_pMirrorPlane = nullptr;
+
 
 	// control.
 	Camera m_Camera;
-	bool m_bKeyPressed[256] = { false, };
+	/*bool m_bKeyPressed[256] = { false, };
 
 	bool m_bMouseLeftButton = false;
 	bool m_bMouseRightButton = false;
-	bool m_bMouseDragStartFlag = false;
+	bool m_bMouseDragStartFlag = false;*/
+
+	Keyboard* m_pKeyboard = nullptr;
+	Mouse* m_pMouse = nullptr;
 
 	float m_MouseNDCX = 0.0f;
 	float m_MouseNDCY = 0.0f;

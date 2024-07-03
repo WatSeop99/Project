@@ -45,11 +45,13 @@ void ExtendBoundingBox(const DirectX::BoundingBox& SRC_BOX, DirectX::BoundingBox
 
 Model::Model(ResourceManager* pManager, std::wstring& basePath, std::wstring& fileName)
 {
+	LinkInRenderObjects.pItem = this;
 	Initialize(pManager, basePath, fileName);
 }
 
 Model::Model(ResourceManager* pManager, const std::vector<MeshInfo>&MESH_INFOS)
 {
+	LinkInRenderObjects.pItem = this;
 	Initialize(pManager, MESH_INFOS);
 }
 
@@ -288,6 +290,7 @@ void Model::InitMeshBuffers(ResourceManager* pManager, const MeshInfo& MESH_INFO
 										  &(pNewMesh->pVertexBuffer),
 										  (void*)MESH_INFO.Vertices.data());
 		BREAK_IF_FAILED(hr);
+		pNewMesh->pVertexBuffer->SetName(L"VertexBuffer");
 		pNewMesh->VertexCount = (UINT)MESH_INFO.Vertices.size();
 	}
 
@@ -299,6 +302,7 @@ void Model::InitMeshBuffers(ResourceManager* pManager, const MeshInfo& MESH_INFO
 										 &(pNewMesh->pIndexBuffer),
 										 (void*)MESH_INFO.Indices.data());
 		BREAK_IF_FAILED(hr);
+		pNewMesh->pIndexBuffer->SetName(L"IndexBuffer");
 		pNewMesh->IndexCount = (UINT)MESH_INFO.Indices.size();
 	}
 }
@@ -501,6 +505,8 @@ void Model::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pComman
 
 void Model::Clear()
 {
+	LinkInRenderObjects.pItem = nullptr;
+
 	if (m_pBoundingSphereMesh)
 	{
 		ReleaseMesh(&m_pBoundingSphereMesh);

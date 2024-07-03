@@ -73,7 +73,7 @@ void Light::Update(ResourceManager* pManager, const float DELTA_TIME, Camera& ma
 			case LIGHT_DIRECTIONAL:
 				for (int i = 0; i < 4; ++i)
 				{
-					GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(pShadowGlobalConstants[i].pData);
+					GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)pShadowGlobalConstants[i].pData;
 					Property.ViewProjections[i] = pShadowGlobalConstantData->ViewProjection;
 					Property.Projections[i] = pShadowGlobalConstantData->Projection;
 					Property.InverseProjections[i] = pShadowGlobalConstantData->InverseProjection;
@@ -102,21 +102,37 @@ void Light::Update(ResourceManager* pManager, const float DELTA_TIME, Camera& ma
 	}
 }
 
-void Light::RenderShadowMap(ResourceManager* pManager, std::vector<Model*>& renderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+void Light::RenderShadowMap(ResourceManager* pManager, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror)
 {
 	if (Property.LightType & LIGHT_SHADOW)
 	{
-		ShadowMap.Render(pManager, renderObjects, pCharacter, pMirror);
+		ShadowMap.Render(pManager, pFirstRenderObject, pCharacter, pMirror);
 	}
 }
 
-void Light::RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>& renderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+void Light::RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror)
 {
 	if (Property.LightType & LIGHT_SHADOW)
 	{
-		ShadowMap.Render(pManager, pCommandList, renderObjects, pCharacter, pMirror);
+		ShadowMap.Render(pManager, pCommandList, pFirstRenderObject, pCharacter, pMirror);
 	}
 }
+
+//void Light::RenderShadowMap(ResourceManager* pManager, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+//{
+//	if (Property.LightType & LIGHT_SHADOW)
+//	{
+//		ShadowMap.Render(pManager, pRenderObjects, pCharacter, pMirror);
+//	}
+//}
+//
+//void Light::RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
+//{
+//	if (Property.LightType & LIGHT_SHADOW)
+//	{
+//		ShadowMap.Render(pManager, pCommandList, pRenderObjects, pCharacter, pMirror);
+//	}
+//}
 
 void Light::Clear()
 {

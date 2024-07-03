@@ -122,6 +122,11 @@ std::wstring GetFileExtension(const std::wstring& szFilePath)
 	return fileName.substr(extOffset + 1);
 }
 
+ULONGLONG GetAllocMemorySize(ULONGLONG size)
+{
+	return (size + sizeof(ULONGLONG) * 2);
+}
+
 int Min(int x, int y)
 {
 	return (x < y ? x : y);

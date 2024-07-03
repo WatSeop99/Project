@@ -197,17 +197,13 @@ HRESULT ReadDDSImage(ID3D12Device* pDevice, ID3D12CommandQueue* pCommandQueue, c
 	// Upload the resources to the GPU.
 	auto uploadResourcesFinished = resourceUpload.End(pCommandQueue);
 
-	// Wait for the upload thread to terminate
+	// Wait for the upload thread to terminate.
 	uploadResourcesFinished.wait();
 
 	pResource->SetName(L"TextureResource");
 
-	/*pResource->AddRef();
-	hr = pResource->QueryInterface(IID_PPV_ARGS(ppResource));*/
 	hr = pResource.CopyTo(ppResource);
 	BREAK_IF_FAILED(hr);
-
-	// SAFE_RELEASE(pResource);
 
 	return hr;
 }

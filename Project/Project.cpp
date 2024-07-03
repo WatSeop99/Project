@@ -1,7 +1,7 @@
 ﻿#include "pch.h"
 #include "Resource.h"
 #include "framework.h"
-#include "Renderer\Renderer.h"
+#include "App/App.h"
 
 #ifdef _DEBUG
 #include <crtdbg.h>
@@ -14,7 +14,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	Renderer* pRenderer = new Renderer;
+	/*Renderer* pRenderer = new Renderer;
 
 	pRenderer->Initizlie();
 	pRenderer->Run();
@@ -23,6 +23,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	{
 		delete pRenderer;
 		pRenderer = nullptr;
+	}*/
+
+	App* pApp = new App;
+	pApp->Initialize();
+	pApp->Run();
+
+	if (pApp)
+	{
+		delete pApp;
+		pApp = nullptr;
 	}
 
 #ifdef _DEBUG

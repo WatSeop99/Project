@@ -1,6 +1,7 @@
 #pragma once
 
 #include <directxtk12/SimpleMath.h>
+#include "../Renderer/KnMControl.h"
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Matrix;
@@ -47,7 +48,7 @@ public:
 	}
 
 	void UpdateViewDir();
-	void UpdateKeyboard(const float DELTA_TIME, bool const bKEY_PRESSED[256]);
+	void UpdateKeyboard(const float DELTA_TIME, const Keyboard* const pKeyboard);
 	void UpdateMouse(float mouseNDCX, float mouseNDCY);
 
 	void MoveForward(float deltaTime);

@@ -124,14 +124,14 @@ private:
 	UINT64 m_FenceValue = 0;
 
 	// physx ฐüทร.
-	PxDefaultAllocator m_PhysxAllocator;
+	/*PxDefaultAllocator m_PhysxAllocator;
 	PxDefaultErrorCallback m_ErrorCallback;
 	PxFoundation* m_pFoundation = nullptr;
 	PxPhysics* m_pPhysics = nullptr;
 	PxDefaultCpuDispatcher* m_pDispatcher = nullptr;
 	PxScene* m_pScene = nullptr;
 	PxMaterial* m_pMaterial = nullptr;
-	PxPvd* m_pPvd = nullptr;
+	PxPvd* m_pPvd = nullptr;*/
 
 	// root signature.
 	ID3D12RootSignature* m_pDefaultRootSignature = nullptr;
