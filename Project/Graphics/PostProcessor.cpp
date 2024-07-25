@@ -11,8 +11,6 @@ void PostProcessor::Initizlie(Renderer* pRenderer, const PostProcessingBuffers& 
 	HRESULT hr = S_OK;
 	ResourceManager* pManager = pRenderer->GetResourceManager();
 
-	Cleanup();
-
 	// 후처리용 리소스 설정.
 	setRenderConfig(CONFIG);
 
@@ -126,7 +124,6 @@ void PostProcessor::Initizlie(Renderer* pRenderer, const PostProcessingBuffers& 
 	m_CombineFilter.SetSRVOffsets(pRenderer, { { m_pResolvedBuffer, 0xffffffff, m_ResolvedSRVOffset }, { m_BloomResources[0].pResource, 0xffffffff, m_BloomResources[0].SRVOffset }, { m_pPrevBuffer, 0xffffffff, m_PrevBufferSRVOffset } });
 	m_CombineFilter.SetRTVOffsets(pRenderer, { { m_ppBackBuffers[0], m_BackBufferRTV1Offset, 0xffffffff }, { m_ppBackBuffers[1], m_BackBufferRTV2Offset, 0xffffffff } });
 
-	// ImageFilterConstant* pCombineConst = (ImageFilterConstant*)m_CombineFilter.GetConstantPtr()->pData;
 	ImageFilterConstant* pCombineConst = m_CombineFilter.GetConstantDataPtr();
 	pCombineConst->Option1 = 0.8f;  // exposure.
 	pCombineConst->Option2 = 1.8f;  // gamma.
@@ -151,8 +148,6 @@ void PostProcessor::Render(Renderer* pRenderer, UINT frameIndex)
 	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
 
 	// 스크린 렌더링을 위한 정점 버퍼와 인텍스 버퍼를 미리 설정.
-	/*UINT stride = sizeof(Vertex);
-	UINT offset = 0;*/
 	pCommandList->IASetVertexBuffers(0, 1, &m_pScreenMesh->Vertex.VertexBufferView);
 	pCommandList->IASetIndexBuffer(&m_pScreenMesh->Index.IndexBufferView);
 

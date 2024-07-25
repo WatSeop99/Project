@@ -385,7 +385,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 			0, 2, 1, 1, 2, 3, // ÇÏ´Ü¸é
 			4, 5, 6, 5, 7, 6, // »ó´Ü¸é
 			8, 10, 9, 11, 13, 12, // ¾çÂÊ¸é
-			14, 17, 16, 14, 16, 15, // µÞ¸é
+			14, 16, 17, 15, 14, 17, // µÞ¸é
 		};
 
 		m_PhysicsManager.CookingStaticTriangleMesh(&mesh.Vertices, &mesh.Indices, pSlope->World);

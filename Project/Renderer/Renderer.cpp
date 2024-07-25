@@ -356,7 +356,7 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				m_pFloatBuffer->SetName(L"FloatBuffer");
 
 
-				resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
 				resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 				hr = m_pDevice->CreateCommittedResource(&heapProps,
 														D3D12_HEAP_FLAG_NONE,
@@ -440,6 +440,7 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
 
 				D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+				srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 				srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 				srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 				srvDesc.Texture2D.MostDetailedMip = 0;
@@ -448,13 +449,21 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
 				// float buffer srv
-				srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 				m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
 
 				// prev buffer srv
 				srvHandle = startSrvHandle;
 				srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
 				// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				{
+					D3D12_RESOURCE_DESC prevBufferDesc = m_pPrevBuffer->GetDesc();
+					DXGI_FORMAT prevBufferFormat = prevBufferDesc.Format;
+
+					// Print the format to the console for verification
+					char szDebugString[256];
+					sprintf_s(szDebugString, 256, "m_PrevBuffer Format: %d\n", prevBufferFormat);
+					OutputDebugStringA(szDebugString);
+				}
 				m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
 			}
 
@@ -810,6 +819,15 @@ LB_EXIT:
 												IID_PPV_ARGS(&m_pPrevBuffer));
 		BREAK_IF_FAILED(hr);
 		m_pPrevBuffer->SetName(L"PrevBuffer");
+		{
+			D3D12_RESOURCE_DESC prevBufferDesc = m_pPrevBuffer->GetDesc();
+			DXGI_FORMAT prevBufferFormat = prevBufferDesc.Format;
+
+			// Print the format to the console for verification
+			char szDebugString[256];
+			sprintf_s(szDebugString, 256, "m_PrevBuffer Format: %d\n", prevBufferFormat);
+			OutputDebugStringA(szDebugString);
+		}
 	}
 
 	ResourceManager::InitialData initData = { m_pDevice, m_pCommandQueue, m_ppCommandAllocator, m_ppCommandList, &m_DynamicDescriptorPool, &m_ConstantBufferManager, m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues };
@@ -948,6 +966,7 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+		srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Texture2D.MostDetailedMip = 0;
@@ -956,7 +975,6 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
 		// float buffer srv
-		srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, cbvSrvHandle);
 		m_FloatBufferSRVOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
 		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
