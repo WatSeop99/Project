@@ -7,27 +7,24 @@ class Light
 {
 public:
 	Light(UINT width = 1280, UINT height = 1280);
-	~Light() { Clear(); }
+	~Light() { Cleanup(); }
 
-	void Initialize(ResourceManager* pManager);
+	void Initialize(Renderer* pRenderer);
 
-	void Update(ResourceManager* pManager, const float DELTA_TIME, Camera& mainCamera);
+	void Update(Renderer* pRenderer, const float DELTA_TIME, Camera& mainCamera);
 
-	void RenderShadowMap(ResourceManager* pManager, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror);
-	void RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror);
+	void RenderShadowMap(Renderer* pRenderer, std::vector<Model*>* pRenderObjects);
 
-	/*void RenderShadowMap(ResourceManager* pManager, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);
-	void RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);*/
-
-	void Clear();
+	void Cleanup();
 
 	inline void SetPosition(const Vector3& POS) { m_LightViewCamera.SetEyePos(POS); }
 	inline void SetDirection(const Vector3& DIR) { m_LightViewCamera.SetViewDir(DIR); }
-	inline void SetShadowSize(const UINT WIDTH, const UINT HEIGHT) { ShadowMap.SetShadowWidth(WIDTH); ShadowMap.SetShadowHeight(HEIGHT); }
+	inline void SetShadowSize(const UINT WIDTH, const UINT HEIGHT) { LightShadowMap.SetShadowWidth(WIDTH); LightShadowMap.SetShadowHeight(HEIGHT); }
+	
 
 public:
 	LightProperty Property;
-	ShadowMap ShadowMap;
+	ShadowMap LightShadowMap;
 	bool bRotated = false;
 	bool bVisible = true;
 

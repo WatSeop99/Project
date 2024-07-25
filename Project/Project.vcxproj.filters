@@ -30,7 +30,7 @@
     <ClInclude Include="Graphics\ConstantBuffer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Graphics\ConstantDataType.h">
+    <ClInclude Include="Renderer\ConstantDataType.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\GraphicsUtil.h">
@@ -96,13 +96,34 @@
     <ClInclude Include="pch.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="App\App.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Util\LinkedList.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Renderer\KnMControl.h">
+    <ClInclude Include="App\App.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Util\KnM.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\RenderQueue.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\CommandListPool.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\RenderThread.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\EnumType.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Physics\PhysicsManager.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\ConstantBufferPool.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\ConstantBufferManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
@@ -170,10 +191,28 @@
     <ClCompile Include="pch.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Util\LinkedList.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="App\App.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Util\LinkedList.cpp">
+    <ClCompile Include="Renderer\RenderQueue.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\CommandListPool.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\RenderThread.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Physics\PhysicsManager.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\ConstantBufferPool.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\ConstantBufferManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
@@ -208,6 +247,7 @@
     <FxCompile Include="Shaders\SamplingVS.hlsl" />
     <FxCompile Include="Shaders\SkyboxPS.hlsl" />
     <FxCompile Include="Shaders\SkyboxVS.hlsl" />
+    <FxCompile Include="Shaders\ColorPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Common.hlsli" />

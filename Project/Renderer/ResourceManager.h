@@ -1,56 +1,42 @@
 #pragma once
 
 #include <ctype.h>
-#include <physx/PxPhysicsAPI.h>
 #include "../Graphics/ConstantBuffer.h"
+#include "CommandListPool.h"
 #include "DynamicDescriptorPool.h"
+#include "RenderQueue.h"
 #include "../Graphics/Texture.h"
 
 class ConstantBuffer;
 
-using namespace physx;
-
-enum ePipelineStateSetting
-{
-	None = 0,
-	Default,
-	Skinned,
-	Skybox,
-	StencilMask,
-	MirrorBlend,
-	ReflectionDefault,
-	ReflectionSkinned,
-	ReflectionSkybox,
-	DepthOnlyDefault,
-	DepthOnlySkinned,
-	DepthOnlyCubeDefault,
-	DepthOnlyCubeSkinned,
-	DepthOnlyCascadeDefault,
-	DepthOnlyCascadeSkinned,
-	Sampling,
-	BloomDown,
-	BloomUp,
-	Combine,
-};
-enum eCommonContext
-{
-	// Pre = 0,
-	Mid = 0,
-	Post = 1
-};
-
-static const int NUM_THREADS = 6;
-static const int LIGHT_THREADS = 3;
-static const int COMMON_COMMANDLIST_COUNT = 2;
-const UINT MAX_DESCRIPTOR_NUM = 256;
+static const UINT SWAP_CHAIN_FRAME_COUNT = 2;
+static const UINT MAX_RENDER_THREAD_COUNT = 6;
+static const UINT MAX_DESCRIPTOR_NUM = 1024;
 
 class ResourceManager
 {
 public:
-	ResourceManager() = default;
-	~ResourceManager() { Clear(); }
+	struct InitialData
+	{
+		ID3D12Device5* pDevice;
+		ID3D12CommandQueue* pCommandQueue;
+		ID3D12CommandAllocator** ppCommandAllocator;
+		ID3D12GraphicsCommandList** ppCommandList;
+		DynamicDescriptorPool* pDynamicDescriptorPool;
+		ConstantBufferManager* pConstantBufferManager;
 
-	void Initialize(ID3D12Device5* pDevice, ID3D12CommandQueue* pCommandQueue, ID3D12CommandAllocator* pCommandAllocator, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDynamicDescriptorPool);
+		HANDLE hFenceEvent;
+		ID3D12Fence* pFence;
+		UINT* pFrameIndex;
+		UINT64* pFenceValue;
+		UINT64* pLastFenceValues;
+	};
+
+public:
+	ResourceManager() = default;
+	~ResourceManager() { Cleanup(); }
+
+	void Initialize(InitialData* pInitialData);
 	void InitRTVDescriptorHeap(UINT maxDescriptorNum);
 	void InitDSVDescriptorHeap(UINT maxDescriptorNum);
 	void InitCBVSRVUAVDescriptorHeap(UINT maxDescriptorNum);
@@ -60,13 +46,13 @@ public:
 	
 	HRESULT UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* originalState);
 
-	void Clear();
+	void Cleanup();
 
-	void ResetCommandLists();
+	inline ID3D12GraphicsCommandList* GetCommandList() { return m_ppSingleCommandList[*m_pFrameIndex]; }
 
 	void SetGlobalConstants(ConstantBuffer* pGlobal, ConstantBuffer* pLight, ConstantBuffer* pReflection);
-	void SetCommonState(ePipelineStateSetting psoState);
-	void SetCommonState(ID3D12GraphicsCommandList* pCommandList, ePipelineStateSetting psoState);
+	void SetCommonState(eRenderPSOType psoState);
+	void SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, int psoState);
 
 protected:
 	void initSamplers();
@@ -75,34 +61,24 @@ protected:
 	void initDepthStencilStateDescs();
 	void initPipelineStates();
 	void initShaders();
-	void initCommandLists();
-	void initPhysics(bool interactive);
 
 	UINT64 fence();
-	void waitForGPU();
+	void waitForGPU(UINT64 expectedFenceValue);
 
 public:
 	ID3D12Device5* m_pDevice = nullptr;
 	ID3D12CommandQueue* m_pCommandQueue = nullptr;
-	ID3D12CommandAllocator* m_pSingleCommandAllocator = nullptr;
-	ID3D12GraphicsCommandList* m_pSingleCommandList = nullptr;
-	
-	ID3D12CommandList* m_pBatchSubmits[COMMON_COMMANDLIST_COUNT + LIGHT_THREADS + NUM_THREADS * 2] = { nullptr, };
-
-	ID3D12CommandAllocator* m_pCommandAllocators[COMMON_COMMANDLIST_COUNT] = { nullptr, };
-	ID3D12CommandAllocator* m_pShadowCommandAllocators[LIGHT_THREADS] = { nullptr, };
-	ID3D12CommandAllocator* m_pRenderCommandAllocators[NUM_THREADS] = { nullptr, };
-	ID3D12CommandAllocator* m_pMirrorCommandAllocators[NUM_THREADS] = { nullptr, };
-	ID3D12GraphicsCommandList* m_pCommandLists[COMMON_COMMANDLIST_COUNT] = { nullptr, };
-	ID3D12GraphicsCommandList* m_pShadowCommandLists[LIGHT_THREADS] = { nullptr, };
-	ID3D12GraphicsCommandList* m_pRenderCommandLists[NUM_THREADS] = { nullptr, };
-	ID3D12GraphicsCommandList* m_pMirrorCommandLists[NUM_THREADS] = { nullptr, };
+	ID3D12CommandAllocator** m_ppSingleCommandAllocator = nullptr;
+	ID3D12GraphicsCommandList** m_ppSingleCommandList = nullptr;
 
 	ID3D12DescriptorHeap* m_pRTVHeap = nullptr;
 	ID3D12DescriptorHeap* m_pDSVHeap = nullptr;
 	ID3D12DescriptorHeap* m_pCBVSRVUAVHeap = nullptr;
 	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
 	DynamicDescriptorPool* m_pDynamicDescriptorPool = nullptr;
+	ConstantBufferManager* m_pConstnatBufferManager = nullptr;
+
+	UINT* m_pFrameIndex = nullptr;
 
 	UINT m_RTVDescriptorSize = 0;
 	UINT m_DSVDescriptorSize = 0;
@@ -121,17 +97,8 @@ public:
 private:
 	HANDLE m_hFenceEvent = nullptr;
 	ID3D12Fence* m_pFence = nullptr;
-	UINT64 m_FenceValue = 0;
-
-	// physx ฐüทร.
-	/*PxDefaultAllocator m_PhysxAllocator;
-	PxDefaultErrorCallback m_ErrorCallback;
-	PxFoundation* m_pFoundation = nullptr;
-	PxPhysics* m_pPhysics = nullptr;
-	PxDefaultCpuDispatcher* m_pDispatcher = nullptr;
-	PxScene* m_pScene = nullptr;
-	PxMaterial* m_pMaterial = nullptr;
-	PxPvd* m_pPvd = nullptr;*/
+	UINT64* m_pFenceValue = nullptr;
+	UINT64* m_pFenceValues = nullptr;
 
 	// root signature.
 	ID3D12RootSignature* m_pDefaultRootSignature = nullptr;
@@ -142,6 +109,7 @@ private:
 	ID3D12RootSignature* m_pDepthOnlyAroundSkinnedRootSignature = nullptr;
 	ID3D12RootSignature* m_pSamplingRootSignature = nullptr;
 	ID3D12RootSignature* m_pCombineRootSignature = nullptr;
+	ID3D12RootSignature* m_pDefaultWireRootSignature = nullptr;
 
 	// pipeline state.
 	ID3D12PipelineState* m_pDefaultSolidPSO = nullptr;
@@ -166,10 +134,13 @@ private:
 	ID3D12PipelineState* m_pBloomUpPSO = nullptr;
 	ID3D12PipelineState* m_pCombinePSO = nullptr;
 
+	ID3D12PipelineState* m_pDefaultWirePSO = nullptr;
+
 	// rasterizer state.
 	D3D12_RASTERIZER_DESC m_RasterizerSolidDesc = {};
 	D3D12_RASTERIZER_DESC m_RasterizerSolidCcwDesc = {};
 	D3D12_RASTERIZER_DESC m_RasterizerPostProcessDesc = {};
+	D3D12_RASTERIZER_DESC m_RasterizerWireDesc = {};
 
 	// depthstencil state.
 	D3D12_DEPTH_STENCIL_DESC m_DepthStencilDrawDesc = {};
@@ -203,6 +174,7 @@ private:
 	ID3DBlob* m_pCombinePS = nullptr;
 	ID3DBlob* m_pBloomDownPS = nullptr;
 	ID3DBlob* m_pBloomUpPS = nullptr;
+	ID3DBlob* m_pColorPS = nullptr;
 
 	ID3DBlob* m_pDepthOnlyCubeGS = nullptr;
 	ID3DBlob* m_pDepthOnlyCascadeGS = nullptr;

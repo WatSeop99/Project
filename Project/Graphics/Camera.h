@@ -1,10 +1,12 @@
 #pragma once
 
 #include <directxtk12/SimpleMath.h>
-#include "../Renderer/KnMControl.h"
+#include "../Util/KnM.h"
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Matrix;
+
+class Renderer;
 
 class Camera
 {
@@ -48,7 +50,7 @@ public:
 	}
 
 	void UpdateViewDir();
-	void UpdateKeyboard(const float DELTA_TIME, const Keyboard* const pKeyboard);
+	void UpdateKeyboard(const float DELTA_TIME, Keyboard* pKeyboard);
 	void UpdateMouse(float mouseNDCX, float mouseNDCY);
 
 	void MoveForward(float deltaTime);

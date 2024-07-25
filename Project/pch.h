@@ -1,14 +1,16 @@
 #ifndef PCH_H
 #define PCH_H
 
+#include <PxPhysicsAPI.h>
+
 #ifdef _DEBUG
-//#define _CRTDBG_MAP_ALLOC
-//#define _CRTDBG_MAP_ALLOC_NEW
-//#include <crtdbg.h>
+#define _CRTDBG_MAP_ALLOC
+#define _CRTDBG_MAP_ALLOC_NEW
+#include <crtdbg.h>
 #include <dxgidebug.h>
 
-//#define DEBUG_NEW new(_NORMAL_BLOCK, __FILE__, __LINE__)
-//#define new DEBUG_NEW
+#define DEBUG_NEW new(_NORMAL_BLOCK, __FILE__, __LINE__)
+#define new DEBUG_NEW
 #endif
 
 #include "targetver.h"
@@ -25,30 +27,29 @@
 // #pragma comment(lib, "dwrite.lib")
 
 #include <Windows.h>
-
 #include <initguid.h>
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <d3d11on12.h>
 #include <dwrite.h>
 #include <d3dx12/d3dx12.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
-
 // #include <pix3.h>
 
 #include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <wchar.h>
 #include <stdint.h>
 #include <process.h>
 #include <synchapi.h>
 
-#define SINGLETHREAD FALSE
+// #define USE_MULTI_THREAD
 
-#include "Renderer/ResourceManager.h"
+#include "Graphics/EnumType.h"
+#include "Renderer/Renderer.h"
 
 #define BREAK_IF_FAILED(hr) \
 		if (FAILED(hr))		\
@@ -61,6 +62,6 @@
 			(p)->Release(); \
 			(p) = nullptr;	\
 		}
-#define ALIGN(size) __declspec(align(size))
+
 
 #endif

@@ -17,9 +17,9 @@ void LinkElemIntoList(ListElem** ppHead, ListElem** ppTail, ListElem* pNew)
 			__debugbreak();
 		}
 #endif
-		pNew->pNext = *ppHead;
+		pNew->pNext = (*ppHead);
 		(*ppHead)->pPrev = pNew;
-		*ppHead = pNew;
+		(*ppHead) = pNew;
 		pNew->pPrev = nullptr;
 	}
 }

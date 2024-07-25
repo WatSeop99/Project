@@ -1,18 +1,20 @@
 #pragma once
 
-class ResourceManager;
+#include "../Renderer/Renderer.h"
+
+class Renderer;
 
 class ConstantBuffer
 {
 public:
 	ConstantBuffer() = default;
-	~ConstantBuffer() { Clear(); }
+	~ConstantBuffer() { Cleanup(); }
 
-	void Initialize(ResourceManager* pManager, UINT64 bufferSize);
+	void Initialize(Renderer* pRenderer, UINT64 bufferSize);
 
 	void Upload();
 
-	void Clear();
+	void Cleanup();
 
 	inline void SetCBVHandle(const D3D12_CPU_DESCRIPTOR_HANDLE HANDLE) { m_CBVHandle = HANDLE; }
 

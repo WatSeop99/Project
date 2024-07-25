@@ -1,13 +1,15 @@
 #include "../pch.h"
+#include "../Renderer/ResourceManager.h"
 #include "ConstantBuffer.h"
 
-void ConstantBuffer::Initialize(ResourceManager* pManager, UINT64 bufferSize)
+void ConstantBuffer::Initialize(Renderer* pRenderer, UINT64 bufferSize)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
-	Clear();
+	Cleanup();
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 
 	m_BufferSize = (bufferSize + 255) & ~(255);
@@ -60,7 +62,7 @@ void ConstantBuffer::Upload()
 	memcpy(m_pSystemMemAddr, pData, m_DataSize);
 }
 
-void ConstantBuffer::Clear()
+void ConstantBuffer::Cleanup()
 {
 	if (pData)
 	{

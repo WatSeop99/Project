@@ -1,0 +1,51 @@
+right hand --> 손목
+right hand index1 --> 검지 시작부분
+right hand middle --> 중지 시작부분
+right hand pinky1 --> 새끼손가락 시작부분
+right hand ring1 --> 약지 시작부분
+right hand thumb1 --> 엄지 시작부분
+
+end-effector은 right hand middle이 좋아 보임.
+
+
+https://github.com/agh372/3D-Inverse-Kinematics
+https://github.com/TonyZYT2000/MyInverseKinematics
+
+cross할 때, diff vector가 length를 포함해야 할듯.. 예제 참조하셈.
+
+
+https://github.com/turanszkij/WickedEngine
+
+
+In the Assimp library, aiNode::mTransform and aiBone::mOffsetMatrix are used for different purposes related to the transformation of nodes and bones in a 3D model.
+
+aiNode::mTransform is a transformation matrix that describes the node’s relative position to its parent node1. If the node does not have any parent node, this transformation describes the position of the scene in its model space1. It includes information about the position, rotation, and scale of the node1.
+aiBone::mOffsetMatrix, on the other hand, is the inverse of the bone’s global transform at the bind pose2. In other words, if you traverse the bone/node hierarchy, applying the local transform (mTransform in Assimp) of each bone/node hierarchically to its children, you get the global transform for each bone/node2. The inverse of this matrix for a particular bone equals its mOffsetMatrix2. This matrix transforms vertices from mesh/model space to bone space2.
+In summary, mTransform is used to determine the position, rotation, and scale of a node in relation to its parent, while mOffsetMatrix is used to transform vertices from the mesh/model space to the bone space. Both are crucial for the correct rendering and animation of 3D models.
+
+
+https://stackoverflow.com/questions/76400779/when-do-i-use-ainode-mtransform
+https://stackoverflow.com/questions/50143649/what-does-moffsetmatrix-actually-do-in-assimp
+https://ogldev.org/www/tutorial38/tutorial38.html
+https://assimp.sourceforge.net/lib_html/structai_bone.html
+https://github.com/assimp/assimp/pull/1803
+
+physx 샘플 코드는 별 다른게 없음..
+낼 뭐 해보면서 만들어야 할듯..
+
+
+
+
+
+
+======================================
+
+
+copilot에게 질문 결과.. 다음과 같았음. 물론 정확하지는 않음.
+convex mesh 생성 시 순서 그대로 해줘도 됨. 단, z값을 반전시켜야 함.
+capsule 콜라이더 이동도 z값 반전시켜야 함.
+
+예상한건데, x축이 위로 가는 방향을 본것은 모델 좌표계인듯.
+월드로 배치되면 오른손좌표계로 변환되어 보이는 듯 함.
+
+physx안되면 jolt로 갈아타야함.

@@ -1,8 +1,8 @@
 #include "../pch.h"
-#include "ConstantDataType.h"
+#include "../Renderer/ConstantDataType.h"
 #include "Light.h"
 
-Light::Light(UINT width, UINT height) : ShadowMap(width, height)
+Light::Light(UINT width, UINT height) : LightShadowMap(width, height)
 {
 	m_LightViewCamera.bUseFirstPersonView = true;
 	m_LightViewCamera.SetAspectRatio((float)width / (float)height);
@@ -13,16 +13,16 @@ Light::Light(UINT width, UINT height) : ShadowMap(width, height)
 	m_LightViewCamera.SetFarZ(50.0f);
 }
 
-void Light::Initialize(ResourceManager* pManager)
+void Light::Initialize(Renderer* pRenderer)
 {
-	Clear();
+	Cleanup();
 
-	switch (Property.LightType)
+	switch (Property.LightType & m_TOTAL_LIGHT_TYPE)
 	{
 		case LIGHT_DIRECTIONAL:
 			m_LightViewCamera.SetFarZ(500.0f);
-			ShadowMap.SetShadowWidth(2560);
-			ShadowMap.SetShadowHeight(2560);
+			LightShadowMap.SetShadowWidth(2560);
+			LightShadowMap.SetShadowHeight(2560);
 			break;
 
 		case LIGHT_POINT:
@@ -30,14 +30,16 @@ void Light::Initialize(ResourceManager* pManager)
 			break;
 
 		case LIGHT_SPOT:
+			break;
+
 		default:
 			break;
 	}
 
-	ShadowMap.Initialize(pManager, Property.LightType);
+	LightShadowMap.Initialize(pRenderer, Property.LightType);
 }
 
-void Light::Update(ResourceManager* pManager, const float DELTA_TIME, Camera& mainCamera)
+void Light::Update(Renderer* pRenderer, const float DELTA_TIME, Camera& mainCamera)
 {
 	static Vector3 s_LightDev = Vector3(1.0f, 0.0f, 0.0f);
 	if (bRotated)
@@ -65,15 +67,15 @@ void Light::Update(ResourceManager* pManager, const float DELTA_TIME, Camera& ma
 		// 그림자 맵 생성시 필요.
 		Matrix lightView = DirectX::XMMatrixLookAtLH(Property.Position, Property.Position + Property.Direction, up); // 카메라를 이용하면 pitch, yaw를 고려하게됨. 이를 방지하기 위함.
 		Matrix lightProjection = m_LightViewCamera.GetProjection();
-		ShadowMap.Update(pManager, Property, m_LightViewCamera, mainCamera);
+		LightShadowMap.Update(pRenderer, Property, m_LightViewCamera, mainCamera);
 
-		ConstantBuffer* pShadowGlobalConstants = ShadowMap.GetShadowConstantsBufferPtr();
+		/*ConstantBuffer* pShadowGlobalConstants = LightShadowMap.GetShadowConstantsBufferPtr();
 		switch (Property.LightType & m_TOTAL_LIGHT_TYPE)
 		{
 			case LIGHT_DIRECTIONAL:
 				for (int i = 0; i < 4; ++i)
 				{
-					GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)pShadowGlobalConstants[i].pData;
+					GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(pShadowGlobalConstants[i].pData);
 					Property.ViewProjections[i] = pShadowGlobalConstantData->ViewProjection;
 					Property.Projections[i] = pShadowGlobalConstantData->Projection;
 					Property.InverseProjections[i] = pShadowGlobalConstantData->InverseProjection;
@@ -98,45 +100,51 @@ void Light::Update(ResourceManager* pManager, const float DELTA_TIME, Camera& ma
 
 			default:
 				break;
+		}*/
+		GlobalConstant* pShadowGlobalConstants = LightShadowMap.GetShadowConstantsBufferDataPtr();
+		switch (Property.LightType & m_TOTAL_LIGHT_TYPE)
+		{
+			case LIGHT_DIRECTIONAL:
+				for (int i = 0; i < 4; ++i)
+				{
+					Property.ViewProjections[i] = pShadowGlobalConstants[i].ViewProjection;
+					Property.Projections[i] = pShadowGlobalConstants->Projection;
+					Property.InverseProjections[i] = pShadowGlobalConstants->InverseProjection;
+				}
+				break;
+
+			case LIGHT_POINT:
+				for (int i = 0; i < 6; ++i)
+				{
+					Property.ViewProjections[i] = (pShadowGlobalConstants[i].View.Transpose() * lightProjection).Transpose();
+				}
+				Property.Projections[0] = lightProjection.Transpose();
+				Property.InverseProjections[0] = lightProjection.Invert().Transpose();
+				break;
+
+			case LIGHT_SPOT:
+				Property.ViewProjections[0] = (lightView * lightProjection).Transpose();
+				Property.Projections[0] = lightProjection.Transpose();
+				Property.InverseProjections[0] = lightProjection.Invert().Transpose();
+				break;
+
+			default:
+				break;
 		}
 	}
 }
 
-void Light::RenderShadowMap(ResourceManager* pManager, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror)
+void Light::RenderShadowMap(Renderer* pRenderer, std::vector<Model*>* pRenderObjects)
 {
 	if (Property.LightType & LIGHT_SHADOW)
 	{
-		ShadowMap.Render(pManager, pFirstRenderObject, pCharacter, pMirror);
+		LightShadowMap.Render(pRenderer, pRenderObjects);
 	}
 }
 
-void Light::RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror)
+void Light::Cleanup()
 {
-	if (Property.LightType & LIGHT_SHADOW)
-	{
-		ShadowMap.Render(pManager, pCommandList, pFirstRenderObject, pCharacter, pMirror);
-	}
-}
-
-//void Light::RenderShadowMap(ResourceManager* pManager, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
-//{
-//	if (Property.LightType & LIGHT_SHADOW)
-//	{
-//		ShadowMap.Render(pManager, pRenderObjects, pCharacter, pMirror);
-//	}
-//}
-//
-//void Light::RenderShadowMap(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror)
-//{
-//	if (Property.LightType & LIGHT_SHADOW)
-//	{
-//		ShadowMap.Render(pManager, pCommandList, pRenderObjects, pCharacter, pMirror);
-//	}
-//}
-
-void Light::Clear()
-{
-	ShadowMap.Clear();
+	LightShadowMap.Cleanup();
 	bRotated = false;
 	bVisible = true;
 }

@@ -3,15 +3,16 @@
 #include "../Util/Utility.h"
 #include "Texture.h"
 
-void Texture::Initialize(ResourceManager* pManager, const wchar_t* pszFileName, bool bUseSRGB)
+void Texture::Initialize(Renderer* pRenderer, const WCHAR* pszFileName, bool bUseSRGB)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
-	Clear();
+	Cleanup();
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->m_pSingleCommandList;
+	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 	std::vector<UCHAR> image;
 	DXGI_FORMAT pixelFormat = (bUseSRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM);
 
@@ -110,11 +111,12 @@ void Texture::Initialize(ResourceManager* pManager, const wchar_t* pszFileName, 
 	SAFE_RELEASE(pUploadResource);
 }
 
-void Texture::Initialize(ResourceManager* pManager, const D3D12_RESOURCE_DESC& DESC)
+void Texture::Initialize(Renderer* pRenderer, const D3D12_RESOURCE_DESC& DESC)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 
 	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
@@ -136,11 +138,12 @@ void Texture::Initialize(ResourceManager* pManager, const D3D12_RESOURCE_DESC& D
 	m_GPUMemAddr = m_pResource->GetGPUVirtualAddress();
 }
 
-void Texture::InitializeWithDDS(ResourceManager* pManager, const wchar_t* pszFileName)
+void Texture::InitializeWithDDS(Renderer* pRenderer, const WCHAR* pszFileName)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12CommandQueue* pCommandQueue = pManager->m_pCommandQueue;
 
@@ -149,7 +152,7 @@ void Texture::InitializeWithDDS(ResourceManager* pManager, const wchar_t* pszFil
 	m_pResource->SetName(L"TextureResource");
 }
 
-void Texture::Clear()
+void Texture::Cleanup()
 {
 	m_Width = 0;
 	m_Height = 0;
@@ -161,13 +164,14 @@ void Texture::Clear()
 }
 
 
-void NonImageTexture::Initialize(ResourceManager* pManager, UINT numElement, UINT elementSize)
+void NonImageTexture::Initialize(Renderer* pRenderer, UINT numElement, UINT elementSize)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
 	Clear();
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 
 	ElementCount = numElement;

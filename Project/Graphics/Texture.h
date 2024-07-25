@@ -4,21 +4,21 @@ class Texture
 {
 public:
 	Texture() = default;
-	~Texture() { Clear(); }
+	~Texture() { Cleanup(); }
 
-	void Initialize(ResourceManager* pManager, const wchar_t* pszFileName, bool bUseSRGB);
-	void Initialize(ResourceManager* pManager, const D3D12_RESOURCE_DESC& DESC);
-	void InitializeWithDDS(ResourceManager* pManager, const wchar_t* pszFileName);
+	void Initialize(Renderer* pRenderer, const WCHAR* pszFileName, bool bUseSRGB);
+	void Initialize(Renderer* pRenderer, const D3D12_RESOURCE_DESC& DESC);
+	void InitializeWithDDS(Renderer* pRenderer, const WCHAR* pszFileName);
 
-	void Clear();
-
-	inline void SetDSVHandle(const D3D12_CPU_DESCRIPTOR_HANDLE HANDLE) { m_DSVHandle = HANDLE; }
-	inline void SetSRVHandle(const D3D12_CPU_DESCRIPTOR_HANDLE HANDLE) { m_SRVHandle = HANDLE; }
+	void Cleanup();
 
 	inline ID3D12Resource* GetResource() { return m_pResource; }
 	inline D3D12_GPU_VIRTUAL_ADDRESS GetGPUMemAddr() { return m_GPUMemAddr; }
 	inline D3D12_CPU_DESCRIPTOR_HANDLE GetDSVHandle() { return m_DSVHandle; }
 	inline D3D12_CPU_DESCRIPTOR_HANDLE GetSRVHandle() { return m_SRVHandle; }
+
+	inline void SetDSVHandle(const D3D12_CPU_DESCRIPTOR_HANDLE HANDLE) { m_DSVHandle = HANDLE; }
+	inline void SetSRVHandle(const D3D12_CPU_DESCRIPTOR_HANDLE HANDLE) { m_SRVHandle = HANDLE; }
 
 private:
 	ID3D12Resource* m_pResource = nullptr;
@@ -37,7 +37,7 @@ public:
 	NonImageTexture() = default;
 	~NonImageTexture() { Clear(); }
 
-	void Initialize(ResourceManager* pManager, UINT numElement, UINT elementSize);
+	void Initialize(Renderer* pRenderer, UINT numElement, UINT elementSize);
 
 	void Upload();
 

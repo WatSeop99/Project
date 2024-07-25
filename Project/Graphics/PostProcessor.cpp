@@ -1,16 +1,17 @@
 #include "../pch.h"
-#include "ConstantDataType.h"
+#include "../Renderer/ConstantDataType.h"
 #include "../Model/GeometryGenerator.h"
 #include "../Model/MeshInfo.h"
 #include "PostProcessor.h"
 
-void PostProcessor::Initizlie(ResourceManager* pManager, const PostProcessingBuffers& CONFIG, const int WIDTH, const int HEIGHT, const int BLOOMLEVELS)
+void PostProcessor::Initizlie(Renderer* pRenderer, const PostProcessingBuffers& CONFIG, const int WIDTH, const int HEIGHT, const int BLOOMLEVELS)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 
-	Clear();
+	Cleanup();
 
 	// 후처리용 리소스 설정.
 	setRenderConfig(CONFIG);
@@ -35,32 +36,31 @@ void PostProcessor::Initizlie(ResourceManager* pManager, const PostProcessingBuf
 		MeshInfo meshInfo = INIT_MESH_INFO;
 		MakeSquare(&meshInfo);
 
-		m_pScreenMesh = (Mesh*)malloc(sizeof(Mesh));
-		*m_pScreenMesh = INIT_MESH;
+		m_pScreenMesh = new Mesh;
 
 		hr = pManager->CreateVertexBuffer(sizeof(Vertex),
 										  (UINT)meshInfo.Vertices.size(),
-										  &(m_pScreenMesh->VertexBufferView),
-										  &(m_pScreenMesh->pVertexBuffer),
+										  &m_pScreenMesh->Vertex.VertexBufferView,
+										  &m_pScreenMesh->Vertex.pBuffer,
 										  (void*)meshInfo.Vertices.data());
 		BREAK_IF_FAILED(hr);
-		m_pScreenMesh->VertexCount = (UINT)meshInfo.Vertices.size();
+		m_pScreenMesh->Vertex.Count = (UINT)meshInfo.Vertices.size();
 
 		hr = pManager->CreateIndexBuffer(sizeof(UINT),
 										 (UINT)meshInfo.Indices.size(),
-										 &(m_pScreenMesh->IndexBufferView),
-										 &(m_pScreenMesh->pIndexBuffer),
+										 &m_pScreenMesh->Index.IndexBufferView,
+										 &m_pScreenMesh->Index.pBuffer,
 										 (void*)meshInfo.Indices.data());
 		BREAK_IF_FAILED(hr);
-		m_pScreenMesh->IndexCount = (UINT)meshInfo.Indices.size();
+		m_pScreenMesh->Index.Count = (UINT)meshInfo.Indices.size();
 	}
 
-	createPostBackBuffers(pManager);
+	createPostBackBuffers(pRenderer);
 
-	m_BasicSamplingFilter.Initialize(pManager, WIDTH, HEIGHT);
+	m_BasicSamplingFilter.Initialize(pRenderer, WIDTH, HEIGHT);
 
-	m_BasicSamplingFilter.SetSRVOffsets(pManager, { { m_pFloatBuffer, 0xffffffff, m_FloatBufferSRVOffset } });
-	m_BasicSamplingFilter.SetRTVOffsets(pManager, { { m_pResolvedBuffer, m_ResolvedRTVOffset, 0xffffffff } });
+	m_BasicSamplingFilter.SetSRVOffsets(pRenderer, { { m_pFloatBuffer, 0xffffffff, m_FloatBufferSRVOffset } });
+	m_BasicSamplingFilter.SetRTVOffsets(pRenderer, { { m_pResolvedBuffer, m_ResolvedRTVOffset, 0xffffffff } });
 
 	// Bloom Down/Up 초기화.
 	if (m_BloomResources.size() != BLOOMLEVELS)
@@ -70,7 +70,7 @@ void PostProcessor::Initizlie(ResourceManager* pManager, const PostProcessingBuf
 	for (int i = 0; i < BLOOMLEVELS; ++i)
 	{
 		int div = (int)pow(2, i);
-		createImageResources(pManager, WIDTH / div, HEIGHT / div, &m_BloomResources[i]);
+		createImageResources(pRenderer, WIDTH / div, HEIGHT / div, &m_BloomResources[i]);
 	}
 
 	ImageFilter::ImageResource resource;
@@ -79,7 +79,7 @@ void PostProcessor::Initizlie(ResourceManager* pManager, const PostProcessingBuf
 	for (int i = 0; i < BLOOMLEVELS - 1; ++i)
 	{
 		int div = (int)pow(2, i + 1);
-		m_BloomDownFilters[i].Initialize(pManager, WIDTH / div, HEIGHT / div);
+		m_BloomDownFilters[i].Initialize(pRenderer, WIDTH / div, HEIGHT / div);
 		if (i == 0)
 		{
 			resource.pResource = m_pResolvedBuffer;
@@ -92,12 +92,12 @@ void PostProcessor::Initizlie(ResourceManager* pManager, const PostProcessingBuf
 			resource.RTVOffset = 0xffffffff;
 			resource.SRVOffset = m_BloomResources[i].SRVOffset;
 		}
-		m_BloomDownFilters[i].SetSRVOffsets(pManager, { resource });
+		m_BloomDownFilters[i].SetSRVOffsets(pRenderer, { resource });
 		
 		resource.pResource = m_BloomResources[i + 1].pResource;
 		resource.RTVOffset = m_BloomResources[i + 1].RTVOffset;
 		resource.SRVOffset = 0xffffffff;
-		m_BloomDownFilters[i].SetRTVOffsets(pManager, { resource });
+		m_BloomDownFilters[i].SetRTVOffsets(pRenderer, { resource });
 
 		m_BloomDownFilters[i].UpdateConstantBuffers();
 	}
@@ -105,67 +105,70 @@ void PostProcessor::Initizlie(ResourceManager* pManager, const PostProcessingBuf
 	{
 		int level = BLOOMLEVELS - 2 - i;
 		int div = (int)pow(2, level);
-		m_BloomUpFilters[i].Initialize(pManager, WIDTH / div, HEIGHT / div);
+		m_BloomUpFilters[i].Initialize(pRenderer, WIDTH / div, HEIGHT / div);
 
 		resource.pResource = m_BloomResources[level + 1].pResource;
 		resource.RTVOffset = 0xffffffff;
 		resource.SRVOffset = m_BloomResources[level + 1].SRVOffset;
-		m_BloomUpFilters[i].SetSRVOffsets(pManager, { resource });
+		m_BloomUpFilters[i].SetSRVOffsets(pRenderer, { resource });
 
 		resource.pResource = m_BloomResources[level].pResource;
 		resource.RTVOffset = m_BloomResources[level].RTVOffset;
 		resource.SRVOffset = 0xffffffff;
-		m_BloomUpFilters[i].SetRTVOffsets(pManager, { resource });
+		m_BloomUpFilters[i].SetRTVOffsets(pRenderer, { resource });
 
 		m_BloomUpFilters[i].UpdateConstantBuffers();
 	}
 
 	// combine + tone mapping.
-	m_CombineFilter.Initialize(pManager, WIDTH, HEIGHT);
+	m_CombineFilter.Initialize(pRenderer, WIDTH, HEIGHT);
 
-	m_CombineFilter.SetSRVOffsets(pManager, { { m_pResolvedBuffer, 0xffffffff, m_ResolvedSRVOffset }, { m_BloomResources[0].pResource, 0xffffffff, m_BloomResources[0].SRVOffset }, { m_pPrevBuffer, 0xffffffff, m_PrevBufferSRVOffset } });
-	m_CombineFilter.SetRTVOffsets(pManager, { { m_ppBackBuffers[0], m_BackBufferRTV1Offset, 0xffffffff }, { m_ppBackBuffers[1], m_BackBufferRTV2Offset, 0xffffffff } });
+	m_CombineFilter.SetSRVOffsets(pRenderer, { { m_pResolvedBuffer, 0xffffffff, m_ResolvedSRVOffset }, { m_BloomResources[0].pResource, 0xffffffff, m_BloomResources[0].SRVOffset }, { m_pPrevBuffer, 0xffffffff, m_PrevBufferSRVOffset } });
+	m_CombineFilter.SetRTVOffsets(pRenderer, { { m_ppBackBuffers[0], m_BackBufferRTV1Offset, 0xffffffff }, { m_ppBackBuffers[1], m_BackBufferRTV2Offset, 0xffffffff } });
 
-	ImageFilterConstant* pCombineConst = (ImageFilterConstant*)m_CombineFilter.GetConstantPtr()->pData;
-	pCombineConst->Option1 = 1.0f;  // exposure.
-	pCombineConst->Option2 = 2.1f;  // gamma.
+	// ImageFilterConstant* pCombineConst = (ImageFilterConstant*)m_CombineFilter.GetConstantPtr()->pData;
+	ImageFilterConstant* pCombineConst = m_CombineFilter.GetConstantDataPtr();
+	pCombineConst->Option1 = 0.8f;  // exposure.
+	pCombineConst->Option2 = 1.8f;  // gamma.
 	m_CombineFilter.UpdateConstantBuffers();
 }
 
-void PostProcessor::Update(ResourceManager* pManager)
+void PostProcessor::Update(Renderer* pRenderer)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 	// 설정을 바꾸지 않으므로 update 없음.
 }
 
-void PostProcessor::Render(ResourceManager* pManager, UINT frameIndex)
+void PostProcessor::Render(Renderer* pRenderer, UINT frameIndex)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->m_pSingleCommandList;
+	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 
 	pCommandList->RSSetViewports(1, &m_Viewport);
 	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
 
 	// 스크린 렌더링을 위한 정점 버퍼와 인텍스 버퍼를 미리 설정.
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	pCommandList->IASetVertexBuffers(0, 1, &(m_pScreenMesh->VertexBufferView));
-	pCommandList->IASetIndexBuffer(&(m_pScreenMesh->IndexBufferView));
+	/*UINT stride = sizeof(Vertex);
+	UINT offset = 0;*/
+	pCommandList->IASetVertexBuffers(0, 1, &m_pScreenMesh->Vertex.VertexBufferView);
+	pCommandList->IASetIndexBuffer(&m_pScreenMesh->Index.IndexBufferView);
 
 	// basic sampling.
-	pManager->SetCommonState(Sampling);
-	renderImageFilter(pManager, m_BasicSamplingFilter, Sampling, frameIndex);
+	pManager->SetCommonState(RenderPSOType_Sampling);
+	renderImageFilter(pRenderer, m_BasicSamplingFilter, RenderPSOType_Sampling, frameIndex);
 
 	// post processing.
-	renderPostProcessing(pManager, frameIndex);
+	renderPostProcessing(pRenderer, frameIndex);
 }
 
-void PostProcessor::Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, UINT frameIndex)
+void PostProcessor::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, UINT frameIndex)
 {
-	_ASSERT(pManager);
 	_ASSERT(pCommandList);
+	_ASSERT(pDescriptorPool);
+	_ASSERT(pManager);
 
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 
@@ -173,20 +176,18 @@ void PostProcessor::Render(ResourceManager* pManager, ID3D12GraphicsCommandList*
 	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
 
 	// 스크린 렌더링을 위한 정점 버퍼와 인텍스 버퍼를 미리 설정.
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	pCommandList->IASetVertexBuffers(0, 1, &(m_pScreenMesh->VertexBufferView));
-	pCommandList->IASetIndexBuffer(&(m_pScreenMesh->IndexBufferView));
+	pCommandList->IASetVertexBuffers(threadIndex, 1, &m_pScreenMesh->Vertex.VertexBufferView);
+	pCommandList->IASetIndexBuffer(&m_pScreenMesh->Index.IndexBufferView);
 
 	// basic sampling.
-	pManager->SetCommonState(pCommandList, Sampling);
-	renderImageFilter(pManager, pCommandList, m_BasicSamplingFilter, Sampling, frameIndex);
+	pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, RenderPSOType_Sampling);
+	renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pManager, m_BasicSamplingFilter, RenderPSOType_Sampling);
 
 	// post processing.
-	renderPostProcessing(pManager, pCommandList, frameIndex);
+	renderPostProcessing(threadIndex, pCommandList, pDescriptorPool, pManager);
 }
 
-void PostProcessor::Clear()
+void PostProcessor::Cleanup()
 {
 	m_ppBackBuffers[0] = nullptr;
 	m_ppBackBuffers[1] = nullptr;
@@ -204,15 +205,15 @@ void PostProcessor::Clear()
 	}
 	for (UINT64 i = 0, size = m_BloomDownFilters.size(); i < size; ++i)
 	{
-		m_BloomDownFilters[i].Clear();
-		m_BloomUpFilters[i].Clear();
+		m_BloomDownFilters[i].Cleanup();
+		m_BloomUpFilters[i].Cleanup();
 	}
 	// m_BloomResources.clear();
 	m_BloomDownFilters.clear();
 	m_BloomUpFilters.clear();
 
-	m_BasicSamplingFilter.Clear();
-	m_CombineFilter.Clear();
+	m_BasicSamplingFilter.Cleanup();
+	m_CombineFilter.Cleanup();
 
 	m_ScreenWidth = 0;
 	m_ScreenHeight = 0;
@@ -223,29 +224,39 @@ void PostProcessor::Clear()
 
 	if (m_pScreenMesh)
 	{
-		ReleaseMesh(&m_pScreenMesh);
+		delete m_pScreenMesh;
+		m_pScreenMesh = nullptr;
 	}
 }
 
-void PostProcessor::SetDescriptorHeap(ResourceManager* pManager)
+void PostProcessor::SetDescriptorHeap(Renderer* pRenderer)
 {
-	m_BasicSamplingFilter.SetDescriptorHeap(pManager);
-	m_CombineFilter.SetDescriptorHeap(pManager);
+	m_BasicSamplingFilter.SetDescriptorHeap(pRenderer);
+	m_CombineFilter.SetDescriptorHeap(pRenderer);
 	for (UINT64 i = 0, size = m_BloomDownFilters.size(); i < size; ++i)
 	{
-		m_BloomDownFilters[i].SetDescriptorHeap(pManager);
+		m_BloomDownFilters[i].SetDescriptorHeap(pRenderer);
 	}
 	for (UINT64 i = 0, size = m_BloomUpFilters.size(); i < size; ++i)
 	{
-		m_BloomUpFilters[i].SetDescriptorHeap(pManager);
+		m_BloomUpFilters[i].SetDescriptorHeap(pRenderer);
 	}
 }
 
-void PostProcessor::createPostBackBuffers(ResourceManager* pManager)
+void PostProcessor::SetViewportsAndScissorRects(ID3D12GraphicsCommandList* pCommandList)
 {
-	_ASSERT(pManager);
+	_ASSERT(pCommandList);
+
+	pCommandList->RSSetViewports(1, &m_Viewport);
+	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
+}
+
+void PostProcessor::createPostBackBuffers(Renderer* pRenderer)
+{
+	_ASSERT(pRenderer);
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12DescriptorHeap* pRTVHeap = pManager->m_pRTVHeap;
 	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
@@ -322,12 +333,13 @@ void PostProcessor::createPostBackBuffers(ResourceManager* pManager)
 	}
 }
 
-void PostProcessor::createImageResources(ResourceManager* pManager, const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource)
+void PostProcessor::createImageResources(Renderer* pRenderer, const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 	_ASSERT(pImageResource);
 
 	HRESULT hr = S_OK;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12DescriptorHeap* pRTVHeap = pManager->m_pRTVHeap;
 	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
@@ -409,13 +421,14 @@ void PostProcessor::createImageResources(ResourceManager* pManager, const int WI
 	}
 }
 
-void PostProcessor::renderPostProcessing(ResourceManager* pManager, UINT frameIndex)
+void PostProcessor::renderPostProcessing(Renderer* pRenderer, UINT frameIndex)
 {
-	_ASSERT(pManager);
+	_ASSERT(pRenderer);
 
-	ID3D12GraphicsCommandList* pCommandList = pManager->m_pSingleCommandList;
+	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 	
-	// bloom pass 제외.
+	// bloom pass.
 	/*pManager->SetCommonState(BloomDown);
 	for (UINT64 i = 0, size = m_BloomDownFilters.size(); i < size; ++i)
 	{
@@ -428,8 +441,8 @@ void PostProcessor::renderPostProcessing(ResourceManager* pManager, UINT frameIn
 	}*/
 
 	// combine pass
-	pManager->SetCommonState(Combine);
-	renderImageFilter(pManager, m_CombineFilter, Combine, frameIndex);
+	pManager->SetCommonState(RenderPSOType_Combine);
+	renderImageFilter(pRenderer, m_CombineFilter, RenderPSOType_Combine, frameIndex);
 
 	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIERs[2] =
 	{
@@ -442,50 +455,56 @@ void PostProcessor::renderPostProcessing(ResourceManager* pManager, UINT frameIn
 	pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 }
 
-void PostProcessor::renderPostProcessing(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, UINT frameIndex)
+void PostProcessor::renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager)
 {
-	_ASSERT(pManager);
 	_ASSERT(pCommandList);
+	_ASSERT(pDescriptorPool);
+	_ASSERT(pManager);
 
-	// bloom pass 제외.
-	/*pManager->SetCommonState(pCommandList, BloomDown);
+	// bloom pass.
+	/*pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, BloomDown);
 	for (UINT64 i = 0, size = m_BloomDownFilters.size(); i < size; ++i)
 	{
-		renderImageFilter(pManager, pCommandList, m_BloomDownFilters[i], BloomDown, frameIndex);
+		renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pManager, m_BloomDownFilters[i], BloomDown);
 	}
-	pManager->SetCommonState(pCommandList, BloomUp);
+	pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, BloomUp);
 	for (UINT64 i = 0, size = m_BloomUpFilters.size(); i < size; ++i)
 	{
-		renderImageFilter(pManager, pCommandList, m_BloomUpFilters[i], BloomUp, frameIndex);
+		renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pManager, m_BloomUpFilters[i], BloomUp);
 	}*/
 
 	// combine pass
-	pManager->SetCommonState(pCommandList, Combine);
-	renderImageFilter(pManager, pCommandList, m_CombineFilter, Combine, frameIndex);
+	pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, RenderPSOType_Combine);
+	renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pManager, m_CombineFilter, RenderPSOType_Combine);
 
 	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIERs[2] =
 	{
-		CD3DX12_RESOURCE_BARRIER::Transition(m_ppBackBuffers[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE),
+		CD3DX12_RESOURCE_BARRIER::Transition(m_ppBackBuffers[*(pManager->m_pFrameIndex)], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE),
 		CD3DX12_RESOURCE_BARRIER::Transition(m_pPrevBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST)
 	};
 	const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pPrevBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON);
 	pCommandList->ResourceBarrier(2, BEFORE_BARRIERs);
-	pCommandList->CopyResource(m_pPrevBuffer, m_ppBackBuffers[frameIndex]);
+	pCommandList->CopyResource(m_pPrevBuffer, m_ppBackBuffers[*(pManager->m_pFrameIndex)]);
 	pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 }
 
-void PostProcessor::renderImageFilter(ResourceManager* pManager, ImageFilter& imageFilter, ePipelineStateSetting psoSetting, UINT frameIndex)
+void PostProcessor::renderImageFilter(Renderer* pRenderer, ImageFilter& imageFilter, eRenderPSOType psoSetting, UINT frameIndex)
 {
-	imageFilter.BeforeRender(pManager, psoSetting, frameIndex);
-	pManager->m_pSingleCommandList->DrawIndexedInstanced(m_pScreenMesh->IndexCount, 1, 0, 0, 0);
-	imageFilter.AfterRender(pManager, psoSetting, frameIndex);
+	_ASSERT(pRenderer);
+
+	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
+
+	imageFilter.BeforeRender(pRenderer, psoSetting, frameIndex);
+	pCommandList->DrawIndexedInstanced(m_pScreenMesh->Index.Count, 1, 0, 0, 0);
+	imageFilter.AfterRender(pRenderer, psoSetting, frameIndex);
 }
 
-void PostProcessor::renderImageFilter(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, ImageFilter& imageFilter, ePipelineStateSetting psoSetting, UINT frameIndex)
+void PostProcessor::renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, ImageFilter& imageFilter, int psoSetting)
 {
-	imageFilter.BeforeRender(pManager, pCommandList, psoSetting, frameIndex);
-	pCommandList->DrawIndexedInstanced(m_pScreenMesh->IndexCount, 1, 0, 0, 0);
-	imageFilter.AfterRender(pManager, pCommandList, psoSetting, frameIndex);
+	imageFilter.BeforeRender(threadIndex, pCommandList, pDescriptorPool, pManager, psoSetting);
+	pCommandList->DrawIndexedInstanced(m_pScreenMesh->Index.Count, 1, 0, 0, 0);
+	imageFilter.AfterRender(pCommandList, psoSetting);
 }
 
 void PostProcessor::setRenderConfig(const PostProcessingBuffers& CONFIG)

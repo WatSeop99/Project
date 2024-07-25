@@ -28,23 +28,25 @@ float3 SchlickFresnel(float3 F0, float NdotH)
 float3 GetNormal(PixelShaderInput input)
 {
 	float3 normalWorld = normalize(input.WorldNormal);
-
-	if (bUseNormalMap)
+	
+	if (!bUseNormalMap)
 	{
-		float3 normal = g_NormalTex.SampleLevel(g_LinearWrapSampler, input.Texcoord, g_LODBias).rgb;
-		normal = 2.0f * normal - 1.0f; // 범위 조절 [-1.0, 1.0]
+		return normalWorld;
+	}
+
+	float3 normal = g_NormalTex.SampleLevel(g_LinearWrapSampler, input.Texcoord, g_LODBias).rgb;
+	normal = 2.0f * normal - 1.0f; // 범위 조절 [-1.0, 1.0]
 
 		// OpenGL 용 노멀맵일 경우에는 y 방향을 뒤집어줌.
-		normal.y = (bInvertNormalMapY ? -normal.y : normal.y);
+	normal.y = (bInvertNormalMapY ? -normal.y : normal.y);
 
-		float3 N = normalWorld;
-		float3 T = normalize(input.WorldTangent - dot(input.WorldTangent, N) * N);
-		float3 B = cross(N, T);
+	float3 N = normalWorld;
+	float3 T = normalize(input.WorldTangent - dot(input.WorldTangent, N) * N);
+	float3 B = cross(N, T);
 
 		// matrix는 float4x4, 여기서는 벡터 변환용이라서 3x3 사용.
-		float3x3 TBN = float3x3(T, B, N);
-		normalWorld = normalize(mul(normal, TBN));
-	}
+	float3x3 TBN = float3x3(T, B, N);
+	normalWorld = normalize(mul(normal, TBN));
 
 	return normalWorld;
 }
@@ -390,7 +392,7 @@ float3 LightRadiance(Light light, int shadowMapIndex, float3 representativePoint
 				lightScreen = mul(float4(posWorld, 1.0f), light.ViewProjection[0]);
 				lightScreen.xyz /= lightScreen.w;
 
-				// 카메라(광원)에서 볼 때의 텍스춰 좌표 계산. ([-1, 1], [-1, 1]) ==> ([0, 1], [0, 1])
+				// 카메라(광원)에서 볼 때의 텍스쳐 좌표 계산. ([-1, 1], [-1, 1]) ==> ([0, 1], [0, 1])
 				lightTexcoord.xy = float2(lightScreen.x, -lightScreen.y);
 				lightTexcoord.xy += 1.0f;
 				lightTexcoord.xy *= 0.5f;
@@ -438,8 +440,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 representativePoint = L + centerToRay * clamp(lights[i].Radius / length(centerToRay), 0.0f, 1.0f); // 볼륨이 커진 광원과 빛 계산 시 사용하는 광원의 대표 점.
 		representativePoint += input.WorldPosition; // world space로 변환을 위해 input.posWorld를 더해줌. 위에서 계산한 벡터들은 input.posWorld를 원점으로 하는 좌표계에서 정의됨.
 		float3 lightVec = representativePoint - input.WorldPosition;
-
-		//float3 lightVec = lights[i].Position - input.WorldPosition;
+		
 		float lightDist = length(lightVec);
 		lightVec /= lightDist;
 		float3 halfway = normalize(pixelToEye + lightVec);
@@ -448,7 +449,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float NdotH = max(0.0f, dot(normalWorld, halfway));
 		float NdotO = max(0.0f, dot(normalWorld, pixelToEye));
 
-		// const float3 F_DIELECTRIC = 0.04f; // 비금속(Dielectric) 재질의 F0
+		// F_DIELECTRIC = 0.04f; // 비금속(Dielectric) 재질의 F0
 		float3 F0 = lerp(F_DIELECTRIC, albedo.rgb, metallic);
 		float3 F = SchlickFresnel(F0, max(0.0f, dot(halfway, pixelToEye)));
 		float3 kd = lerp(float3(1.0f, 1.0f, 1.0f) - F, float3(0.0f, 0.0f, 0.0f), metallic);

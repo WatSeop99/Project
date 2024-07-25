@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Camera.h"
-#include "ConstantDataType.h"
+#include "../Renderer/ConstantDataType.h"
 #include "ConstantBuffer.h"
 #include "../Model/SkinnedMeshModel.h"
 #include "Texture.h"
@@ -10,35 +10,33 @@ class ShadowMap
 {
 public:
 	ShadowMap(UINT width = 1280, UINT height = 1280) : m_ShadowMapWidth(width), m_ShadowMapHeight(height) { }
-	~ShadowMap() { Clear(); }
+	~ShadowMap() { Cleanup(); }
 
-	void Initialize(ResourceManager* pManager, UINT lightType);
+	void Initialize(Renderer* pRenderer, UINT lightType);
 
-	void Update(ResourceManager* pManager, LightProperty& property, Camera& lightCam, Camera& mainCamera);
+	void Update(Renderer* pRenderer, LightProperty& property, Camera& lightCam, Camera& mainCamera);
 
-	void Render(ResourceManager* pManager, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror);
-	void Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, Model* pFirstRenderObject, SkinnedMeshModel* pCharacter, Model* pMirror);
+	void Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects);
 
-	/*void Render(ResourceManager* pManager, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);
-	void Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, std::vector<Model*>* pRenderObjects, SkinnedMeshModel* pCharacter, Model* pMirror);*/
-
-
-	void Clear();
+	void Cleanup();
 
 	inline UINT GetShadowWidth() { return m_ShadowMapWidth; }
 	inline UINT GetShadowHeight() { return m_ShadowMapHeight; }
 
-	/*inline Texture* GetSpotLightShadowBufferPtr() { return &m_SpotLightShadowBuffer; }
+	inline Texture* GetSpotLightShadowBufferPtr() { return &m_SpotLightShadowBuffer; }
 	inline Texture* GetPointLightShadowBufferPtr() { return &m_PointLightShadowBuffer; }
-	inline Texture* GetDirectionalLightShadowBufferPtr() { return &m_DirectionalLightShadowBuffer; }*/
-	inline Texture* GetShadowBuffer() { return &m_ShadowBuffer; }
+	inline Texture* GetDirectionalLightShadowBufferPtr() { return &m_DirectionalLightShadowBuffer; }
 
-	inline ConstantBuffer* GetShadowConstantsBufferPtr() { return m_ShadowConstantBuffers; }
+	/*inline ConstantBuffer* GetShadowConstantsBufferPtr() { return m_ShadowConstantBuffers; }
+	inline ConstantBuffer* GetShadowConstantBufferForGSPtr() { return &m_ShadowConstantsBufferForGS; }*/
+	inline GlobalConstant* GetShadowConstantsBufferDataPtr() { return m_ShadowConstantBufferDatas; }
+	inline ShadowConstant* GetShadowConstantBufferDataForGSPtr() { return &m_ShadowConstantsBufferDataForGS; }
 
-	inline void SetShadowWidth(const UINT WIDTH) { m_ShadowMapWidth = WIDTH; }
-	inline void SetShadowHeight(const UINT HEIGHT) { m_ShadowMapHeight = HEIGHT; }
+	void SetShadowWidth(const UINT WIDTH);
+	void SetShadowHeight(const UINT HEIGHT);
 
-	void SetDescriptorHeap(ResourceManager* pManager);
+	void SetDescriptorHeap(Renderer* pRenderer);
+	void SetViewportsAndScissorRect(ID3D12GraphicsCommandList* pCommandList);
 
 protected:
 	void setShadowViewport(ID3D12GraphicsCommandList* pCommandList);
@@ -52,13 +50,17 @@ private:
 	UINT m_LightType = LIGHT_OFF;
 	const UINT m_TOTAL_LIGHT_TYPE = (LIGHT_DIRECTIONAL | LIGHT_POINT | LIGHT_SPOT);
 
-	/*union
+	D3D12_VIEWPORT m_pViewPorts[6] = { 0, };
+	D3D12_RECT m_pScissorRects[6] = { 0, };
+
+	union
 	{
 		Texture m_SpotLightShadowBuffer;
 		Texture m_PointLightShadowBuffer;
 		Texture m_DirectionalLightShadowBuffer;
-	};*/
-	Texture m_ShadowBuffer;
-	ConstantBuffer m_ShadowConstantBuffers[6];	 // spot, point, direc => 0, 6, 4개씩 사용.
-	ConstantBuffer m_ShadowConstantsBufferForGS; // 2개 이상의 view 행렬을 사용하는 광원을 위한  geometry용 상수버퍼;
+	};
+	// ConstantBuffer m_ShadowConstantBuffers[6];	 // spot, point, direc => 0, 6, 4개씩 사용.
+	// ConstantBuffer m_ShadowConstantsBufferForGS; // 2개 이상의 view 행렬을 사용하는 광원을 위한  geometry용 상수버퍼;
+	GlobalConstant m_ShadowConstantBufferDatas[6];	 // spot, point, direc => 0, 6, 4개씩 사용.
+	ShadowConstant m_ShadowConstantsBufferDataForGS; // 2개 이상의 view 행렬을 사용하는 광원을 위한  geometry용 상수버퍼;
 };

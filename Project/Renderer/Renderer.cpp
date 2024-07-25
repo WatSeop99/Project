@@ -14,41 +14,25 @@ Renderer::Renderer()
 {
 	g_pRendrer = this;
 	m_Camera.SetAspectRatio((float)m_ScreenWidth / (float)m_ScreenHeight);
-
-	initMainWidndow();
-	initDirect3D();
 }
 
 Renderer::~Renderer()
 {
 	g_pRendrer = nullptr;
-	Clear();
+	Cleanup();
 }
 
-void Renderer::Initizlie(Keyboard* pKeyboard, Mouse* pMouse, InitialData* pInitialData)
+void Renderer::Initizlie(InitialData* pIntialData)
 {
-	_ASSERT(pKeyboard);
-	_ASSERT(pMouse);
-	_ASSERT(pInitialData);
+	m_pRenderObjects = pIntialData->pRenderObjects;
+	m_pLights = pIntialData->pLights;
+	m_pLightSpheres = pIntialData->pLightSpheres;
 
-	m_pKeyboard = pKeyboard;
-	m_pMouse = pMouse;
-	m_TotalRenderObject = pInitialData->TotalRenderObject;
-	m_pFirstModelOfList = pInitialData->pFirstModelOfList;
-	m_pLights = pInitialData->pLights;
-	m_pLightSpheres = pInitialData->ppLightSpheres;
-	/*m_pRenderObjects = pInitialData->pRenderObjects;
-	m_pLights = pInitialData->pLights;
-	m_pLightSpheres = pInitialData->pLightSpheres;*/
-	m_pSkybox = pInitialData->pSkybox;
-	m_pGround = pInitialData->pGround;
-	m_pMirror = pInitialData->pMirror;
-	m_pPickedModel = pInitialData->pPickedModel;
-	m_pCharacter = pInitialData->pCharacter;
-	m_pMirrorPlane = pInitialData->pMirrorPlane;
+	m_pMirror = pIntialData->pMirror;
+	m_pMirrorPlane = pIntialData->pMirrorPlane;
 
 	initScene();
-	initDescriptorHeap(pInitialData->pEnvTexture, pInitialData->pIrradianceTexture, pInitialData->pSpecularTexture, pInitialData->pBRDFTexture);
+	initDescriptorHeap(pIntialData->pEnvTexture, pIntialData->pIrradianceTexture, pIntialData->pSpecularTexture, pIntialData->pBRDFTexture);
 
 	PostProcessor::PostProcessingBuffers config =
 	{
@@ -58,10 +42,12 @@ void Renderer::Initizlie(Keyboard* pKeyboard, Mouse* pMouse, InitialData* pIniti
 		&m_GlobalConstant,
 		m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
 	};
-	m_PostProcessor.Initizlie(m_pResourceManager, config, m_ScreenWidth, m_ScreenHeight, 4);
-	m_PostProcessor.SetDescriptorHeap(m_pResourceManager);
+	Renderer* pRenderer = this;
+	m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 2);
+	m_PostProcessor.SetDescriptorHeap(pRenderer);
 
-	m_DynamicDescriptorPool.Initialize(m_pDevice, 768);
+	m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
+	m_ConstantBufferManager.Initialize(m_pDevice, 4096);
 
 	m_ScreenViewport.TopLeftX = 0;
 	m_ScreenViewport.TopLeftY = 0;
@@ -76,80 +62,25 @@ void Renderer::Initizlie(Keyboard* pKeyboard, Mouse* pMouse, InitialData* pIniti
 	m_ScissorRect.bottom = m_ScreenHeight;
 }
 
-//int Renderer::Run()
-//{
-//	MSG msg = { 0, };
-//
-//	while (msg.message != WM_QUIT)
-//	{
-//		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-//		{
-//			TranslateMessage(&msg);
-//			DispatchMessage(&msg);
-//		}
-//		else
-//		{
-//			m_Timer.Tick();
-//			
-//			static UINT s_FrameCount = 0;
-//			static UINT64 s_PrevUpdateTick = 0;
-//			static UINT64 s_PrevFrameCheckTick = 0;
-//
-//			float frameTime = (float)m_Timer.GetElapsedSeconds();
-//			float frameChange = 2.0f * frameTime;
-//			UINT64 curTick = GetTickCount64();
-//
-//			++s_FrameCount;
-//
-//			Update(frameChange);
-//			s_PrevUpdateTick = curTick;
-//			Render();
-//
-//			if (curTick - s_PrevFrameCheckTick > 1000)
-//			{
-//				s_PrevFrameCheckTick = curTick;
-//
-//				WCHAR txt[64];
-//				swprintf_s(txt, L"DX12  %uFPS", s_FrameCount);
-//				SetWindowText(m_hMainWindow, txt);
-//
-//				s_FrameCount = 0;
-//			}
-//		}
-//	}
-//
-//	return (int)msg.wParam;
-//}
-
 void Renderer::Update(const float DELTA_TIME)
 {
-	m_Camera.UpdateKeyboard(DELTA_TIME, m_pKeyboard);
-	processMouseControl();
+	m_Camera.UpdateKeyboard(DELTA_TIME, &m_Keyboard);
+	processMouseControl(DELTA_TIME);
+
+	m_PhysicsManager.Update(DELTA_TIME);
 
 	updateGlobalConstants(DELTA_TIME);
 	updateLightConstants(DELTA_TIME);
-
-	/*if (m_pMirror)
-	{
-		m_pMirror->UpdateConstantBuffers();
-	}
-	for (UINT64 i = 0, size = m_RenderObjects.size(); i < size; ++i)
-	{
-		Model* pCurModel = m_RenderObjects[i];
-		pCurModel->UpdateConstantBuffers();
-	}
-
-	m_pCharacter->UpdateConstantBuffers();
-	updateAnimation(DELTA_TIME);*/
 }
 
 void Renderer::Render()
 {
 	beginRender();
 
-	shadowMapRender();
-	objectRender();
-	mirrorRender();
+	renderShadowmap();
+	renderObject();
+	// renderMirror();
+	renderObjectBoundingModel();
 	postProcess();
 
 	endRender();
@@ -157,9 +88,93 @@ void Renderer::Render()
 	present();
 }
 
-void Renderer::Clear()
+void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int renderPass)
 {
-	waitForFenceValue();
+	_ASSERT(threadIndex >= 0 && threadIndex < m_RenderThreadCount);
+	_ASSERT(pManager);
+
+	ID3D12CommandQueue* pCommandQueue = m_pCommandQueue;
+	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][threadIndex];
+	DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][threadIndex];
+
+	switch (renderPass)
+	{
+		case RenderPass_Shadow:
+			// pCommandQueue = m_ppCommandQueue[RenderPass_Shadow];
+			m_pppRenderQueue[renderPass][threadIndex]->ProcessLight(threadIndex, pCommandQueue, pCommandListPool, pManager, pDescriptorPool, 100);
+			break;
+
+		case RenderPass_Object:
+		case RenderPass_Mirror:
+		case RenderPass_Collider:
+		{
+			ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+			CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(pManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+			// pCommandQueue = m_ppCommandQueue[RenderPass_MainRender];
+
+			pCommandList->RSSetViewports(1, &m_ScreenViewport);
+			pCommandList->RSSetScissorRects(1, &m_ScissorRect);
+			pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
+			m_pppRenderQueue[renderPass][threadIndex]->Process(threadIndex, pCommandQueue, pCommandListPool, pManager, pDescriptorPool, 100);
+		}
+		break;
+
+		default:
+			__debugbreak();
+			break;
+	}
+
+	long curActiveThreadCount = _InterlockedDecrement(&m_pActiveThreadCounts[renderPass]);
+	if (curActiveThreadCount == 0)
+	{
+		SetEvent(m_phCompletedEvents[renderPass]);
+	}
+}
+
+void Renderer::Cleanup()
+{
+#ifdef USE_MULTI_THREAD
+
+	if (m_pThreadDescList)
+	{
+		for (UINT i = 0; i < m_RenderThreadCount; ++i)
+		{
+			SetEvent(m_pThreadDescList[i].hEventList[RenderThreadEventType_Desctroy]);
+
+			WaitForSingleObject(m_pThreadDescList[i].hThread, INFINITE);
+			CloseHandle(m_pThreadDescList[i].hThread);
+			m_pThreadDescList[i].hThread = nullptr;
+
+			for (UINT j = 0; j < RenderThreadEventType_Count; ++j)
+			{
+				CloseHandle(m_pThreadDescList[i].hEventList[j]);
+				m_pThreadDescList[i].hEventList[j] = nullptr;
+			}
+		}
+
+		delete[] m_pThreadDescList;
+		m_pThreadDescList = nullptr;
+	}
+	for (UINT i = 0; i < RenderPass_RenderPassCount; ++i)
+	{
+		CloseHandle(m_phCompletedEvents[i]);
+		m_phCompletedEvents[i] = nullptr;
+	}
+
+#endif
+
+	fence();
+	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+	{
+		waitForFenceValue(m_LastFenceValues[i]);
+	}
+
+	if (m_pResourceManager)
+	{
+		delete m_pResourceManager;
+		m_pResourceManager = nullptr;
+	}
 
 	if (m_hFenceEvent)
 	{
@@ -169,60 +184,47 @@ void Renderer::Clear()
 	m_FenceValue = 0;
 	SAFE_RELEASE(m_pFence);
 
-	/*m_pMirror = nullptr;
-	if (m_pCharacter)
-	{
-		delete m_pCharacter;
-		m_pCharacter = nullptr;
-	}
-	if (m_pSkybox)
-	{
-		delete m_pSkybox;
-		m_pSkybox = nullptr;
-	}
-	if (m_pGround)
-	{
-		delete m_pGround;
-		m_pGround = nullptr;
-	}
-	for (UINT64 i = 0, size = m_RenderObjects.size(); i < size; ++i)
-	{
-		Model* pCurModel = m_RenderObjects[i];
-		delete pCurModel;
-		pCurModel = nullptr;
-	}
-	m_RenderObjects.clear();
+	m_GlobalConstant.Cleanup();
+	m_LightConstant.Cleanup();
+	m_ReflectionGlobalConstant.Cleanup();
 
-	m_Lights.clear();*/
-	m_pKeyboard = nullptr;
-	m_pMouse = nullptr;
-	m_TotalRenderObject = 0;
-	m_pFirstModelOfList = nullptr;
-	m_pLights = nullptr;
-	m_pLightSpheres = nullptr;
-	m_pSkybox = nullptr;
-	m_pGround = nullptr;
-	m_pMirror = nullptr;
-	m_pPickedModel = nullptr;
-	m_pCharacter = nullptr;
-	m_pMirrorPlane = nullptr;
-
-	m_GlobalConstant.Clear();
-	m_LightConstant.Clear();
-	m_ReflectionGlobalConstant.Clear();
-	/*m_EnvTexture.Clear();
-	m_IrradianceTexture.Clear();
-	m_SpecularTexture.Clear();
-	m_BRDFTexture.Clear();*/
-
-	if (m_pResourceManager)
+	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
-		delete m_pResourceManager;
-		m_pResourceManager = nullptr;
+		for (UINT j = 0; j < MAX_RENDER_THREAD_COUNT; ++j)
+		{
+			if (m_pppCommandListPool[i][j])
+			{
+				delete m_pppCommandListPool[i][j];
+				m_pppCommandListPool[i][j] = nullptr;
+			}
+			if (m_pppDescriptorPool[i][j])
+			{
+				delete m_pppDescriptorPool[i][j];
+				m_pppDescriptorPool[i][j] = nullptr;
+			}
+			if (m_pppConstantBufferManager[i][j])
+			{
+				delete m_pppConstantBufferManager[i][j];
+				m_pppConstantBufferManager[i][j] = nullptr;
+			}
+		}
+	}
+	for (int i = 0; i < RenderPass_RenderPassCount; ++i)
+	{
+		// SAFE_RELEASE(m_ppCommandQueue[i]);
+		for (UINT j = 0; j < MAX_RENDER_THREAD_COUNT; ++j)
+		{
+			if (m_pppRenderQueue[i][j])
+			{
+				delete m_pppRenderQueue[i][j];
+				m_pppRenderQueue[i][j] = nullptr;
+			}
+		}
 	}
 
-	m_PostProcessor.Clear();
-	m_DynamicDescriptorPool.Clear();
+	m_PostProcessor.Cleanup();
+	m_DynamicDescriptorPool.Cleanup();
+	m_ConstantBufferManager.Cleanup();
 
 	SAFE_RELEASE(m_pDefaultDepthStencil);
 
@@ -233,8 +235,11 @@ void Renderer::Clear()
 		SAFE_RELEASE(m_pRenderTargets[i]);
 	}
 
-	SAFE_RELEASE(m_pCommandList);
-	SAFE_RELEASE(m_pCommandAllocator);
+	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+	{
+		SAFE_RELEASE(m_ppCommandList[i]);
+		SAFE_RELEASE(m_ppCommandAllocator[i]);
+	}
 	SAFE_RELEASE(m_pSwapChain);
 	SAFE_RELEASE(m_pCommandQueue);
 
@@ -252,7 +257,7 @@ void Renderer::Clear()
 				pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
 				pDebug->Release();
 			}
-			// __debugbreak();
+			__debugbreak();
 		}
 #endif
 
@@ -269,6 +274,12 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			// 화면 해상도가 바뀌면 SwapChain을 다시 생성.
 			if (m_pSwapChain)
 			{
+				fence();
+				for (int i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+				{
+					waitForFenceValue(m_LastFenceValues[i]);
+				}
+
 				m_ScreenWidth = (UINT)LOWORD(lParam);
 				m_ScreenHeight = (UINT)HIWORD(lParam);
 
@@ -303,7 +314,7 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					m_pPrevBuffer = nullptr;
 					m_pDefaultDepthStencil->Release();
 					m_pDefaultDepthStencil = nullptr;
-					m_PostProcessor.Clear();
+					m_PostProcessor.Cleanup();
 					m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 
 					// swap chain resize.
@@ -428,7 +439,7 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 						const UINT SRV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
 						CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
 						CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
-						
+
 						D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
 						srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 						srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -444,7 +455,7 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 						// prev buffer srv
 						srvHandle = startSrvHandle;
 						srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-						srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+						// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
 						m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
 					}
 
@@ -456,8 +467,9 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 						&m_GlobalConstant,
 						m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
 					};
-					m_PostProcessor.Initizlie(m_pResourceManager, config, m_ScreenWidth, m_ScreenHeight, 4);
-					m_PostProcessor.SetDescriptorHeap(m_pResourceManager);
+					Renderer* pRenderer = this;
+					m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 4);
+					m_PostProcessor.SetDescriptorHeap(pRenderer);
 					m_Camera.SetAspectRatio((float)m_ScreenWidth / (float)m_ScreenHeight);
 				}
 			}
@@ -479,44 +491,43 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 		case WM_LBUTTONDOWN:
 		{
-			if (!m_pMouse->m_bMouseLeftButton)
+			if (!m_Mouse.bMouseLeftButton)
 			{
-				m_pMouse->m_bMouseDragStartFlag = true; // 드래그를 새로 시작하는지 확인.
+				m_Mouse.bMouseDragStartFlag = true; // 드래그를 새로 시작하는지 확인.
 			}
-			m_pMouse->m_bMouseLeftButton = true;
+			m_Mouse.bMouseLeftButton = true;
 			onMouseClick(LOWORD(lParam), HIWORD(lParam));
 		}
 		break;
 
 		case WM_LBUTTONUP:
-			m_pMouse->m_bMouseLeftButton = false;
+			m_Mouse.bMouseLeftButton = false;
 			break;
 
 		case WM_RBUTTONDOWN:
 		{
-			if (!m_pMouse->m_bMouseRightButton)
+			if (!m_Mouse.bMouseRightButton)
 			{
-				m_pMouse->m_bMouseDragStartFlag = true; // 드래그를 새로 시작하는지 확인.
+				m_Mouse.bMouseDragStartFlag = true; // 드래그를 새로 시작하는지 확인.
 			}
-			m_pMouse->m_bMouseRightButton = true;
+			m_Mouse.bMouseRightButton = true;
 		}
 		break;
 
 		case WM_RBUTTONUP:
-			m_pMouse->m_bMouseRightButton = false;
+			m_Mouse.bMouseRightButton = false;
 			break;
 
 		case WM_KEYDOWN:
 		{
-			m_pKeyboard->Pressed[wParam] = true;
+			m_Keyboard.bPressed[wParam] = true;
 			if (wParam == VK_ESCAPE) // ESC키 종료.
 			{
 				DestroyWindow(m_hMainWindow);
 			}
 			if (wParam == VK_SPACE)
 			{
-				m_pLights[1].bRotated = !m_pLights[1].bRotated;
-				// (*m_pLights)[1].bRotated = !(*m_pLights)[1].bRotated;
+				(*m_pLights)[1].bRotated = !(*m_pLights)[1].bRotated;
 			}
 		}
 		break;
@@ -528,12 +539,12 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				m_Camera.bUseFirstPersonView = !m_Camera.bUseFirstPersonView;
 			}
 
-			m_pKeyboard->Pressed[wParam] = false;
+			m_Keyboard.bPressed[wParam] = false;
 		}
 		break;
 
 		case WM_MOUSEWHEEL:
-			m_WheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+			m_Mouse.WheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 			break;
 
 		case WM_DESTROY:
@@ -658,6 +669,15 @@ LB_EXIT:
 		SetDebugLayerInfo(m_pDevice);
 	}
 
+	UINT physicalCoreCount = 0;
+	UINT logicalCoreCount = 0;
+	GetPhysicalCoreCount(&physicalCoreCount, &logicalCoreCount);
+	m_RenderThreadCount = physicalCoreCount;
+	if (m_RenderThreadCount > MAX_RENDER_THREAD_COUNT)
+	{
+		m_RenderThreadCount = MAX_RENDER_THREAD_COUNT;
+	}
+
 	// create command queue
 	{
 		D3D12_COMMAND_QUEUE_DESC queueDesc = {};
@@ -667,6 +687,16 @@ LB_EXIT:
 		hr = m_pDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_pCommandQueue));
 		BREAK_IF_FAILED(hr);
 		m_pCommandQueue->SetName(L"CommandQueue");
+
+		/*for (int i = 0; i < RenderPass_RenderPassCount; ++i)
+		{
+			hr = m_pDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_ppCommandQueue[i]));
+			BREAK_IF_FAILED(hr);
+
+			wchar_t debugName[256];
+			swprintf_s(debugName, 256, L"CommandQueue%d", i);
+			m_ppCommandQueue[i]->SetName(debugName);
+		}*/
 	}
 
 	// create swapchain
@@ -674,7 +704,8 @@ LB_EXIT:
 		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
 		swapChainDesc.Width = m_ScreenWidth;
 		swapChainDesc.Height = m_ScreenHeight;
-		swapChainDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+		// swapChainDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+		swapChainDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 		swapChainDesc.BufferCount = SWAP_CHAIN_FRAME_COUNT;
 		swapChainDesc.SampleDesc.Count = 1;
@@ -685,8 +716,8 @@ LB_EXIT:
 		swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 		DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
-		// fsSwapChainDesc.RefreshRate.Numerator = 60;
-		// fsSwapChainDesc.RefreshRate.Denominator = 1;
+		/*fsSwapChainDesc.RefreshRate.Numerator = 60;
+		fsSwapChainDesc.RefreshRate.Denominator = 1;*/
 		fsSwapChainDesc.Windowed = TRUE;
 
 		IDXGISwapChain1* pSwapChain1 = nullptr;
@@ -700,19 +731,50 @@ LB_EXIT:
 		m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 	}
 
-	// create single command list
+	// create command list
 	{
-		hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_pCommandAllocator));
-		BREAK_IF_FAILED(hr);
-		m_pCommandAllocator->SetName(L"CommandAllocator");
+		for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+		{
+			WCHAR debugName[256];
 
-		hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_pCommandAllocator, nullptr, IID_PPV_ARGS(&m_pCommandList));
-		BREAK_IF_FAILED(hr);
-		m_pCommandList->SetName(L"CommandList");
+			hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_ppCommandAllocator[i]));
+			BREAK_IF_FAILED(hr);
+			swprintf_s(debugName, 256, L"CommandAllocator%u", i);
+			m_ppCommandAllocator[i]->SetName(debugName);
 
-		// Command lists are created in the recording state, but there is nothing
-		// to record yet. The main loop expects it to be closed, so close it now.
-		m_pCommandList->Close();
+			hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_ppCommandAllocator[i], nullptr, IID_PPV_ARGS(&m_ppCommandList[i]));
+			BREAK_IF_FAILED(hr);
+			swprintf_s(debugName, 256, L"CommandList%u", i);
+			m_ppCommandList[i]->SetName(debugName);
+
+			// Command lists are created in the recording state, but there is nothing
+			// to record yet. The main loop expects it to be closed, so close it now.
+			m_ppCommandList[i]->Close();
+		}
+	}
+
+	// create render queue and command list pool, descriptor pool
+	{
+		for (int i = 0; i < RenderPass_RenderPassCount; ++i)
+		{
+			for (UINT j = 0; j < MAX_RENDER_THREAD_COUNT; ++j)
+			{
+				m_pppRenderQueue[i][j] = new RenderQueue;
+				m_pppRenderQueue[i][j]->Initialize(8192);
+			}
+		}
+
+		/*for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; i++)
+		{
+			for (UINT j = 0; j < m_RenderThreadCount; j++)
+			{
+				m_pppCommandListPool[i][j] = new CommandListPool;
+				m_pppCommandListPool[i][j]->Initialize(m_pDevice, D3D12_COMMAND_LIST_TYPE_DIRECT, 256);
+
+				m_pppDescriptorPool[i][j] = new DynamicDescriptorPool;
+				m_pppDescriptorPool[i][j]->Initialize(m_pDevice, 4096);
+			}
+		}*/
 	}
 
 	// create fence
@@ -721,7 +783,6 @@ LB_EXIT:
 		BREAK_IF_FAILED(hr);
 
 		m_FenceValue = 0;
-
 		m_hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	}
 
@@ -757,7 +818,7 @@ LB_EXIT:
 		m_pFloatBuffer->SetName(L"FloatBuffer");
 
 
-		resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+		// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
 		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		hr = m_pDevice->CreateCommittedResource(&heapProps,
 												D3D12_HEAP_FLAG_NONE,
@@ -769,101 +830,44 @@ LB_EXIT:
 		m_pPrevBuffer->SetName(L"PrevBuffer");
 	}
 
+	ResourceManager::InitialData initData = { m_pDevice, m_pCommandQueue, m_ppCommandAllocator, m_ppCommandList, &m_DynamicDescriptorPool, &m_ConstantBufferManager, m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues };
 	m_pResourceManager = new ResourceManager;
-	m_pResourceManager->Initialize(m_pDevice, m_pCommandQueue, m_pCommandAllocator, m_pCommandList, &m_DynamicDescriptorPool);
+	m_pResourceManager->Initialize(&initData);
 	m_pResourceManager->InitRTVDescriptorHeap(16);
 	m_pResourceManager->InitDSVDescriptorHeap(8);
-	m_pResourceManager->InitCBVSRVUAVDescriptorHeap(512);
+	m_pResourceManager->InitCBVSRVUAVDescriptorHeap(1024);
+	
+#ifdef USE_MULTI_THREAD
+	// create thread and event
+	{
+		initRenderThreadPool(m_RenderThreadCount);
+		for (int i = 0; i < RenderPass_RenderPassCount; ++i)
+		{
+			m_phCompletedEvents[i] = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		}
+	}
+#endif
 
 	SAFE_RELEASE(pDebugController);
 	SAFE_RELEASE(pFactory5);
 	SAFE_RELEASE(pAdapter3);
 }
 
+void Renderer::initPhysics()
+{
+	m_PhysicsManager.Initialize(m_RenderThreadCount);
+}
+
 void Renderer::initScene()
 {
-	m_Camera.Reset(Vector3(3.74966f, 5.03645f, -2.54918f), -0.819048f, 0.741502f);
+	// m_Camera.Reset(Vector3(3.74966f, 5.03645f, -2.54918f), -0.819048f, 0.741502f);
+	m_Camera.Reset(Vector3(0.0f, 3.0f, -2.0f), -0.819048f, 0.741502f);
 
-	m_GlobalConstant.Initialize(m_pResourceManager, sizeof(GlobalConstant));
-	m_LightConstant.Initialize(m_pResourceManager, sizeof(LightConstant));
-	m_ReflectionGlobalConstant.Initialize(m_pResourceManager, sizeof(GlobalConstant));
+	Renderer* pRenderer = this;
+	m_GlobalConstant.Initialize(pRenderer, sizeof(GlobalConstant));
+	m_LightConstant.Initialize(pRenderer, sizeof(LightConstant));
+	m_ReflectionGlobalConstant.Initialize(pRenderer, sizeof(GlobalConstant));
 	m_pResourceManager->SetGlobalConstants(&m_GlobalConstant, &m_LightConstant, &m_ReflectionGlobalConstant);
-
-	// 환경맵 텍스쳐 로드.
-	/*{
-		m_EnvTexture.InitializeWithDDS(m_pResourceManager, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-		m_IrradianceTexture.InitializeWithDDS(m_pResourceManager, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-		m_SpecularTexture.InitializeWithDDS(m_pResourceManager, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-		m_BRDFTexture.InitializeWithDDS(m_pResourceManager, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	}*/
-
-	// 조명 설정.
-	//{
-	//	m_Lights.resize(MAX_LIGHTS);
-
-	//	// 조명 0.
-	//	m_Lights[0].Property.Radiance = Vector3(3.0f);
-	//	m_Lights[0].Property.FallOffEnd = 10.0f;
-	//	m_Lights[0].Property.Position = Vector3(0.0f, 0.0f, 0.0f);
-	//	m_Lights[0].Property.Direction = Vector3(0.0f, 0.0f, 1.0f);
-	//	m_Lights[0].Property.SpotPower = 3.0f;
-	//	m_Lights[0].Property.LightType = LIGHT_POINT | LIGHT_SHADOW;
-	//	m_Lights[0].Property.Radius = 0.03f;
-	//	m_Lights[0].Initialize(m_pResourceManager);
-
-	//	// 조명 1.
-	//	m_Lights[1].Property.Radiance = Vector3(3.0f);
-	//	m_Lights[1].Property.FallOffEnd = 10.0f;
-	//	m_Lights[1].Property.Position = Vector3(1.0f, 1.1f, 2.0f);
-	//	m_Lights[1].Property.SpotPower = 2.0f;
-	//	m_Lights[1].Property.Direction = Vector3(0.0f, -0.5f, 1.7f) - m_Lights[1].Property.Position;
-	//	m_Lights[1].Property.Direction.Normalize();
-	//	m_Lights[1].Property.LightType = LIGHT_SPOT | LIGHT_SHADOW;
-	//	m_Lights[1].Property.Radius = 0.03f;
-	//	m_Lights[1].Initialize(m_pResourceManager);
-
-	//	// 조명 2.
-	//	m_Lights[2].Property.Radiance = Vector3(5.0f);
-	//	m_Lights[2].Property.Position = Vector3(5.0f, 5.0f, 5.0f);
-	//	m_Lights[2].Property.Direction = Vector3(-1.0f, -1.0f, -1.0f);
-	//	m_Lights[2].Property.Direction.Normalize();
-	//	m_Lights[2].Property.LightType = LIGHT_DIRECTIONAL | LIGHT_SHADOW;
-	//	m_Lights[2].Property.Radius = 0.05f;
-	//	m_Lights[2].Initialize(m_pResourceManager);
-	//}
-
-	// 조명 위치 표시.
-	//{
-	//	m_LightSpheres.resize(MAX_LIGHTS);
-
-	//	for (int i = 0; i < MAX_LIGHTS; ++i)
-	//	{
-	//		MeshInfo sphere = INIT_MESH_INFO;
-	//		MakeSphere(&sphere, 1.0f, 20, 20);
-
-	//		m_LightSpheres[i] = new Model(m_pResourceManager, { sphere });
-	//		m_LightSpheres[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
-
-	//		MaterialConstant* pSphereMaterialConst = (MaterialConstant*)m_LightSpheres[i]->Meshes[0]->MaterialConstant.pData;
-	//		pSphereMaterialConst->AlbedoFactor = Vector3(0.0f);
-	//		pSphereMaterialConst->EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
-	//		m_LightSpheres[i]->bCastShadow = false; // 조명 표시 물체들은 그림자 X.
-	//		for (UINT64 j = 0, size = m_LightSpheres[i]->Meshes.size(); j < size; ++j)
-	//		{
-	//			Mesh* pCurMesh = m_LightSpheres[i]->Meshes[j];
-	//			MaterialConstant* pMeshMaterialConst = (MaterialConstant*)(pCurMesh->MaterialConstant.pData);
-	//			pMeshMaterialConst->AlbedoFactor = Vector3(0.0f);
-	//			pMeshMaterialConst->EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
-	//		}
-
-	//		m_LightSpheres[i]->bIsVisible = true;
-	//		m_LightSpheres[i]->Name = "LightSphere" + std::to_string(i);
-	//		m_LightSpheres[i]->bIsPickable = false;
-
-	//		m_RenderObjects.push_back(m_LightSpheres[i]); // 리스트에 등록.
-	//	}
-	//}
-
 
 	// 공용 global constant 설정.
 	{
@@ -873,98 +877,9 @@ void Renderer::initScene()
 		LightConstant* pLightData = (LightConstant*)m_LightConstant.pData;
 		for (int i = 0; i < MAX_LIGHTS; ++i)
 		{
-			memcpy(&pLightData->Lights[i], &m_pLights[i].Property, sizeof(LightProperty));
-			// memcpy(&pLightData->Lights[i], &(*m_pLights)[i].Property, sizeof(LightProperty));
+			memcpy(&pLightData->Lights[i], &(*m_pLights)[i].Property, sizeof(LightProperty));
 		}
 	}
-
-	// 바닥(거울).
-	//{
-	//	MeshInfo mesh = INIT_MESH_INFO;
-	//	MakeSquare(&mesh, 10.0f);
-
-	//	std::wstring path = L"./Assets/Textures/PBR/stringy-marble-ue/";
-	//	mesh.szAlbedoTextureFileName = path + L"stringy_marble_albedo.png";
-	//	mesh.szEmissiveTextureFileName = L"";
-	//	mesh.szAOTextureFileName = path + L"stringy_marble_ao.png";
-	//	mesh.szMetallicTextureFileName = path + L"stringy_marble_Metallic.png";
-	//	mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
-	//	mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
-
-	//	m_pGround = new Model(m_pResourceManager, { mesh });
-
-	//	MaterialConstant* pGroundMaterialConst = (MaterialConstant*)m_pGround->Meshes[0]->MaterialConstant.pData;
-	//	pGroundMaterialConst->AlbedoFactor = Vector3(0.7f);
-	//	pGroundMaterialConst->EmissionFactor = Vector3(0.0f);
-	//	pGroundMaterialConst->MetallicFactor = 0.5f;
-	//	pGroundMaterialConst->RoughnessFactor = 0.3f;
-
-	//	// Vector3 position = Vector3(0.0f, -1.0f, 0.0f);
-	//	Vector3 position = Vector3(0.0f, -0.5f, 0.0f);
-	//	m_pGround->UpdateWorld(Matrix::CreateRotationX(DirectX::XM_PI * 0.5f) * Matrix::CreateTranslation(position));
-	//	m_pGround->bCastShadow = false; // 바닥은 그림자 만들기 생략.
-
-	//	m_MirrorPlane = DirectX::SimpleMath::Plane(position, Vector3(0.0f, 1.0f, 0.0f));
-	//	m_pMirror = m_pGround; // 바닥에 거울처럼 반사 구현.
-	//}
-
-	// 환경 박스 초기화.
-	/*{
-		MeshInfo skyboxMeshInfo = INIT_MESH_INFO;
-		MakeBox(&skyboxMeshInfo, 40.0f);
-
-		std::reverse(skyboxMeshInfo.Indices.begin(), skyboxMeshInfo.Indices.end());
-		m_pSkybox = new Model(m_pResourceManager, { skyboxMeshInfo });
-		m_pSkybox->Name = "SkyBox";
-	}*/
-
-	// Main Object.
-	//{
-	//	std::wstring path = L"./Assets/";
-	//	std::vector<std::wstring> clipNames =
-	//	{
-	//		L"CatwalkIdleTwistR.fbx", L"CatwalkIdleToWalkForward.fbx",
-	//		L"CatwalkWalkForward.fbx", L"CatwalkWalkStop.fbx",
-	//	};
-	//	AnimationData aniData;
-
-	//	std::wstring filename = L"Remy.fbx";
-	//	std::vector<MeshInfo> characterMeshInfo;
-	//	AnimationData characterDefaultAnimData;
-	//	ReadAnimationFromFile(characterMeshInfo, characterDefaultAnimData, path, filename);
-
-	//	for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
-	//	{
-	//		std::wstring& name = clipNames[i];
-	//		std::vector<MeshInfo> animationMeshInfo;
-	//		AnimationData animationData;
-	//		ReadAnimationFromFile(animationMeshInfo, animationData, path, name);
-
-	//		if (aniData.Clips.empty())
-	//		{
-	//			aniData = animationData;
-	//		}
-	//		else
-	//		{
-	//			aniData.Clips.push_back(animationData.Clips[0]);
-	//		}
-	//	}
-
-	//	Vector3 center(0.0f, 0.0f, 2.0f);
-	//	m_pCharacter = new SkinnedMeshModel(m_pResourceManager, characterMeshInfo, aniData);
-	//	for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
-	//	{
-	//		Mesh* pCurMesh = m_pCharacter->Meshes[i];
-	//		MaterialConstant* pMeshConst = (MaterialConstant*)pCurMesh->MaterialConstant.pData;
-
-	//		pMeshConst->AlbedoFactor = Vector3(1.0f);
-	//		pMeshConst->RoughnessFactor = 0.8f;
-	//		pMeshConst->MetallicFactor = 0.0f;
-	//	}
-	//	m_pCharacter->UpdateWorld(Matrix::CreateScale(1.0f) * Matrix::CreateTranslation(center));
-
-	//	// m_RenderObjects.push_back(m_pCharacter);
-	//}
 }
 
 void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture)
@@ -975,7 +890,7 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 	_ASSERT(pBRDFTexture);
 
 	HRESULT hr = S_OK;
-
+	Renderer* pRenderer = this;
 	const UINT RTV_DESCRITOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
 
@@ -1054,6 +969,7 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 
 	// Model에서 쓰이는 descriptor 저장.
 	{
+		// UINT64 totalObject = m_RenderObjects.size();
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
 
 		// b0, b1
@@ -1098,7 +1014,7 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
 
 		// prev buffer srv
-		srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+		// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
 		m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, cbvSrvHandle);
 		m_PrevBufferSRVOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
 		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
@@ -1108,8 +1024,7 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 		m_pResourceManager->m_GlobalShaderResourceViewStartOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
 
 		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		m_pLights[1].ShadowMap.SetDescriptorHeap(m_pResourceManager);
-		// (*m_pLights)[1].ShadowMap.SetDescriptorHeap(m_pResourceManager);
+		(*m_pLights)[1].LightShadowMap.SetDescriptorHeap(this);
 		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 		m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, cbvSrvHandle);
@@ -1121,13 +1036,11 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
 
 		// t11
-		m_pLights[0].ShadowMap.SetDescriptorHeap(m_pResourceManager);
-		// (*m_pLights)[0].ShadowMap.SetDescriptorHeap(m_pResourceManager);
+		(*m_pLights)[0].LightShadowMap.SetDescriptorHeap(this);
 		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 		// t12
-		m_pLights[2].ShadowMap.SetDescriptorHeap(m_pResourceManager);
-		// (*m_pLights)[2].ShadowMap.SetDescriptorHeap(m_pResourceManager);
+		(*m_pLights)[2].LightShadowMap.SetDescriptorHeap(this);
 		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 		// t13
@@ -1172,22 +1085,55 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
 
+		// null. 15번째.
+		m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, cbvSrvHandle);
+		// cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
+
 		// Model 내 생성된 버퍼들 등록.
-		/*for (UINT64 i = 0, size = (*m_pRenderObjects).size(); i < size; ++i)
+		for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
 		{
 			Model* pModel = (*m_pRenderObjects)[i];
-			pModel->SetDescriptorHeap(m_pResourceManager);
-		}*/
-		ListElem* pRenderObject = &m_pFirstModelOfList->LinkInRenderObjects;
-		while (pRenderObject)
-		{
-			Model* pModel = (Model*)pRenderObject->pItem;
-			pModel->SetDescriptorHeap(m_pResourceManager);
-			pRenderObject = pRenderObject->pNext;
+
+			switch (pModel->ModelType)
+			{
+				case RenderObjectType_DefaultType: 
+				case RenderObjectType_SkyboxType:
+				case RenderObjectType_MirrorType:
+					pModel->SetDescriptorHeap(pRenderer);
+					break;
+
+				case RenderObjectType_SkinnedType:
+				{
+					SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pModel;
+					pCharacter->SetDescriptorHeap(pRenderer);
+				}
+				break;
+
+				default:
+					break;
+			}
 		}
-		m_pSkybox->SetDescriptorHeap(m_pResourceManager);
-		m_pGround->SetDescriptorHeap(m_pResourceManager);
-		m_pCharacter->SetDescriptorHeap(m_pResourceManager);
+	}
+}
+
+void Renderer::initRenderThreadPool(UINT renderThreadCount)
+{
+	m_pThreadDescList = new RenderThreadDesc[renderThreadCount];
+	memset(m_pThreadDescList, 0, sizeof(RenderThreadDesc) * renderThreadCount);
+
+	for (UINT i = 0; i < renderThreadCount; ++i)
+	{
+		for (int j = 0; j < RenderThreadEventType_Count; ++j)
+		{
+			m_pThreadDescList[i].hEventList[j] = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		}
+
+		m_pThreadDescList[i].pRenderer = this;
+		m_pThreadDescList[i].pResourceManager = m_pResourceManager;
+		m_pThreadDescList[i].ThreadIndex = i;
+		UINT threadID = 0;
+		m_pThreadDescList[i].hThread = (HANDLE)_beginthreadex(nullptr, 0, RenderThread, m_pThreadDescList + i, 0, &threadID);
 	}
 }
 
@@ -1195,10 +1141,62 @@ void Renderer::beginRender()
 {
 	HRESULT hr = S_OK;
 
-	hr = m_pCommandAllocator->Reset();
+#ifdef USE_MULTI_THREAD
+	
+	/*CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
+	ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+
+	const CD3DX12_RESOURCE_BARRIER RTV_BEFORE_BARRIERS[2] =
+	{
+		CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET),
+		CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET),
+	};
+	pCommandList->ResourceBarrier(2, RTV_BEFORE_BARRIERS);
+
+	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+
+	const float COLOR[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	pCommandList->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
+	pCommandList->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
+	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);*/
+
+	////////////////////////////////////
+	CommandListPool* pCommandListPool1 = m_pppCommandListPool[m_FrameIndex][0];
+	CommandListPool* pCommandListPool2 = m_pppCommandListPool[m_FrameIndex][1];
+	ID3D12GraphicsCommandList* pCommandList1 = pCommandListPool1->GetCurrentCommandList();
+	ID3D12GraphicsCommandList* pCommandList2 = pCommandListPool2->GetCurrentCommandList();
+
+	const CD3DX12_RESOURCE_BARRIER RENDER_TARGET_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	const CD3DX12_RESOURCE_BARRIER FLOAT_BUFFER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+
+	pCommandList1->ResourceBarrier(1, &FLOAT_BUFFER_BARRIER);
+	pCommandList2->ResourceBarrier(1, &RENDER_TARGET_BARRIER);
+
+	const float COLOR[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	pCommandList2->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
+	pCommandList1->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
+	pCommandList1->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	// pCommandListPool1->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);
+	pCommandListPool1->ClosedAndExecute(m_pCommandQueue);
+	pCommandListPool2->ClosedAndExecute(m_pCommandQueue);
+
+#else
+
+	hr = m_ppCommandAllocator[m_FrameIndex]->Reset();
 	BREAK_IF_FAILED(hr);
 
-	hr = m_pCommandList->Reset(m_pCommandAllocator, nullptr);
+	hr = m_ppCommandList[m_FrameIndex]->Reset(m_ppCommandAllocator[m_FrameIndex], nullptr);
 	BREAK_IF_FAILED(hr);
 
 	ID3D12DescriptorHeap* ppDescriptorHeaps[] =
@@ -1206,20 +1204,148 @@ void Renderer::beginRender()
 		m_DynamicDescriptorPool.GetDescriptorHeap(),
 		m_pResourceManager->m_pSamplerHeap
 	};
-	m_pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
+	m_ppCommandList[m_FrameIndex]->SetDescriptorHeaps(2, ppDescriptorHeaps);
+
+#endif
 }
 
-void Renderer::shadowMapRender()
+void Renderer::renderShadowmap()
 {
-	for (UINT64 i = 0; i < MAX_LIGHTS; ++i)
+#ifdef USE_MULTI_THREAD
+
+	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
+	const int TOTAL_LIGHT_TYPE = LIGHT_DIRECTIONAL | LIGHT_POINT | LIGHT_SPOT;
+
+	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
-		m_pLights[i].RenderShadowMap(m_pResourceManager, m_pFirstModelOfList, (SkinnedMeshModel*)m_pCharacter, m_pMirror);
-		// (*m_pLights)[i].RenderShadowMap(m_pResourceManager, m_pRenderObjects, (SkinnedMeshModel*)m_pCharacter, m_pMirror);
+		CD3DX12_RESOURCE_BARRIER barrier;
+		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+
+		Light* pCurLight = &(*m_pLights)[i];
+		eRenderPSOType renderPSO;
+		
+		// set shadow map writing state for depth buffer.
+		switch (pCurLight->Property.LightType & TOTAL_LIGHT_TYPE)
+		{
+			case LIGHT_DIRECTIONAL:
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetDirectionalLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				renderPSO = RenderPSOType_DepthOnlyCascadeDefault;
+				break;
+
+			case LIGHT_POINT:
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetPointLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				renderPSO = RenderPSOType_DepthOnlyCubeDefault;
+				break;
+
+			case LIGHT_SPOT:
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetSpotLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				renderPSO = RenderPSOType_DepthOnlyDefault;
+				break;
+
+			default:
+				__debugbreak();
+				break;
+		}
+		pCommandList->ResourceBarrier(1, &barrier);
+
+		// register object to render queue.
+		m_CurThreadIndex = 0;
+		for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+		{
+			RenderQueue* pRenderQue = m_pppRenderQueue[RenderPass_Shadow][m_CurThreadIndex];
+			Model* pModel = (*m_pRenderObjects)[i];
+
+			if (!pModel->bIsVisible || !pModel->bCastShadow)
+			{
+				continue;
+			}
+
+			RenderItem item;
+			item.ModelType = (eRenderObjectType)pModel->ModelType;
+			item.pObjectHandle = (void*)pModel;
+			item.pLight = (void*)pCurLight;
+			item.pFilter = nullptr;
+			item.PSOType = renderPSO;
+
+			if (pModel->ModelType == SkinnedModel)
+			{
+				item.PSOType = (eRenderPSOType)(renderPSO + 1);			
+			}
+
+			if (!pRenderQue->Add(&item))
+			{
+				__debugbreak();
+			}
+			++m_CurThreadIndex;
+		}
 	}
+
+	// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_Shadow]);
+	pCommandListPool->ClosedAndExecute(m_pCommandQueue);
+
+#else
+
+	Renderer* pRenderer = this;
+	for (int i = 0; i < MAX_LIGHTS; ++i)
+	{
+		(*m_pLights)[i].RenderShadowMap(pRenderer, m_pRenderObjects);
+	}
+
+#endif
 }
 
-void Renderer::objectRender()
+void Renderer::renderObject()
 {
+#ifdef USE_MULTI_THREAD
+
+	// register obejct to render queue.
+	m_CurThreadIndex = 0;
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+	{
+		RenderQueue* pRenderQue = m_pppRenderQueue[RenderPass_Object][m_CurThreadIndex];
+		Model* pCurModel = (*m_pRenderObjects)[i];
+
+		if (!pCurModel->bIsVisible)
+		{
+			continue;
+		}
+
+		RenderItem item;
+		item.ModelType = (eRenderObjectType)pCurModel->ModelType;
+		item.pObjectHandle = (void*)pCurModel;
+		item.pLight = nullptr;
+		item.pFilter = nullptr;
+
+		switch (pCurModel->ModelType)
+		{
+			case DefaultModel:
+				item.PSOType = RenderPSOType_Default;
+				break;
+
+			case SkinnedModel:
+				item.PSOType = RenderPSOType_Skinned;
+				break;
+
+			case SkyboxModel:
+				item.PSOType = RenderPSOType_Skybox;
+				break;
+
+			default:
+				break;
+		}
+
+		if (!pRenderQue->Add(&item))
+		{
+			__debugbreak();
+		}
+		++m_CurThreadIndex;
+	}
+
+#else
+
+	Renderer* pRenderer = this;
+	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_FrameIndex];
+
 	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
@@ -1230,115 +1356,439 @@ void Renderer::objectRender()
 		CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET),
 		CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET),
 	};
-	m_pCommandList->ResourceBarrier(2, RTV_BEFORE_BARRIERS);
+	pCommandList->ResourceBarrier(2, RTV_BEFORE_BARRIERS);
 
-	const float COLOR[] = { 0.0f, 0.0f, 1.0f, 1.0f };
-	m_pCommandList->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
-	m_pCommandList->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
-	m_pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+	const float COLOR[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	pCommandList->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
+	pCommandList->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
+	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-	m_pCommandList->RSSetViewports(1, &m_ScreenViewport);
-	m_pCommandList->RSSetScissorRects(1, &m_ScissorRect);
-	m_pCommandList->OMSetRenderTargets(1, &floatRtvHandle, FALSE, &dsvHandle);
+	pCommandList->RSSetViewports(1, &m_ScreenViewport);
+	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
+	pCommandList->OMSetRenderTargets(1, &floatRtvHandle, FALSE, &dsvHandle);
 
-	m_pResourceManager->SetCommonState(Skybox);
-	m_pSkybox->Render(m_pResourceManager, Skybox);
-
-	m_pResourceManager->SetCommonState(Default);
-	/*for (UINT64 i = 0, size = (*m_pRenderObjects).size(); i < size; ++i)
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
 	{
 		Model* pCurModel = (*m_pRenderObjects)[i];
-		if (pCurModel->bIsVisible)
+
+		if (!pCurModel->bIsVisible)
 		{
-			pCurModel->Render(m_pResourceManager, Default);
+			continue;
 		}
-	}*/
-	ListElem* pRenderObject = &m_pFirstModelOfList->LinkInRenderObjects;
-	while (pRenderObject)
-	{
-		Model* pModel = (Model*)pRenderObject->pItem;
-		if (pModel->bIsVisible)
+
+		switch (pCurModel->ModelType)
 		{
-			pModel->Render(m_pResourceManager, Default);
+			case RenderObjectType_DefaultType:
+			case RenderObjectType_MirrorType:
+			{
+				m_pResourceManager->SetCommonState(RenderPSOType_Default);
+				pCurModel->Render(pRenderer, RenderPSOType_Default);
+			}
+			break;
+
+			case RenderObjectType_SkinnedType:
+			{
+				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+				m_pResourceManager->SetCommonState(RenderPSOType_Skinned);
+				pCharacter->Render(pRenderer, RenderPSOType_Skinned);
+			}
+			break;
+
+			case RenderObjectType_SkyboxType:
+			{
+				m_pResourceManager->SetCommonState(RenderPSOType_Skybox);
+				pCurModel->Render(pRenderer, RenderPSOType_Skybox);
+			}
+			break;
+
+			default:
+				break;
 		}
-		pRenderObject = pRenderObject->pNext;
 	}
 
-	m_pResourceManager->SetCommonState(Skinned);
-	m_pCharacter->Render(m_pResourceManager, Skinned);
+#endif
 }
 
-void Renderer::mirrorRender()
+void Renderer::renderMirror()
 {
 	if (!m_pMirror)
 	{
 		return;
 	}
 
-	// 0.5의 투명도를 가진다고 가정.
-	D3D12_CPU_DESCRIPTOR_HANDLE defaultDSVHandle = m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart();
+#ifdef USE_MULTI_THREAD
 
-	// 거울 위치만 StencilBuffer에 1로 표기.
-	m_pResourceManager->SetCommonState(StencilMask);
-	m_pMirror->Render(m_pResourceManager, StencilMask);
-
-	// 거울 위치에 반사된 물체들을 렌더링.
-	m_pResourceManager->SetCommonState(ReflectionDefault);
-	m_pCommandList->ClearDepthStencilView(defaultDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-	/*for (UINT64 i = 0, size = (*m_pRenderObjects).size(); i < size; ++i)
+	// register object to render queue.
+	m_CurThreadIndex = 0;
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
 	{
+		RenderQueue* pRenderQue = m_pppRenderQueue[RenderPass_Mirror][m_CurThreadIndex];
 		Model* pCurModel = (*m_pRenderObjects)[i];
-		pCurModel->Render(m_pResourceManager, ReflectionDefault);
-	}*/
-	ListElem* pRenderObject = &m_pFirstModelOfList->LinkInRenderObjects;
-	while (pRenderObject)
-	{
-		Model* pModel = (Model*)pRenderObject->pItem;
-		pModel->Render(m_pResourceManager, ReflectionDefault);
-		pRenderObject = pRenderObject->pNext;
+
+		if (!pCurModel->bIsVisible)
+		{
+			continue;
+		}
+
+		RenderItem item;
+		item.ModelType = (eRenderObjectType)pCurModel->ModelType;
+		item.pObjectHandle = (void*)pCurModel;
+		item.pLight = nullptr;
+		item.pFilter = nullptr;
+
+		switch (pCurModel->ModelType)
+		{
+			case DefaultModel:
+				item.PSOType = RenderPSOType_ReflectionDefault;
+				break;
+
+			case SkinnedModel:
+				item.PSOType = RenderPSOType_ReflectionSkinned;
+				break;
+
+			case SkyboxModel:
+				item.PSOType = RenderPSOType_ReflectionSkybox;
+				break;
+
+			default:
+				break;
+		}
+
+		if (!pRenderQue->Add(&item))
+		{
+			__debugbreak();
+		}
+		++m_CurThreadIndex;
 	}
 
-	m_pResourceManager->SetCommonState(ReflectionSkinned);
-	m_pCharacter->Render(m_pResourceManager, ReflectionSkinned);
+#else
 
-	m_pResourceManager->SetCommonState(ReflectionSkybox);
-	m_pSkybox->Render(m_pResourceManager, ReflectionSkybox);
+	Renderer* pRenderer = this;
+
+	// 0.5의 투명도를 가진다고 가정.
+	// 거울 위치만 StencilBuffer에 1로 표기.
+	m_pResourceManager->SetCommonState(RenderPSOType_StencilMask);
+	m_pMirror->Render(pRenderer, RenderPSOType_StencilMask);
+
+	// 거울 위치에 반사된 물체들을 렌더링.
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+	{
+		Model* pCurModel = (*m_pRenderObjects)[i];
+
+		if (!pCurModel->bIsVisible)
+		{
+			continue;
+		}
+
+		switch (pCurModel->ModelType)
+		{
+			case RenderObjectType_DefaultType:
+			{
+				m_pResourceManager->SetCommonState(RenderPSOType_ReflectionDefault);
+				pCurModel->Render(pRenderer, RenderPSOType_ReflectionDefault);
+			}
+			break;
+
+			case RenderObjectType_SkinnedType:
+			{
+				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+				m_pResourceManager->SetCommonState(RenderPSOType_ReflectionSkinned);
+				pCharacter->Render(pRenderer, RenderPSOType_ReflectionSkinned);
+			}
+			break;
+
+			case RenderObjectType_SkyboxType:
+			{
+				m_pResourceManager->SetCommonState(RenderPSOType_ReflectionSkybox);
+				pCurModel->Render(pRenderer, RenderPSOType_ReflectionSkybox);
+			}
+			break;
+
+			default:
+				break;
+		}
+	}
 
 	// 거울 렌더링.
-	m_pResourceManager->SetCommonState(MirrorBlend);
-	m_pMirror->Render(m_pResourceManager, MirrorBlend);
+	m_pResourceManager->SetCommonState(RenderPSOType_MirrorBlend);
+	m_pMirror->Render(pRenderer, RenderPSOType_MirrorBlend);
+
+#endif
+}
+
+void Renderer::renderObjectBoundingModel()
+{
+	Renderer* pRenderer = this;
+
+	// obb rendering
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+	{
+		Model* pCurModel = (*m_pRenderObjects)[i];
+
+		if (!pCurModel->bIsVisible)
+		{
+			continue;
+		}
+
+		m_pResourceManager->SetCommonState(RenderPSOType_Wire);
+		switch (pCurModel->ModelType)
+		{
+			case RenderObjectType_DefaultType:
+				// pCurModel->RenderBoundingSphere(pRenderer, RenderPSOType_Wire);
+				break;
+
+			case RenderObjectType_SkinnedType:
+			{
+				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+				pCharacter->RenderBoundingCapsule(pRenderer, RenderPSOType_Wire);
+				pCharacter->RenderJointSphere(pRenderer, RenderPSOType_Wire);
+			}
+			break;
+
+			default:
+				break;
+		}
+	}
 }
 
 void Renderer::postProcess()
 {
+#ifdef USE_MULTI_THREAD
+
+	//m_CurThreadIndex = 1;
+
+	//RenderQueue* pRenderQueue = m_pppRenderQueue[RenderPass_Post][m_CurThreadIndex];
+
+	//RenderItem item;
+	//item.ModelType = RenderObjectType_DefaultType;
+	//item.pObjectHandle = (void*)m_PostProcessor.GetScreenMeshPtr();
+	//item.pLight = nullptr;
+
+	//// sampling.
+	//item.PSOType = RenderPSOType_Sampling;
+	//item.pFilter = (void*)m_PostProcessor.GetSamplingFilterPtr();
+	//if (!pRenderQueue->Add(&item))
+	//{
+	//	__debugbreak();
+	//}
+	//// +m_CurThreadIndex;
+
+	//// bloom.
+	//std::vector<ImageFilter>* pBloomDownFilters = m_PostProcessor.GetBloomDownFiltersPtr();
+	//std::vector<ImageFilter>* pBloomUpFilters = m_PostProcessor.GetBloomUpFiltersPtr();
+
+	//item.PSOType = RenderPSOType_BloomDown;
+	//for (UINT64 i = 0, size = pBloomDownFilters->size(); i < size; ++i)
+	//{
+	//	// pRenderQueue = m_ppRenderQueue[RenderPass_Post][m_CurThreadIndex];
+	//	item.pFilter = (void*)&(*pBloomDownFilters)[i];
+
+	//	if (!pRenderQueue->Add(&item))
+	//	{
+	//		__debugbreak();
+	//	}
+	//	// ++m_CurThreadIndex;
+	//}
+	//item.PSOType = RenderPSOType_BloomUp;
+	//for (UINT64 i = 0, size = pBloomUpFilters->size(); i < size; ++i)
+	//{
+	//	// pRenderQueue = m_ppRenderQueue[RenderPass_Post][m_CurThreadIndex];
+	//	item.pFilter = (void*)&(*pBloomUpFilters)[i];
+
+	//	if (!pRenderQueue->Add(&item))
+	//	{
+	//		__debugbreak();
+	//	}
+	//	// ++m_CurThreadIndex;
+	//}
+
+	//// combine.
+	//item.PSOType = RenderPSOType_Combine;
+	//item.pFilter = (void*)m_PostProcessor.GetCombineFilterPtr();
+	//if (!pRenderQueue->Add(&item))
+	//{
+	//	__debugbreak();
+	//}
+
+#else
+
+	Renderer* pRenderer = this;
+
 	const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
-	m_pCommandList->ResourceBarrier(1, &BARRIER);
-	m_PostProcessor.Render(m_pResourceManager, m_FrameIndex);
+	m_ppCommandList[m_FrameIndex]->ResourceBarrier(1, &BARRIER);
+	m_PostProcessor.Render(pRenderer, m_FrameIndex);
+
+#endif
 }
 
 void Renderer::endRender()
 {
-	_ASSERT(m_pCommandList);
+#ifdef USE_MULTI_THREAD
+
+	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
+
+	for (int i = 0; i < RenderPass_RenderPassCount; ++i)
+	{
+		m_pActiveThreadCounts[i] = m_RenderThreadCount;
+	}
+
+	// shadow pass.
+	for (UINT i = 0; i < m_RenderThreadCount; ++i)
+	{
+		SetEvent(m_pThreadDescList[i].hEventList[RenderThreadEventType_Shadow]);
+	}
+	WaitForSingleObject(m_phCompletedEvents[RenderPass_Shadow], INFINITE);
+	
+	const int TOTAL_LIGHT_TYPE = LIGHT_DIRECTIONAL | LIGHT_POINT | LIGHT_SPOT;
+	// resource barrier.
+	for (int i = 0; i < MAX_LIGHTS; ++i)
+	{
+		CD3DX12_RESOURCE_BARRIER barrier;
+		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+		Light* pCurLight = &(*m_pLights)[i];
+
+		switch (pCurLight->Property.LightType & TOTAL_LIGHT_TYPE)
+		{
+			case LIGHT_DIRECTIONAL:
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetDirectionalLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+				break;
+
+			case LIGHT_POINT:
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetPointLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+				break;
+
+			case LIGHT_SPOT:
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetSpotLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+				break;
+
+			default:
+				__debugbreak();
+				break;
+		}
+
+		pCommandList->ResourceBarrier(1, &barrier);
+	}
+	// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_Shadow]);
+	pCommandListPool->ClosedAndExecute(m_pCommandQueue);
+	fence();
+
+	// default render pass.
+	for (UINT i = 0; i < m_RenderThreadCount; ++i)
+	{
+		SetEvent(m_pThreadDescList[i].hEventList[RenderThreadEventType_Object]);
+	}
+	WaitForSingleObject(m_phCompletedEvents[RenderPass_Object], INFINITE);
+
+	// mirror pass.
+	// stencil process.
+	{
+		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
+		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
+		{
+			pDescriptorPool->GetDescriptorHeap(),
+			m_pResourceManager->m_pSamplerHeap,
+		};
+		CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+		
+		m_PostProcessor.SetViewportsAndScissorRects(pCommandList);
+		pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
+		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
+		m_pResourceManager->SetCommonState(0, pCommandList, m_pppDescriptorPool[m_FrameIndex][0], RenderPSOType_StencilMask);
+		m_pMirror->Render(0, pCommandList, pDescriptorPool, m_pResourceManager, RenderPSOType_StencilMask);
+		// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);
+		pCommandListPool->ClosedAndExecute(m_pCommandQueue);
+	}
+	for (UINT i = 0; i < m_RenderThreadCount; ++i)
+	{
+		SetEvent(m_pThreadDescList[i].hEventList[RenderThreadEventType_Mirror]);
+	}
+	WaitForSingleObject(m_phCompletedEvents[RenderPass_Mirror], INFINITE);
+	// mirror blend process.
+	{
+		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
+		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
+		{
+			pDescriptorPool->GetDescriptorHeap(),
+			m_pResourceManager->m_pSamplerHeap,
+		};
+		CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+
+		m_PostProcessor.SetViewportsAndScissorRects(pCommandList);
+		pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
+		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
+		m_pResourceManager->SetCommonState(0, pCommandList, m_pppDescriptorPool[m_FrameIndex][0], RenderPSOType_MirrorBlend);
+		m_pMirror->Render(0, pCommandList, pDescriptorPool, m_pResourceManager, RenderPSOType_MirrorBlend);
+		
+		const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
+		pCommandList->ResourceBarrier(1, &BARRIER);
+
+		// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);
+		pCommandListPool->ClosedAndExecute(m_pCommandQueue);
+	}
+	fence();
+
+	// postprocessing pass.
+	{
+		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
+		// const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
+		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
+		{
+			pDescriptorPool->GetDescriptorHeap(),
+			m_pResourceManager->m_pSamplerHeap,
+		};
+		
+		// pCommandList->ResourceBarrier(1, &BARRIER);
+		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
+		m_PostProcessor.Render(0, pCommandList, pDescriptorPool, m_pResourceManager, m_FrameIndex);
+	
+		const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+		pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
+		pCommandListPool->ClosedAndExecute(m_pCommandQueue);
+	}
+	fence();
+
+	for (int i = 0; i < RenderPass_RenderPassCount; ++i)
+	{
+		for (UINT j = 0; j < m_RenderThreadCount; ++j)
+		{
+			m_pppRenderQueue[i][j]->Reset();
+		}
+	}
+	
+#else
+
+	_ASSERT(m_ppCommandList[m_FrameIndex]);
 	_ASSERT(m_pCommandQueue);
 
-	const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
-	m_pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
-	m_pCommandList->Close();
+	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_FrameIndex];
 
-	ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
+	const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+	pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
+	pCommandList->Close();
+
+	ID3D12CommandList* ppCommandLists[] = { pCommandList };
 	m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+#endif
 }
 
 void Renderer::present()
 {
+	fence();
+
 	UINT syncInterval = 1;	  // VSync On
 	// UINT syncInterval = 0;  // VSync Off
 	UINT presentFlags = 0;
 
-	if (!syncInterval)
+	/*if (!syncInterval)
 	{
 		presentFlags = DXGI_PRESENT_ALLOW_TEARING;
-	}
+	}*/
 
 	HRESULT hr = m_pSwapChain->Present(syncInterval, presentFlags);
 	if (hr == DXGI_ERROR_DEVICE_REMOVED)
@@ -1347,12 +1797,25 @@ void Renderer::present()
 	}
 
 	// for next frame
-	m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
+	UINT nextFrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
+	waitForFenceValue(m_LastFenceValues[m_FrameIndex]);
 
-	fence();
-	waitForFenceValue();
+#ifdef USE_MULTI_THREAD
 
+	for (UINT i = 0; i < m_RenderThreadCount; ++i)
+	{
+		m_pppCommandListPool[nextFrameIndex][i]->Reset();
+		m_pppDescriptorPool[nextFrameIndex][i]->Reset();
+	}
+
+#else
+
+	m_ConstantBufferManager.Reset();
 	m_DynamicDescriptorPool.Reset();
+
+#endif
+
+	m_FrameIndex = nextFrameIndex;
 }
 
 void Renderer::updateGlobalConstants(const float DELTA_TIME)
@@ -1385,137 +1848,54 @@ void Renderer::updateGlobalConstants(const float DELTA_TIME)
 
 void Renderer::updateLightConstants(const float DELTA_TIME)
 {
+	Renderer* pRenderer = this;
 	LightConstant* pLightConstData = (LightConstant*)m_LightConstant.pData;
 
 	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
-		m_pLights[i].Update(m_pResourceManager, DELTA_TIME, m_Camera);
-		m_pLightSpheres[i]->UpdateWorld(Matrix::CreateScale(Max(0.01f, m_pLights[i].Property.Radius)) * Matrix::CreateTranslation(m_pLights[i].Property.Position));
-		memcpy(&pLightConstData->Lights[i], &m_pLights[i].Property, sizeof(LightProperty));
-		/*(*m_pLights)[i].Update(m_pResourceManager, DELTA_TIME, m_Camera);
-		(*m_pLightSpheres)[i]->UpdateWorld(Matrix::CreateScale(Max(0.01f, (*m_pLights)[i].Property.Radius)) * Matrix::CreateTranslation((*m_pLights)[i].Property.Position));
-		memcpy(&pLightConstData->Lights[i], &(*m_pLights)[i].Property, sizeof(LightProperty));*/
+		Light* pLight = &(*m_pLights)[i];
+
+		pLight->Update(pRenderer, DELTA_TIME, m_Camera);
+		(*m_pLightSpheres)[i]->UpdateWorld(Matrix::CreateScale(Max(0.01f, pLight->Property.Radius)) * Matrix::CreateTranslation(pLight->Property.Position));
+		memcpy(&pLightConstData->Lights[i], &pLight->Property, sizeof(LightProperty));
 	}
 
 	m_LightConstant.Upload();
 }
 
-//void Renderer::updateAnimation(const float DELTA_TIME)
-//{
-//	static int s_FrameCount = 0;
-//
-//	// States
-//	// 0: idle
-//	// 1: idle to walk
-//	// 2: walk forward
-//	// 3: walk to stop
-//	static int s_State = 0;
-//	SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)m_pCharacter;
-//
-//	switch (s_State)
-//	{
-//		case 0:
-//		{
-//			if (m_pKeyboard->Pressed[VK_UP])
-//			{
-//				s_State = 1;
-//				s_FrameCount = 0;
-//			}
-//			else if (s_FrameCount ==
-//					 pCharacter->AnimData.Clips[s_State].Keys[0].size() ||
-//					 m_pKeyboard->Pressed[VK_UP]) // 재생이 다 끝난다면.
-//			{
-//				s_FrameCount = 0; // 상태 변화 없이 반복.
-//			}
-//		}
-//		break;
-//
-//		case 1:
-//		{
-//			if (s_FrameCount == pCharacter->AnimData.Clips[s_State].Keys[0].size())
-//			{
-//				s_State = 2;
-//				s_FrameCount = 0;
-//			}
-//		}
-//		break;
-//
-//		case 2:
-//		{
-//			if (m_pKeyboard->Pressed[VK_RIGHT])
-//			{
-//				pCharacter->AnimData.AccumulatedRootTransform =
-//					Matrix::CreateRotationY(DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f) *
-//					pCharacter->AnimData.AccumulatedRootTransform;
-//			}
-//			if (m_pKeyboard->Pressed[VK_LEFT])
-//			{
-//				pCharacter->AnimData.AccumulatedRootTransform =
-//					Matrix::CreateRotationY(-DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f) *
-//					pCharacter->AnimData.AccumulatedRootTransform;
-//			}
-//			if (s_FrameCount == pCharacter->AnimData.Clips[s_State].Keys[0].size())
-//			{
-//				// 방향키를 누르고 있지 않으면 정지. (누르고 있으면 계속 걷기)
-//				if (!m_pKeyboard->Pressed[VK_UP])
-//				{
-//					s_State = 3;
-//				}
-//				s_FrameCount = 0;
-//			}
-//		}
-//		break;
-//
-//		case 3:
-//		{
-//			if (s_FrameCount == pCharacter->AnimData.Clips[s_State].Keys[0].size())
-//			{
-//				// s_State = 4;
-//				s_State = 0;
-//				s_FrameCount = 0;
-//			}
-//		}
-//		break;
-//
-//		default:
-//			break;
-//	}
-//
-//	pCharacter->UpdateAnimation(s_State, s_FrameCount);
-//	++s_FrameCount;
-//}
-
 void Renderer::onMouseMove(const int MOUSE_X, const int MOUSE_Y)
 {
-	m_MouseX = MOUSE_X;
-	m_MouseY = MOUSE_Y;
+	m_Mouse.MouseX = MOUSE_X;
+	m_Mouse.MouseY = MOUSE_Y;
 
 	// 마우스 커서의 위치를 NDC로 변환.
 	// 마우스 커서는 좌측 상단 (0, 0), 우측 하단(width-1, height-1).
 	// NDC는 좌측 하단이 (-1, -1), 우측 상단(1, 1).
-	m_MouseNDCX = (float)MOUSE_X * 2.0f / (float)m_ScreenWidth - 1.0f;
-	m_MouseNDCY = (float)(-MOUSE_Y) * 2.0f / (float)m_ScreenHeight + 1.0f;
+	m_Mouse.MouseNDCX = (float)MOUSE_X * 2.0f / (float)m_ScreenWidth - 1.0f;
+	m_Mouse.MouseNDCY = (float)(-MOUSE_Y) * 2.0f / (float)m_ScreenHeight + 1.0f;
 
 	// 커서가 화면 밖으로 나갔을 경우 범위 조절.
-	/*m_MouseNDCX = Clamp(m_MouseNDCX, -1.0f, 1.0f);
-	m_MouseNDCY = Clamp(m_MouseNDCY, -1.0f, 1.0f);*/
+	/*m_Mouse.MouseNDCX = Clamp(m_Mouse.MouseNDCX, -1.0f, 1.0f);
+	m_Mouse.MouseNDCY = Clamp(m_Mouse.MouseNDCY, -1.0f, 1.0f);*/
 
 	// 카메라 시점 회전.
-	m_Camera.UpdateMouse(m_MouseNDCX, m_MouseNDCY);
+	m_Camera.UpdateMouse(m_Mouse.MouseNDCX, m_Mouse.MouseNDCY);
 }
 
 void Renderer::onMouseClick(const int MOUSE_X, const int MOUSE_Y)
 {
-	m_MouseX = MOUSE_X;
-	m_MouseY = MOUSE_Y;
+	m_Mouse.MouseX = MOUSE_X;
+	m_Mouse.MouseY = MOUSE_Y;
 
-	m_MouseNDCX = (float)MOUSE_X * 2.0f / (float)m_ScreenWidth - 1.0f;
-	m_MouseNDCY = (float)(-MOUSE_Y) * 2.0f / (float)m_ScreenHeight + 1.0f;
+	m_Mouse.MouseNDCX = (float)MOUSE_X * 2.0f / (float)m_ScreenWidth - 1.0f;
+	m_Mouse.MouseNDCY = (float)(-MOUSE_Y) * 2.0f / (float)m_ScreenHeight + 1.0f;
 }
 
-void Renderer::processMouseControl()
+void Renderer::processMouseControl(const float DELTA_TIME)
 {
 	static Model* s_pActiveModel = nullptr;
+	static Mesh* s_pEndEffector = nullptr;
+	static int s_EndEffectorType = -1;
 	static float s_PrevRatio = 0.0f;
 	static Vector3 s_PrevPos(0.0f);
 	static Vector3 s_PrevVector(0.0f);
@@ -1527,81 +1907,120 @@ void Renderer::processMouseControl()
 	float dist = 0.0f;
 
 	// 사용자가 두 버튼 중 하나만 누른다고 가정.
-	if (m_pMouse->m_bMouseLeftButton || m_pMouse->m_bMouseRightButton)
+	if (m_Mouse.bMouseLeftButton || m_Mouse.bMouseRightButton)
 	{
 		const Matrix VIEW = m_Camera.GetView();
 		const Matrix PROJECTION = m_Camera.GetProjection();
-		const Vector3 NDC_NEAR = Vector3(m_MouseNDCX, m_MouseNDCY, 0.0f);
-		const Vector3 NDC_FAR = Vector3(m_MouseNDCX, m_MouseNDCY, 1.0f);
+		const Vector3 NDC_NEAR = Vector3(m_Mouse.MouseNDCX, m_Mouse.MouseNDCY, 0.0f);
+		const Vector3 NDC_FAR = Vector3(m_Mouse.MouseNDCX, m_Mouse.MouseNDCY, 1.0f);
 		const Matrix INV_PROJECTION_VIEW = (VIEW * PROJECTION).Invert();
 		const Vector3 WORLD_NEAR = Vector3::Transform(NDC_NEAR, INV_PROJECTION_VIEW);
 		const Vector3 WORLD_FAR = Vector3::Transform(NDC_FAR, INV_PROJECTION_VIEW);
 		Vector3 dir = WORLD_FAR - WORLD_NEAR;
 		dir.Normalize();
-		const DirectX::SimpleMath::Ray CUR_RAY = DirectX::SimpleMath::Ray(WORLD_NEAR, dir);
+
+		const DirectX::SimpleMath::Ray PICKING_RAY(WORLD_NEAR, dir);
 
 		if (!s_pActiveModel) // 이전 프레임에서 아무 물체도 선택되지 않았을 경우에는 새로 선택.
 		{
-			Model* pSelectedModel = pickClosest(CUR_RAY, &dist);
+			Mesh* pEndEffector = nullptr;
+			Model* pSelectedModel = pickClosest(PICKING_RAY, &dist, &pEndEffector, &s_EndEffectorType);
 			if (pSelectedModel)
 			{
+#ifdef _DEBUG
 				OutputDebugStringA("Newly selected model: ");
 				OutputDebugStringA(pSelectedModel->Name.c_str());
 				OutputDebugStringA("\n");
-
+#endif
 				s_pActiveModel = pSelectedModel;
-				m_pPickedModel = pSelectedModel; // GUI 조작용 포인터.
-				pickPoint = CUR_RAY.position + dist * CUR_RAY.direction;
-				if (m_pMouse->m_bMouseLeftButton) // 왼쪽 버튼 회전 준비.
+				s_pEndEffector = pEndEffector;
+				m_pPickedModel = s_pActiveModel; // GUI 조작용 포인터.
+				m_pPickedEndEffector = s_pEndEffector;
+				m_PickedEndEffectorType = s_EndEffectorType;
+				pickPoint = PICKING_RAY.position + dist * PICKING_RAY.direction;
+
+				if (s_pEndEffector)
 				{
-					s_PrevVector = pickPoint - s_pActiveModel->BoundingSphere.Center;
-					s_PrevVector.Normalize();
+					// 이동만 처리.
+					if (m_Mouse.bMouseRightButton)
+					{
+						m_Mouse.bMouseDragStartFlag = false;
+						s_PrevRatio = dist / (WORLD_FAR - WORLD_NEAR).Length();
+						s_PrevPos = pickPoint;
+					}
 				}
 				else
-				{ // 오른쪽 버튼 이동 준비
-					m_pMouse->m_bMouseDragStartFlag = false;
-					s_PrevRatio = dist / (WORLD_FAR - WORLD_NEAR).Length();
-					s_PrevPos = pickPoint;
+				{
+					if (m_Mouse.bMouseLeftButton) // 왼쪽 버튼 회전 준비.
+					{
+						s_PrevVector = pickPoint - s_pActiveModel->BoundingSphere.Center;
+						s_PrevVector.Normalize();
+					}
+					else if (m_Mouse.bMouseRightButton) // 오른쪽 버튼 이동 준비.
+					{ 
+						m_Mouse.bMouseDragStartFlag = false;
+						s_PrevRatio = dist / (WORLD_FAR - WORLD_NEAR).Length();
+						s_PrevPos = pickPoint;
+					}
 				}
 			}
 		}
 		else // 이미 선택된 물체가 있었던 경우.
 		{
-			if (m_pMouse->m_bMouseLeftButton) // 왼쪽 버튼으로 계속 회전.
+			if (s_pEndEffector)
 			{
-				if (CUR_RAY.Intersects(s_pActiveModel->BoundingSphere, dist))
+				// 이동만 처리.
+				if (m_Mouse.bMouseRightButton)
 				{
-					pickPoint = CUR_RAY.position + dist * CUR_RAY.direction;
+					Vector3 newPos = WORLD_NEAR + s_PrevRatio * (WORLD_FAR - WORLD_NEAR);
+					if ((newPos - s_PrevPos).Length() > 1e-3)
+					{
+						dragTranslation = newPos - s_PrevPos;
+						m_PickedTranslation = dragTranslation;
+						s_PrevPos = newPos;
+					}
+					pickPoint = newPos; // Cursor sphere 그려질 위치.
 				}
-				else // 바운딩 스피어에 가장 가까운 점을 찾기.
-				{
-					Vector3 c = s_pActiveModel->BoundingSphere.Center - WORLD_NEAR;
-					Vector3 centerToRay = dir.Dot(c) * dir - c;
-					pickPoint = c + centerToRay * Clamp(s_pActiveModel->BoundingSphere.Radius / centerToRay.Length(), 0.0f, 1.0f);
-					pickPoint += WORLD_NEAR;
-				}
-
-				Vector3 currentVector = pickPoint - s_pActiveModel->BoundingSphere.Center;
-				currentVector.Normalize();
-				float theta = acos(s_PrevVector.Dot(currentVector));
-				if (theta > DirectX::XM_PI / 180.0f * 3.0f)
-				{
-					Vector3 axis = s_PrevVector.Cross(currentVector);
-					axis.Normalize();
-					dragRotation = DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, theta);
-					s_PrevVector = currentVector;
-				}
-
 			}
-			else // 오른쪽 버튼으로 계속 이동.
+			else
 			{
-				Vector3 newPos = WORLD_NEAR + s_PrevRatio * (WORLD_FAR - WORLD_NEAR);
-				if ((newPos - s_PrevPos).Length() > 1e-3)
+				if (m_Mouse.bMouseLeftButton) // 왼쪽 버튼으로 계속 회전.
 				{
-					dragTranslation = newPos - s_PrevPos;
-					s_PrevPos = newPos;
+					if (PICKING_RAY.Intersects(s_pActiveModel->BoundingSphere, dist))
+					{
+						pickPoint = PICKING_RAY.position + dist * PICKING_RAY.direction;
+					}
+					else // 바운딩 스피어에 가장 가까운 점을 찾기.
+					{
+						Vector3 c = s_pActiveModel->BoundingSphere.Center - WORLD_NEAR;
+						Vector3 centerToRay = dir.Dot(c) * dir - c;
+						pickPoint = c + centerToRay * Clamp(s_pActiveModel->BoundingSphere.Radius / centerToRay.Length(), 0.0f, 1.0f);
+						pickPoint += WORLD_NEAR;
+					}
+
+					Vector3 currentVector = pickPoint - s_pActiveModel->BoundingSphere.Center;
+					currentVector.Normalize();
+					float theta = acos(s_PrevVector.Dot(currentVector));
+					if (theta > DirectX::XM_PI / 180.0f * 3.0f)
+					{
+						Vector3 axis = s_PrevVector.Cross(currentVector);
+						axis.Normalize();
+						dragRotation = DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, theta);
+						s_PrevVector = currentVector;
+					}
+
 				}
-				pickPoint = newPos; // Cursor sphere 그려질 위치.
+				else if (m_Mouse.bMouseRightButton) // 오른쪽 버튼으로 계속 이동.
+				{
+					Vector3 newPos = WORLD_NEAR + s_PrevRatio * (WORLD_FAR - WORLD_NEAR);
+					if ((newPos - s_PrevPos).Length() > 1e-3)
+					{
+						dragTranslation = newPos - s_PrevPos;
+						m_PickedTranslation = dragTranslation;
+						s_PrevPos = newPos;
+					}
+					pickPoint = newPos; // Cursor sphere 그려질 위치.
+				}
 			}
 		}
 	}
@@ -1609,46 +2028,253 @@ void Renderer::processMouseControl()
 	{
 		// 버튼에서 손을 땠을 경우에는 움직일 모델은 nullptr로 설정.
 		s_pActiveModel = nullptr;
+		s_pEndEffector = nullptr;
+		m_pPickedModel = nullptr;
+		m_pPickedEndEffector = nullptr;
+		m_PickedEndEffectorType = -1;
 	}
 
-	//if (s_pActiveModel != nullptr)
-	//{
-	//	Vector3 translation = s_pActiveModel->World.Translation();
-	//	s_pActiveModel->World.Translation(Vector3(0.0f));
-	//	s_pActiveModel->UpdateWorld(s_pActiveModel->World * Matrix::CreateFromQuaternion(dragRotation) * Matrix::CreateTranslation(dragTranslation + translation));
-	//	s_pActiveModel->BoundingSphere.Center = s_pActiveModel->World.Translation();
+	if (s_pActiveModel)
+	{
+		Vector3 translation;
+		if (s_pEndEffector)
+		{
+			/*MeshConstant* pMeshConstant = (MeshConstant*)s_pEndEffector->MeshConstant.pData;
+			translation = pMeshConstant->World.Transpose().Translation() + dragTranslation;*/
+			MeshConstant& meshConstantData = s_pEndEffector->MeshConstantData;
+			translation = meshConstantData.World.Transpose().Translation() + dragTranslation;
+			m_PickedTranslation = translation;
 
-	//	// 충돌 지점에 작은 구 그리기.
-	//	m_pCursorSphere->bIsVisible = true;
-	//	m_pCursorSphere->UpdateWorld(Matrix::CreateTranslation(pickPoint));
-	//}
-	//else
-	//{
-	//	m_pCursorSphere->bIsVisible = false;
-	//}
+			/*{
+				std::string debugString = std::string("dragTranslation: ") + std::to_string(dragTranslation.x) + std::string(", ") + std::to_string(dragTranslation.y) + std::string(", ") + std::to_string(dragTranslation.z) + std::string("\n");
+				OutputDebugStringA(debugString.c_str());
+
+				debugString = std::string("translation: ") + std::to_string(translation.x) + std::string(", ") + std::to_string(translation.y) + std::string(", ") + std::to_string(translation.z) + std::string("\n");
+				OutputDebugStringA(debugString.c_str());
+			}*/
+			
+			SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)s_pActiveModel;
+			switch (s_EndEffectorType)
+			{
+				case 0:
+					OutputDebugStringA("RightArm Control.\n");
+					break;
+
+				case 1:
+					OutputDebugStringA("LeftArm Control.\n");
+					break;
+
+				case 2:
+					OutputDebugStringA("RightLeg Control.\n");
+					break;
+					
+				case 3:
+					OutputDebugStringA("LeftLeg Control.\n");
+					break;
+
+				default:
+					__debugbreak();
+					break;
+			}
+		}
+		else
+		{
+			translation = s_pActiveModel->World.Translation();
+			s_pActiveModel->World.Translation(Vector3(0.0f));
+			s_pActiveModel->UpdateWorld(s_pActiveModel->World* Matrix::CreateFromQuaternion(dragRotation)* Matrix::CreateTranslation(dragTranslation + translation));
+			s_pActiveModel->BoundingSphere.Center = s_pActiveModel->World.Translation();
+		}
+
+		// 충돌 지점에 작은 구 그리기.
+		/*m_pCursorSphere->bIsVisible = true;
+		m_pCursorSphere->UpdateWorld(Matrix::CreateTranslation(pickPoint));*/
+	}
+	else
+	{
+		// m_pCursorSphere->bIsVisible = false;
+	}
 }
 
-Model* Renderer::pickClosest(const DirectX::SimpleMath::Ray& PICKING_RAY, float* pMinDist)
+Model* Renderer::pickClosest(const DirectX::SimpleMath::Ray& PICKING_RAY, float* pMinDist, Mesh** ppEndEffector, int* pEndEffectorType)
 {
-	return nullptr;
+	*pMinDist = 1e5f;
+	Model* pMinModel = nullptr;
+
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+	{
+		Model* pCurModel = (*m_pRenderObjects)[i];
+		float dist = 0.0f;
+
+		switch (pCurModel->ModelType)
+		{
+			case RenderObjectType_DefaultType:
+			{
+				if (pCurModel->bIsPickable &&
+					PICKING_RAY.Intersects(pCurModel->BoundingSphere, dist) &&
+					dist < *pMinDist)
+				{
+					pMinModel = pCurModel;
+					*pMinDist = dist;
+				}
+			}
+			break;
+
+			case RenderObjectType_SkinnedType:
+			{
+				if (pCurModel->bIsPickable &&
+					PICKING_RAY.Intersects(pCurModel->BoundingSphere, dist) &&
+					dist < *pMinDist)
+				{
+					pMinModel = pCurModel;
+					*pMinDist = dist;
+					dist = FLT_MAX;
+
+					// 4개 end-effector 중 어디에 해당되는 지 확인.
+					SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+					/*{
+						std::string debugString;
+
+						Vector3 rayOriginToSphereCencter(Vector3(pCharacter->BoundingSphere.Center) - PICKING_RAY.position);
+						float distAtRayAndSphereCenter = rayOriginToSphereCencter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY.direction.Length();
+						debugString = std::string("rayOriginToSphereCenter: ") + std::to_string(distAtRayAndSphereCenter) + std::string("\n");
+						OutputDebugStringA(debugString.c_str());
+
+						Vector3 rayOriginToRightToeCenter(Vector3(pCharacter->RightToe.Center) - PICKING_RAY.position);
+						float distAtRayAndRightToeCenter = rayOriginToRightToeCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY.direction.Length();
+						debugString = std::string("distAtRayAndRightToeCenter: ") + std::to_string(distAtRayAndRightToeCenter) + std::string("\n");
+						OutputDebugStringA(debugString.c_str());
+
+						Vector3 rayOriginToLeftToeCenter(Vector3(pCharacter->LeftToe.Center) - PICKING_RAY.position);
+						float distAtRayAndLeftToeCenter = rayOriginToRightToeCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY.direction.Length();
+						debugString = std::string("distAtRayAndLeftToeCenter: ") + std::to_string(distAtRayAndLeftToeCenter) + std::string("\n");
+						OutputDebugStringA(debugString.c_str());
+
+						Vector3 rayOriginToRightHandCenter(Vector3(pCharacter->RightHandMiddle.Center) - PICKING_RAY.position);
+						float distAtRayAndRightHandCenter = rayOriginToRightHandCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY.direction.Length();
+						debugString = std::string("distAtRayAndRightHand: ") + std::to_string(distAtRayAndRightHandCenter) + std::string("\n");
+						OutputDebugStringA(debugString.c_str());
+
+						Vector3 rayOriginToLeftHandCenter(Vector3(pCharacter->LeftHandMiddle.Center) - PICKING_RAY.position);
+						float distAtRayAndLeftHandCenter = rayOriginToLeftHandCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY.direction.Length();
+						debugString = std::string("distAtRayAndLeftHand: ") + std::to_string(distAtRayAndLeftHandCenter) + std::string("\n");
+						OutputDebugStringA(debugString.c_str());
+
+						// Vector3 rightToeToCenter(Vector3(pCharacter->BoundingSphere.Center) - Vector3(pCharacter->RightToe.Center));
+						// Vector3 leftToeToCenter(Vector3(pCharacter->BoundingSphere.Center) - Vector3(pCharacter->LeftToe.Center));
+						// Vector3 rightHandToCenter(Vector3(pCharacter->BoundingSphere.Center) - Vector3(pCharacter->RightHandMiddle.Center));
+						// Vector3 leftHandToCenter(Vector3(pCharacter->BoundingSphere.Center) - Vector3(pCharacter->LeftHandMiddle.Center));
+						//
+						// debugString = std::string("rightToeToCenter: ") + std::to_string(rightToeToCenter.Length()) + std::string("\n");
+						// OutputDebugStringA(debugString.c_str());
+						// debugString = std::string("leftToeToCenter: ") + std::to_string(leftToeToCenter.Length()) + std::string("\n");
+						// OutputDebugStringA(debugString.c_str());
+						// debugString = std::string("rightHandToCenter: ") + std::to_string(rightHandToCenter.Length()) + std::string("\n");
+						// OutputDebugStringA(debugString.c_str());
+						// debugString = std::string("leftHandToCenter: ") + std::to_string(leftHandToCenter.Length()) + std::string("\n");
+						// OutputDebugStringA(debugString.c_str());
+						// debugString = std::string("sphere radius: ") + std::to_string(pCharacter->BoundingSphere.Radius) + std::string("\n");
+						// OutputDebugStringA(debugString.c_str());
+
+						OutputDebugStringA("\n\n");
+					}*/
+
+					//if (PICKING_RAY.Intersects(pCharacter->RightHandMiddle, dist) &&
+					//	dist < *pMinDist)
+					//{
+					//	*ppEndEffector = *(pCharacter->GetRightArmsMesh() + 3);
+					//	*pMinDist = dist;
+					//}
+					//if (PICKING_RAY.Intersects(pCharacter->LeftHandMiddle, dist) &&
+					//	dist < *pMinDist)
+					//{
+					//	*ppEndEffector = *(pCharacter->GetLeftArmsMesh() + 3);
+					//	*pMinDist = dist;
+					//}
+					//if (PICKING_RAY.Intersects(pCharacter->RightToe, dist) &&
+					//	dist < *pMinDist)
+					//{
+					//	*ppEndEffector = *(pCharacter->GetRightLegsMesh() + 3);
+					//	*pMinDist = dist;
+					//}
+					//if (PICKING_RAY.Intersects(pCharacter->LeftToe, dist) &&
+					//	dist < *pMinDist)
+					//{
+					//	*ppEndEffector = *(pCharacter->GetLeftLegsMesh() + 3);
+					//	*pMinDist = dist;
+					//}
+
+					// 기존 picking 방식을 사용하면, 각 joint별 sphere가 너무 작아서인지 오차가 생기는 것 같음.
+					// 그래서 가정을 하나 함. 모델 picking하면 end-effector를 잡는다고 가정.
+					// picking ray와 각 end-effector 중심 거리가 가장 작은 것을 선택.
+					Vector3 rayToEndEffectorCenter;
+					float rayToEndEffectorDist;
+					const float PICKING_RAY_DIR_LENGTH = PICKING_RAY.direction.Length();
+
+					// right hand middle.
+					rayToEndEffectorCenter = pCharacter->RightHandMiddle.Center - PICKING_RAY.position;
+					rayToEndEffectorDist = rayToEndEffectorCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY_DIR_LENGTH;
+					if (rayToEndEffectorDist < dist)
+					{
+						*ppEndEffector = *(pCharacter->GetRightArmsMesh() + 3);
+						*pEndEffectorType = 0;
+						dist = rayToEndEffectorDist;
+					}
+
+					// left hand middle.
+					rayToEndEffectorCenter = pCharacter->LeftHandMiddle.Center - PICKING_RAY.position;
+					rayToEndEffectorDist = rayToEndEffectorCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY_DIR_LENGTH;
+					if (rayToEndEffectorDist < dist)
+					{
+						*ppEndEffector = *(pCharacter->GetLeftArmsMesh() + 3);
+						*pEndEffectorType = 1;
+						dist = rayToEndEffectorDist;
+					}
+
+					// right toe.
+					rayToEndEffectorCenter = pCharacter->RightToe.Center - PICKING_RAY.position;
+					rayToEndEffectorDist = rayToEndEffectorCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY_DIR_LENGTH;
+					if (rayToEndEffectorDist < dist)
+					{
+						*ppEndEffector = *(pCharacter->GetRightLegsMesh() + 3);
+						*pEndEffectorType = 2;
+						dist = rayToEndEffectorDist;
+					}
+
+					// left toe.
+					rayToEndEffectorCenter = pCharacter->LeftToe.Center - PICKING_RAY.position;
+					rayToEndEffectorDist = rayToEndEffectorCenter.Cross(PICKING_RAY.direction).Length() / PICKING_RAY_DIR_LENGTH;
+					if (rayToEndEffectorDist < dist)
+					{
+						*ppEndEffector = *(pCharacter->GetLeftLegsMesh() + 3);
+						*pEndEffectorType = 3;
+						dist = rayToEndEffectorDist;
+					}
+				}
+			}
+			break;
+
+			default:
+				break;
+		}
+	}
+
+	return pMinModel;
 }
 
 UINT64 Renderer::fence()
 {
 	++m_FenceValue;
 	m_pCommandQueue->Signal(m_pFence, m_FenceValue);
-
+	m_LastFenceValues[m_FrameIndex] = m_FenceValue;
 	return m_FenceValue;
 }
 
-void Renderer::waitForFenceValue()
+void Renderer::waitForFenceValue(UINT64 expectedFenceValue)
 {
-	const UINT64 EXPECTED_FENCE_VALUE = m_FenceValue;
-
 	// Wait until the previous frame is finished.
-	if (m_pFence->GetCompletedValue() < EXPECTED_FENCE_VALUE)
+	if (m_pFence->GetCompletedValue() < expectedFenceValue)
 	{
-		m_pFence->SetEventOnCompletion(EXPECTED_FENCE_VALUE, m_hFenceEvent);
+		m_pFence->SetEventOnCompletion(expectedFenceValue, m_hFenceEvent);
 		WaitForSingleObject(m_hFenceEvent, INFINITE);
 	}
 }

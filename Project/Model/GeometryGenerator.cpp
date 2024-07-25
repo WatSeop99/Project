@@ -39,7 +39,7 @@ LB_RET:
 	return hr;
 }
 
-void Normalize(const Vector3 CENTER, const float LONGEST_LENGTH, std::vector<MeshInfo>& meshes, AnimationData& animData)
+void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<MeshInfo>& meshes, AnimationData& animData)
 {
 	// 모델의 중심을 원점으로 옮기고 크기를 [-1,1]^3으로 스케일 -> 박스 형태로.
 	using namespace DirectX;
@@ -47,10 +47,10 @@ void Normalize(const Vector3 CENTER, const float LONGEST_LENGTH, std::vector<Mes
 	// Normalize vertices
 	Vector3 vmin(1000, 1000, 1000);
 	Vector3 vmax(-1000, -1000, -1000);
-	for (size_t i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
+	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
 	{
 		MeshInfo& curMesh = meshes[i];
-		for (size_t j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
+		for (UINT64 j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
 		{
 			Vertex& v = curMesh.Vertices[j];
 			vmin.x = XMMin(vmin.x, v.Position.x);
@@ -66,7 +66,7 @@ void Normalize(const Vector3 CENTER, const float LONGEST_LENGTH, std::vector<Mes
 	float scale = LONGEST_LENGTH / XMMax(XMMax(dx, dy), dz);
 	Vector3 translation = -(vmin + vmax) * 0.5f + CENTER;
 
-	for (size_t i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
+	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
 	{
 		MeshInfo& curMesh = meshes[i];
 		for (size_t j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
@@ -83,6 +83,7 @@ void Normalize(const Vector3 CENTER, const float LONGEST_LENGTH, std::vector<Mes
 
 	// 애니메이션 데이터 보정에 사용.
 	animData.DefaultTransform = Matrix::CreateTranslation(translation) * Matrix::CreateScale(scale);
+	animData.InverseDefaultTransform = animData.DefaultTransform.Invert();
 }
 
 void MakeSquare(MeshInfo* pDst, const float SCALE, const Vector2 TEX_SCALE)
@@ -304,7 +305,7 @@ void MakeBox(MeshInfo* pDst, const float SCALE)
 	};
 }
 
-void MakeWireBox(MeshInfo* pDst, const Vector3 CENTER, const Vector3 EXTENTS)
+void MakeWireBox(MeshInfo* pDst, const Vector3& CENTER, const Vector3& EXTENTS)
 {
 	// 상자를 와이어 프레임으로 그리는 용도.
 
@@ -363,7 +364,7 @@ void MakeWireBox(MeshInfo* pDst, const Vector3 CENTER, const Vector3 EXTENTS)
 	};
 }
 
-void MakeWireSphere(MeshInfo* pDst, const Vector3 CENTER, const float RADIUS)
+void MakeWireSphere(MeshInfo* pDst, const Vector3& CENTER, const float RADIUS)
 {
 	_ASSERT(pDst);
 
@@ -374,58 +375,186 @@ void MakeWireSphere(MeshInfo* pDst, const Vector3 CENTER, const float RADIUS)
 	const float D_THETA = DirectX::XM_2PI / (float)NUM_POINT;
 
 	// XY plane
+	int offset = (int)(vertices.size());
+	Vector3 start(1.0f, 0.0f, 0.0f);
+	for (int i = 0; i < NUM_POINT; ++i)
 	{
-		int offset = (int)(vertices.size());
-		Vector3 start(1.0f, 0.0f, 0.0f);
-		for (int i = 0; i < NUM_POINT; ++i)
+		Vertex v;
+		v.Position = CENTER + Vector3::Transform(start, Matrix::CreateRotationZ(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
 		{
-			Vertex v;
-			v.Position = CENTER + Vector3::Transform(start, Matrix::CreateRotationZ(D_THETA * (float)i)) * RADIUS;
-			vertices.push_back(v);
 			indices.push_back(i + offset);
-			if (i != 0)
-			{
-				indices.push_back(i + offset);
-			}
 		}
-		indices.push_back(offset);
 	}
+	indices.push_back(offset);
 
 	// YZ
+	offset = (int)(vertices.size());
+	start = Vector3(0.0f, 1.0f, 0.0f);
+	for (int i = 0; i < NUM_POINT; ++i)
 	{
-		int offset = (int)(vertices.size());
-		Vector3 start(0.0f, 1.0f, 0.0f);
-		for (int i = 0; i < NUM_POINT; ++i)
+		Vertex v;
+		v.Position = CENTER + Vector3::Transform(start, Matrix::CreateRotationX(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
 		{
-			Vertex v;
-			v.Position = CENTER + Vector3::Transform(start, Matrix::CreateRotationX(D_THETA * (float)i)) * RADIUS;
-			vertices.push_back(v);
 			indices.push_back(i + offset);
-			if (i != 0)
-			{
-				indices.push_back(i + offset);
-			}
 		}
-		indices.push_back(offset);
 	}
+	indices.push_back(offset);
 
 	// XZ
+	offset = (int)(vertices.size());
+	start = Vector3(1.0f, 0.0f, 0.0f);
+	for (int i = 0; i < NUM_POINT; ++i)
 	{
-		int offset = (int)(vertices.size());
-		Vector3 start(1.0f, 0.0f, 0.0f);
-		for (int i = 0; i < NUM_POINT; ++i)
+		Vertex v;
+		v.Position = CENTER + Vector3::Transform(start, Matrix::CreateRotationY(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
 		{
-			Vertex v;
-			v.Position = CENTER + Vector3::Transform(start, Matrix::CreateRotationY(D_THETA * (float)i)) * RADIUS;
-			vertices.push_back(v);
 			indices.push_back(i + offset);
-			if (i != 0)
-			{
-				indices.push_back(i + offset);
-			}
 		}
-		indices.push_back(offset);
 	}
+	indices.push_back(offset);
+}
+
+void MakeWireCapsule(MeshInfo* pDst, const Vector3& CENTER, const float RADIUS, const float TOTAL_LENGTH)
+{
+	_ASSERT(pDst);
+
+	std::vector<Vertex>& vertices = pDst->Vertices;
+	std::vector<UINT>& indices = pDst->Indices;
+
+	const int NUM_POINT = 30;
+	const int HALF_NUM_POINT = NUM_POINT / 2;
+	const float D_THETA = DirectX::XM_2PI / (float)NUM_POINT;
+	const float HALF_L = (TOTAL_LENGTH - RADIUS * 2.0f) * 0.5f;
+	Vector3 newCenter = Vector3(0.0f, HALF_L, 0.0f) + CENTER;
+
+	// xy plane.
+	int offset = (int)(vertices.size());
+	Vector3 start(1.0f, 0.0f, 0.0f);
+	Vertex v;
+	for (int i = 0; i < HALF_NUM_POINT; ++i)
+	{
+		v.Position = newCenter + Vector3::Transform(start, Matrix::CreateRotationZ(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
+		{
+			indices.push_back(i + offset);
+		}
+	}
+
+	Vertex& lastV = vertices.back();
+	v.Position = lastV.Position;
+	v.Position.y -= HALF_L * 2.0f;
+	vertices.push_back(v);
+	indices.push_back(HALF_NUM_POINT + offset);
+	indices.push_back(HALF_NUM_POINT + offset);
+
+	newCenter = Vector3(0.0f, -HALF_L, 0.0f) + CENTER;
+	for (int i = HALF_NUM_POINT; i < NUM_POINT; ++i)
+	{
+		v.Position = newCenter + Vector3::Transform(start, Matrix::CreateRotationZ(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
+		{
+			indices.push_back(i + offset);
+		}
+	}
+
+	lastV = vertices.back();
+	v.Position = lastV.Position;
+	v.Position.y -= HALF_L * 2.0f;
+	vertices.push_back(v);
+	indices.push_back(NUM_POINT + offset);
+	indices.push_back(NUM_POINT + offset);
+
+	indices.push_back(offset);
+
+
+	// zy plane
+	offset = (int)(vertices.size());
+	start = Vector3(0.0f, 0.0f, 1.0f);
+	newCenter = Vector3(0.0f, HALF_L, 0.0f) + CENTER;
+	for (int i = 0; i < HALF_NUM_POINT; ++i)
+	{
+		v.Position = newCenter - Vector3::Transform(start, Matrix::CreateRotationX(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
+		{
+			indices.push_back(i + offset);
+		}
+	}
+
+	lastV = vertices.back();
+	v.Position = lastV.Position;
+	v.Position.y -= HALF_L * 2.0f;
+	vertices.push_back(v);
+	indices.push_back(HALF_NUM_POINT + offset);
+	indices.push_back(HALF_NUM_POINT + offset);
+
+	newCenter = Vector3(0.0f, -HALF_L, 0.0f) + CENTER;
+	for (int i = HALF_NUM_POINT; i < NUM_POINT; ++i)
+	{
+		v.Position = newCenter - Vector3::Transform(start, Matrix::CreateRotationX(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
+		{
+			indices.push_back(i + offset);
+		}
+	}
+
+	lastV = vertices.back();
+	v.Position = lastV.Position;
+	v.Position.y -= HALF_L * 2.0f;
+	vertices.push_back(v);
+	indices.push_back(NUM_POINT + offset);
+	indices.push_back(NUM_POINT + offset);
+
+	indices.push_back(offset);
+
+
+	// zx plane.
+	offset = (int)(vertices.size());
+	start = Vector3(1.0f, 0.0f, 0.0f);
+	newCenter = Vector3(0.0f, HALF_L, 0.0f) + CENTER;
+	for (int i = 0; i < NUM_POINT; ++i)
+	{
+		Vertex v;
+		v.Position = newCenter + Vector3::Transform(start, Matrix::CreateRotationY(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
+		{
+			indices.push_back(i + offset);
+		}
+	}
+	indices.push_back(offset);
+
+	offset = (int)(vertices.size());
+	newCenter = Vector3(0.0f, -HALF_L, 0.0f) + CENTER;
+	for (int i = 0; i < NUM_POINT; ++i)
+	{
+		Vertex v;
+		v.Position = newCenter + Vector3::Transform(start, Matrix::CreateRotationY(D_THETA * (float)i)) * RADIUS;
+		vertices.push_back(v);
+		indices.push_back(i + offset);
+		if (i != 0)
+		{
+			indices.push_back(i + offset);
+		}
+	}
+	indices.push_back(offset);
 }
 
 void MakeCylinder(MeshInfo* pDst, const float BOTTOM_RADIUS, const float TOP_RADIUS, float height, int numSlices)
@@ -600,6 +729,113 @@ void MakeIcosahedron(MeshInfo* pDst)
 		1,  10, 8, 10, 3, 8, 8, 3,  5, 3, 2, 5,  3,  7, 2,
 		3,  10, 7, 10, 6, 7, 6, 11, 7, 6, 0, 11, 6,  1, 0,
 		10, 1,  6, 11, 0, 9, 2, 11, 9, 5, 2, 9,  11, 2, 7
+	};
+}
+
+void MakeSlope(MeshInfo* pDst, const float ANGLE, const float LENGTH)
+{
+	// LENGTH는 하단면 정사각형의 한 변의 길이.
+	// ANGLE은 경사면 각도(라디안 아님.)
+
+	_ASSERT(pDst);
+
+	std::vector<Vertex>& vertices = pDst->Vertices;
+	std::vector<UINT>& indices = pDst->Indices;
+	
+	const float TO_RADIAN = DirectX::XM_PI / 180.0f;
+	const float HALF_LENGTH = LENGTH * 0.5f;
+	const float ANGLE_TANGENT = tanf(ANGLE * TO_RADIAN);
+	const float HEIGHT = ANGLE_TANGENT * LENGTH;
+
+	vertices.resize(18);
+
+	// 하단면.
+	vertices[0].Position = Vector3(-HALF_LENGTH, 0.0f, -HALF_LENGTH);
+	vertices[0].Normal = Vector3(0.0f, -1.0f, 0.0f);
+	vertices[0].Texcoord = Vector2(0.0f, 0.0f);
+	
+	vertices[1].Position = Vector3(HALF_LENGTH, 0.0f, -HALF_LENGTH);
+	vertices[1].Normal = Vector3(0.0f, -1.0f, 0.0f);
+	vertices[1].Texcoord = Vector2(0.0f, 1.0f);
+	
+	vertices[2].Position = Vector3(-HALF_LENGTH, 0.0f, HALF_LENGTH);
+	vertices[2].Normal = Vector3(0.0f, -1.0f, 0.0f);
+	vertices[2].Texcoord = Vector2(1.0f, 0.0f);
+	
+	vertices[3].Position= Vector3(HALF_LENGTH, 0.0f, HALF_LENGTH);
+	vertices[3].Normal = Vector3(0.0f, -1.0f, 0.0f);
+	vertices[3].Texcoord = Vector2(1.0f, 1.0f);
+
+	// 상단면.
+	vertices[4].Position = Vector3(-HALF_LENGTH, 0.0f, -HALF_LENGTH);
+	vertices[4].Texcoord = Vector2(1.0f, 0.0f);
+
+	vertices[5].Position = Vector3(HALF_LENGTH, 0.0f, -HALF_LENGTH);
+	vertices[5].Texcoord = Vector2(1.0f, 1.0f);
+
+	vertices[6].Position = Vector3(-HALF_LENGTH, HEIGHT, HALF_LENGTH);
+	vertices[6].Texcoord = Vector2(0.0f, 0.0f);
+
+	vertices[7].Position = Vector3(HALF_LENGTH, HEIGHT, HALF_LENGTH);
+	vertices[7].Texcoord = Vector2(0.0f, 1.0f);
+
+	Vector3 vecA = vertices[5].Position - vertices[4].Position;
+	Vector3 vecB = vertices[6].Position - vertices[4].Position;
+	Vector3 normal = vecA.Cross(vecB);
+	for (int i = 4; i < 8; ++i)
+	{
+		vertices[i].Normal = normal;
+	}
+
+	// 양옆면.
+	vertices[8].Position = Vector3(-HALF_LENGTH, 0.0f, -HALF_LENGTH);
+	vertices[8].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+	vertices[8].Texcoord = Vector2(1.0f, 1.0f);
+
+	vertices[9].Position = Vector3(-HALF_LENGTH, 0.0f, HALF_LENGTH);
+	vertices[9].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+	vertices[9].Texcoord = Vector2(1.0f, 0.0f);
+
+	vertices[10].Position = Vector3(-HALF_LENGTH, HEIGHT, HALF_LENGTH);
+	vertices[10].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+	vertices[10].Texcoord = Vector2(ANGLE_TANGENT, 0.0f);
+
+	vertices[11].Position = Vector3(HALF_LENGTH, 0.0f, -HALF_LENGTH);
+	vertices[11].Normal = Vector3(1.0f, 0.0f, 0.0f);
+	vertices[11].Texcoord = Vector2(1.0f, 0.0f);
+
+	vertices[12].Position = Vector3(HALF_LENGTH, HEIGHT, HALF_LENGTH);
+	vertices[12].Normal = Vector3(1.0f, 0.0f, 0.0f);
+	vertices[12].Texcoord = Vector2(ANGLE_TANGENT, 1.0f);
+	
+	vertices[13].Position = Vector3(HALF_LENGTH, 0.0f, HALF_LENGTH);
+	vertices[13].Normal = Vector3(1.0f, 0.0f, 0.0f);
+	vertices[13].Texcoord = Vector2(1.0f, 1.0f);
+
+	// 뒷면.
+	vertices[14].Position = Vector3(-HALF_LENGTH, 0.0f, HALF_LENGTH);
+	vertices[14].Normal = Vector3(0.0f, 0.0f, 1.0f);
+	vertices[14].Texcoord = Vector2(1.0f, 1.0f);
+
+	vertices[15].Position = Vector3(HALF_LENGTH, 0.0f, HALF_LENGTH);
+	vertices[15].Normal = Vector3(0.0f, 0.0f, 1.0f);
+	vertices[15].Texcoord = Vector2(1.0f, 0.0f);
+
+	vertices[16].Position = Vector3(-HALF_LENGTH, HEIGHT, HALF_LENGTH);
+	vertices[16].Normal = Vector3(0.0f, 0.0f, 1.0f);
+	vertices[16].Texcoord = Vector2(0.0f, 1.0f);
+	
+	vertices[17].Position = Vector3(HALF_LENGTH, HEIGHT, HALF_LENGTH);
+	vertices[17].Normal = Vector3(0.0f, 0.0f, 1.0f);
+	vertices[17].Texcoord = Vector2(0.0f, 0.0f);
+
+	// 인덱스
+	indices = 
+	{
+		0, 1, 2, 1, 3, 2,		// 하단면
+		4, 6, 5, 5, 6, 7,		// 상단면
+		8, 9, 10, 11, 12, 13,	// 양쪽면
+		14, 17, 16, 15, 17, 14,	// 뒷면
 	};
 }
 

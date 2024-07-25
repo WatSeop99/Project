@@ -1,93 +1,115 @@
 #pragma once
 
 #include "../Graphics/Camera.h"
-#include "../Graphics/ConstantDataType.h"
+#include "ConstantDataType.h"
+#include "ConstantBufferManager.h"
 #include "DynamicDescriptorPool.h"
-#include "KnMControl.h"
+#include "../Util/KnM.h"
 #include "../Graphics/Light.h"
 #include "../Model/Model.h"
+#include "RenderThread.h"
+#include "ResourceManager.h"
 #include "../Model/SkinnedMeshModel.h"
+#include "../Physics/PhysicsManager.h"
 #include "../Graphics/PostProcessor.h"
-#include "Timer.h"
-
-struct InitialData
-{
-	ULONGLONG TotalRenderObject;
-	Model* pFirstModelOfList;
-	Light* pLights;
-	Model** ppLightSpheres;
-	/*std::vector<Model*>* pRenderObjects;
-	std::vector<Light>* pLights;
-	std::vector<Model*>* pLightSpheres;*/
-
-	Model* pSkybox;
-	Model* pGround;
-	Model* pMirror;
-	Model* pPickedModel;
-	Model* pCharacter;
-	DirectX::SimpleMath::Plane* pMirrorPlane;
-
-	Texture* pEnvTexture;
-	Texture* pIrradianceTexture;
-	Texture* pSpecularTexture;
-	Texture* pBRDFTexture;
-};
-
-const UINT SWAP_CHAIN_FRAME_COUNT = 2;
-const UINT MAX_PENDING_FRAME_NUM = SWAP_CHAIN_FRAME_COUNT - 1;
 
 class Renderer
 {
 public:
+	struct InitialData
+	{
+		std::vector<Model*>* pRenderObjects;
+		std::vector<Light>* pLights;
+		std::vector<Model*>* pLightSpheres;
+
+		Texture* pEnvTexture;
+		Texture* pIrradianceTexture;
+		Texture* pSpecularTexture;
+		Texture* pBRDFTexture;
+
+		Model* pMirror;
+		DirectX::SimpleMath::Plane* pMirrorPlane;
+	};
+
+public:
 	Renderer();
-	~Renderer();
+	virtual ~Renderer();
 
-	void Initizlie(Keyboard* pKeyboard, Mouse* pMouse, InitialData* pInitialData);
-
-	// int Run();
+	void Initizlie(InitialData* pIntialData);
 
 	void Update(const float DELTA_TIME);
 
 	void Render();
+	void ProcessByThread(UINT threadIndex, ResourceManager* pManager, int renderPass);
 
-	void Clear();
+	void Cleanup();
 
 	LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
+	inline PhysicsManager* GetPhysicsManager() { return &m_PhysicsManager; }
 	inline HWND GetWindow() { return m_hMainWindow; }
 
 protected:
 	void initMainWidndow();
 	void initDirect3D();
+	void initPhysics();
 	void initScene();
 	void initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture);
+	void initRenderThreadPool(UINT renderThreadCount);
 
-	// for single thread.
 	void beginRender();
-	void shadowMapRender();
-	void objectRender();
-	void mirrorRender();
+	void renderShadowmap();
+	void renderObject();
+	void renderMirror();
+	void renderObjectBoundingModel();
 	void postProcess();
 	void endRender();
 	void present();
 
 	void updateGlobalConstants(const float DELTA_TIME);
 	void updateLightConstants(const float DELTA_TIME);
-	// void updateAnimation(const float DELTA_TIME);
 
 	void onMouseMove(const int MOUSE_X, const int MOUSE_Y);
 	void onMouseClick(const int MOUSE_X, const int MOUSE_Y);
-	void processMouseControl();
-	Model* pickClosest(const DirectX::SimpleMath::Ray& PICKING_RAY, float* pMinDist);
+	void processMouseControl(const float DELTA_TIME);
+	Model* pickClosest(const DirectX::SimpleMath::Ray& PICKING_RAY, float* pMinDist, Mesh** ppEndEffector, int* pEndEffectorType);
 
 	UINT64 fence();
-	void waitForFenceValue();
+	void waitForFenceValue(UINT64 expectedFenceValue);
+
+protected:
+	HWND m_hMainWindow = nullptr;
+
+	HANDLE m_hFenceEvent = nullptr;
+	ID3D12Fence* m_pFence = nullptr;
+	UINT64 m_LastFenceValues[SWAP_CHAIN_FRAME_COUNT] = { 0, };
+	UINT64 m_FenceValue = 0;
+
+	PhysicsManager m_PhysicsManager;
+	PostProcessor m_PostProcessor;
+
+	Keyboard m_Keyboard;
+	Mouse m_Mouse;
+
+	// external data
+	ConstantBuffer m_GlobalConstant;
+	ConstantBuffer m_LightConstant;
+	ConstantBuffer m_ReflectionGlobalConstant;
+
+	std::vector<Model*>* m_pRenderObjects = nullptr;
+	std::vector<Light>* m_pLights = nullptr;
+	std::vector<Model*>* m_pLightSpheres = nullptr;
+
+	Model* m_pMirror = nullptr;
+	Model* m_pPickedModel = nullptr;
+	Mesh* m_pPickedEndEffector = nullptr;
+	Vector3 m_PickedTranslation;
+	int m_PickedEndEffectorType = -1;
+	DirectX::SimpleMath::Plane* m_pMirrorPlane = nullptr;
 
 private:
 	ResourceManager* m_pResourceManager = nullptr;
-
-	HWND m_hMainWindow = nullptr;
 
 	D3D_FEATURE_LEVEL m_FeatureLevel;
 	DXGI_FORMAT m_BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -100,15 +122,27 @@ private:
 	ID3D12Device5* m_pDevice = nullptr;
 	IDXGISwapChain4* m_pSwapChain = nullptr;
 	ID3D12CommandQueue* m_pCommandQueue = nullptr;
-	ID3D12CommandAllocator* m_pCommandAllocator = nullptr;
-	ID3D12GraphicsCommandList* m_pCommandList = nullptr;
+	ID3D12CommandAllocator* m_ppCommandAllocator[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
+	ID3D12GraphicsCommandList* m_ppCommandList[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
 
-	HANDLE m_hFenceEvent = nullptr;
-	ID3D12Fence* m_pFence = nullptr;
-	UINT64 m_FenceValue = 0;
+	// for multi-thread ////////////////////////
+	// ID3D12CommandQueue* m_ppCommandQueue[RenderPass_RenderPassCount] = { nullptr, };
+	RenderQueue* m_pppRenderQueue[RenderPass_RenderPassCount][MAX_RENDER_THREAD_COUNT] = { nullptr, };
+	CommandListPool* m_pppCommandListPool[SWAP_CHAIN_FRAME_COUNT][MAX_RENDER_THREAD_COUNT] = { nullptr, };
+	DynamicDescriptorPool* m_pppDescriptorPool[SWAP_CHAIN_FRAME_COUNT][MAX_RENDER_THREAD_COUNT] = { nullptr, };
+	ConstantBufferManager* m_pppConstantBufferManager[SWAP_CHAIN_FRAME_COUNT][MAX_RENDER_THREAD_COUNT] = { nullptr, };
+	RenderThreadDesc* m_pThreadDescList = nullptr;
+	UINT m_RenderThreadCount = 0;
+	UINT m_CurThreadIndex = 0; // render queue에 균등하게 넣기 위한 인덱스.
+
+	long volatile m_pActiveThreadCounts[RenderPass_RenderPassCount] = { 0, };
+	HANDLE m_phCompletedEvents[RenderPass_RenderPassCount] = { nullptr, };
+	/////////////////////////////////////////////
 
 	// main resources.
 	DynamicDescriptorPool m_DynamicDescriptorPool;
+	ConstantBufferManager m_ConstantBufferManager; // when multi-thread used, need to be create more manager.
+
 	ID3D12Resource* m_pRenderTargets[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
 	ID3D12Resource* m_pFloatBuffer = nullptr;
 	ID3D12Resource* m_pPrevBuffer = nullptr;
@@ -119,60 +153,6 @@ private:
 	UINT m_PrevBufferSRVOffset = 0xffffffff;
 	UINT m_FrameIndex = 0;
 
-	PostProcessor m_PostProcessor;
-	// Timer m_Timer;
-
-	// data
-	/*std::vector<Model*> m_RenderObjects;
-	std::vector<Light> m_Lights;*/
-
-	ConstantBuffer m_GlobalConstant;
-	ConstantBuffer m_LightConstant;
-	ConstantBuffer m_ReflectionGlobalConstant;
-
-	/*Texture m_EnvTexture;
-	Texture m_IrradianceTexture;
-	Texture m_SpecularTexture;
-	Texture m_BRDFTexture;
-
-	std::vector<Model*> m_LightSpheres;
-	Model* m_pSkybox = nullptr;
-	Model* m_pGround = nullptr;
-	Model* m_pMirror = nullptr;
-	Model* m_pPickedModel = nullptr;
-	Model* m_pCharacter = nullptr;
-	DirectX::SimpleMath::Plane m_MirrorPlane;*/
-
-	ULONGLONG m_TotalRenderObject = 0;
-	Model* m_pFirstModelOfList = nullptr;
-	Light* m_pLights = nullptr;
-	Model** m_pLightSpheres = nullptr;
-	/*std::vector<Model*>* m_pRenderObjects = nullptr;
-	std::vector<Light>* m_pLights = nullptr;
-	std::vector<Model*>* m_pLightSpheres = nullptr;*/
-
-	Model* m_pSkybox = nullptr;
-	Model* m_pGround = nullptr;
-	Model* m_pMirror = nullptr;
-	Model* m_pPickedModel = nullptr;
-	Model* m_pCharacter = nullptr;
-	DirectX::SimpleMath::Plane* m_pMirrorPlane = nullptr;
-
-
 	// control.
 	Camera m_Camera;
-	/*bool m_bKeyPressed[256] = { false, };
-
-	bool m_bMouseLeftButton = false;
-	bool m_bMouseRightButton = false;
-	bool m_bMouseDragStartFlag = false;*/
-
-	Keyboard* m_pKeyboard = nullptr;
-	Mouse* m_pMouse = nullptr;
-
-	float m_MouseNDCX = 0.0f;
-	float m_MouseNDCY = 0.0f;
-	float m_WheelDelta = 0.0f;
-	int m_MouseX = -1;
-	int m_MouseY = -1;
 };

@@ -21,27 +21,34 @@ public:
 
 public:
 	PostProcessor() = default;
-	~PostProcessor() { Clear(); }
+	~PostProcessor() { Cleanup(); }
 
-	void Initizlie(ResourceManager* pManager, const PostProcessingBuffers& CONFIG, const int WIDTH, const int HEIGHT, const int BLOOMLEVELS);
+	void Initizlie(Renderer* pRenderer, const PostProcessingBuffers& CONFIG, const int WIDTH, const int HEIGHT, const int BLOOMLEVELS);
 
-	void Update(ResourceManager* pManager);
+	void Update(Renderer* pRenderer);
 
-	void Render(ResourceManager* pManager, UINT frameIndex);
-	void Render(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, UINT frameIndex);
+	void Render(Renderer* pRenderer, UINT frameIndex);
+	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, UINT frameIndex);
 
-	void Clear();
+	void Cleanup();
 
-	void SetDescriptorHeap(ResourceManager* pManager);
+	inline Mesh* GetScreenMeshPtr() { return m_pScreenMesh; }
+	inline ImageFilter* GetSamplingFilterPtr() { return &m_BasicSamplingFilter; }
+	inline std::vector<ImageFilter>* GetBloomDownFiltersPtr() { return &m_BloomDownFilters; }
+	inline std::vector<ImageFilter>* GetBloomUpFiltersPtr() { return &m_BloomUpFilters; }
+	inline ImageFilter* GetCombineFilterPtr() { return &m_CombineFilter; }
+
+	void SetDescriptorHeap(Renderer* pRenderer);
+	void SetViewportsAndScissorRects(ID3D12GraphicsCommandList* pCommandList);
 
 protected:
-	void createPostBackBuffers(ResourceManager* pManager);
-	void createImageResources(ResourceManager* pManager, const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource);
+	void createPostBackBuffers(Renderer* pRenderer);
+	void createImageResources(Renderer* pRenderer, const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource);
 
-	void renderPostProcessing(ResourceManager* pManager, UINT frameIndex);
-	void renderPostProcessing(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, UINT frameIndex);
-	void renderImageFilter(ResourceManager* pManager, ImageFilter& imageFilter, ePipelineStateSetting psoSetting, UINT frameIndex);
-	void renderImageFilter(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, ImageFilter& imageFilter, ePipelineStateSetting psoSetting, UINT frameIndex);
+	void renderPostProcessing(Renderer* pRenderer, UINT frameIndex);
+	void renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager);
+	void renderImageFilter(Renderer* pRenderer, ImageFilter& imageFilter, eRenderPSOType psoSetting, UINT frameIndex);
+	void renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, ImageFilter& imageFilter, int psoSetting);
 
 	void setRenderConfig(const PostProcessingBuffers& CONFIG);
 

@@ -4,6 +4,17 @@
 #include "../Graphics/ConstantBuffer.h"
 #include "../Graphics/Texture.h"
 
+// Vertex and Index Info
+struct BufferInfo
+{
+	ID3D12Resource* pBuffer = nullptr;
+	union
+	{
+		D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
+		D3D12_INDEX_BUFFER_VIEW IndexBufferView;
+	};
+	UINT Count;
+};
 struct Material
 {
 	Texture Albedo;
@@ -14,52 +25,36 @@ struct Material
 	Texture Metallic;
 	Texture Roughness;
 };
-struct Mesh
+class Mesh
 {
-	ID3D12Resource* pVertexBuffer = nullptr;
-	ID3D12Resource* pIndexBuffer = nullptr;
-	Material* pMaterialBuffer = nullptr;
-
-	D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
-	D3D12_INDEX_BUFFER_VIEW IndexBufferView;
-
-	UINT VertexCount;
-	UINT IndexCount;
-
-	ConstantBuffer MeshConstant;
-	ConstantBuffer MaterialConstant;
-
-	bool bSkinnedMesh;
-};
-
-#define INIT_MESH							\
-	{										\
-		nullptr, nullptr, nullptr,			\
-		{ 0, }, { 0, },	0, 0,				\
-		ConstantBuffer(), ConstantBuffer(),	\
-		false								\
-	}
-
-#define INIT_MATERIAL																 \
-	{																				 \
-		Texture(), Texture(), Texture(), Texture(), Texture(), Texture(), Texture(), \
-	}
-
-static void ReleaseMesh(Mesh** ppMesh)
-{
-	_ASSERT(*ppMesh);
-
-	if ((*ppMesh)->pMaterialBuffer)
+public:
+	Mesh() = default;
+	~Mesh()
 	{
-		delete (*ppMesh)->pMaterialBuffer;
-		(*ppMesh)->pMaterialBuffer = nullptr;
+		if (Vertex.pBuffer)
+		{
+			Vertex.pBuffer->Release();
+			Vertex.pBuffer = nullptr;
+		}
+		if (Index.pBuffer)
+		{
+			Index.pBuffer->Release();
+			Index.pBuffer = nullptr;
+		}
+
+		// MeshConstant.Cleanup();
+		// MaterialConstant.Cleanup();
 	}
-	SAFE_RELEASE((*ppMesh)->pVertexBuffer);
-	SAFE_RELEASE((*ppMesh)->pIndexBuffer);
 
-	(*ppMesh)->MeshConstant.Clear();
-	(*ppMesh)->MaterialConstant.Clear();
+public:
+	BufferInfo Vertex;
+	BufferInfo Index;
+	Material Material;
 
-	free(*ppMesh);
-	*ppMesh = nullptr;
-}
+	// ConstantBuffer MeshConstant;
+	// ConstantBuffer MaterialConstant;
+	MeshConstant MeshConstantData;
+	MaterialConstant MaterialConstantData;
+
+	bool bSkinnedMesh = false;
+};

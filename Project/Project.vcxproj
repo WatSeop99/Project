@@ -72,10 +72,10 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>E:\workspace\task\vcpkg\installed\x64-windows\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>E:\OWL_Git\vcpkg\installed\x64-windows\include\physx;E:\workspace\task\vcpkg\installed\x64-windows\include\physx;$(ExternalIncludePath)</ExternalIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ExternalIncludePath>E:\workspace\task\vcpkg\installed\x64-windows\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>E:\OWL_Git\vcpkg\installed\x64-windows\include\physx;E:\workspace\task\vcpkg\installed\x64-windows\include\physx;$(ExternalIncludePath)</ExternalIncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -112,7 +112,8 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>E:\workspace\task\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\OWL_Git\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -128,7 +129,8 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>E:\workspace\task\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\OWL_Git\vcpkg\installed\x64-windows\include\physx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -139,10 +141,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="App\App.h" />
+    <ClInclude Include="Renderer\ConstantBufferManager.h" />
+    <ClInclude Include="Renderer\ConstantBufferPool.h" />
+    <ClInclude Include="Graphics\EnumType.h" />
+    <ClInclude Include="Physics\PhysicsManager.h" />
+    <ClInclude Include="Renderer\CommandListPool.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="framework.h" />
     <ClInclude Include="Graphics\Camera.h" />
     <ClInclude Include="Graphics\ConstantBuffer.h" />
-    <ClInclude Include="Graphics\ConstantDataType.h" />
+    <ClInclude Include="Renderer\ConstantDataType.h" />
     <ClInclude Include="Graphics\GraphicsUtil.h" />
     <ClInclude Include="Graphics\ImageFilter.h" />
     <ClInclude Include="Graphics\Light.h" />
@@ -159,18 +169,30 @@
     <ClInclude Include="Model\Vertex.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer\DynamicDescriptorPool.h" />
-    <ClInclude Include="Renderer\KnMControl.h" />
     <ClInclude Include="Renderer\Renderer.h" />
     <ClInclude Include="Renderer\ResourceManager.h" />
     <ClInclude Include="Renderer\Timer.h" />
+    <ClInclude Include="Renderer\RenderQueue.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="Renderer\RenderThread.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Util\IndexCreator.h" />
+    <ClInclude Include="Util\KnM.h" />
     <ClInclude Include="Util\LinkedList.h" />
     <ClInclude Include="Util\Utility.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\App.cpp" />
+    <ClCompile Include="Renderer\ConstantBufferManager.cpp" />
+    <ClCompile Include="Renderer\ConstantBufferPool.cpp" />
+    <ClCompile Include="Physics\PhysicsManager.cpp" />
+    <ClCompile Include="Renderer\CommandListPool.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Graphics\Camera.cpp" />
     <ClCompile Include="Graphics\ConstantBuffer.cpp" />
     <ClCompile Include="Graphics\GraphicsUtil.cpp" />
@@ -190,6 +212,11 @@
     <ClCompile Include="Renderer\Renderer.cpp" />
     <ClCompile Include="Renderer\ResourceManager.cpp" />
     <ClCompile Include="Renderer\Timer.cpp" />
+    <ClCompile Include="Renderer\RenderQueue.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Renderer\RenderThread.cpp" />
     <ClCompile Include="Util\IndexCreator.cpp" />
     <ClCompile Include="Util\LinkedList.cpp" />
     <ClCompile Include="Util\Utility.cpp" />
@@ -224,6 +251,14 @@
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.1</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shaders\ColorPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.1</ShaderModel>
     </FxCompile>
     <FxCompile Include="Shaders\CombinePS.hlsl">

@@ -19,27 +19,29 @@ public:
 
 public:
 	ImageFilter() = default;
-	~ImageFilter() { Clear(); }
+	~ImageFilter() { Cleanup(); }
 
-	void Initialize(ResourceManager* pManager, const int WIDTH, const int HEIGHT);
+	void Initialize(Renderer* pRenderer, const int WIDTH, const int HEIGHT);
 
 	void UpdateConstantBuffers();
 
-	void BeforeRender(ResourceManager* pManager, ePipelineStateSetting psoSetting, UINT frameIndex);
-	void BeforeRender(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, ePipelineStateSetting psoSetting, UINT frameIndex);
-	void AfterRender(ResourceManager* pManager, ePipelineStateSetting psoSetting, UINT frameIndex);
-	void AfterRender(ResourceManager* pManager, ID3D12GraphicsCommandList* pCommandList, ePipelineStateSetting psoSetting, UINT frameIndex);
+	void BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, UINT frameIndex);
+	void BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, int psoSetting);
+	void AfterRender(Renderer* pRenderer, eRenderPSOType psoSetting, UINT frameIndex);
+	void AfterRender(ID3D12GraphicsCommandList* pCommandList, int psoSetting);
 
-	void Clear();
+	void Cleanup();
 
-	inline ConstantBuffer* GetConstantPtr() { return &m_ConstantBuffer; }
+	// inline ConstantBuffer* GetConstantPtr() { return &m_ConstantBuffer; }
+	inline ImageFilterConstant* GetConstantDataPtr() { return &m_ConstantBufferData; }
 
-	void SetSRVOffsets(ResourceManager* pManager, const std::vector<ImageResource>& SRVs);
-	void SetRTVOffsets(ResourceManager* pManager, const std::vector<ImageResource>& RTVs);
-	void SetDescriptorHeap(ResourceManager* pManager);
+	void SetSRVOffsets(Renderer* pRenderer, const std::vector<ImageResource>& SRVs);
+	void SetRTVOffsets(Renderer* pRenderer, const std::vector<ImageResource>& RTVs);
+	void SetDescriptorHeap(Renderer* pRenderer);
 
 private:
-	ConstantBuffer m_ConstantBuffer;
+	// ConstantBuffer m_ConstantBuffer;
+	ImageFilterConstant m_ConstantBufferData;
 
 	std::vector<Handle> m_SRVHandles;
 	std::vector<Handle> m_RTVHandles;

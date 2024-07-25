@@ -8,31 +8,31 @@ void Camera::UpdateViewDir()
 	m_RightDirection = m_UpDirection.Cross(m_ViewDirection);
 }
 
-void Camera::UpdateKeyboard(const float DELTA_TIME, const Keyboard* const pKeyboard)
+void Camera::UpdateKeyboard(const float DELTA_TIME, Keyboard* pKeyboard)
 {
 	if (bUseFirstPersonView)
 	{
-		if (pKeyboard->Pressed['W'])
+		if (pKeyboard->bPressed['W'])
 		{
 			MoveForward(DELTA_TIME);
 		}
-		if (pKeyboard->Pressed['S'])
+		if (pKeyboard->bPressed['S'])
 		{
 			MoveForward(-DELTA_TIME);
 		}
-		if (pKeyboard->Pressed['D'])
+		if (pKeyboard->bPressed['D'])
 		{
 			MoveRight(DELTA_TIME);
 		}
-		if (pKeyboard->Pressed['A'])
+		if (pKeyboard->bPressed['A'])
 		{
 			MoveRight(-DELTA_TIME);
 		}
-		if (pKeyboard->Pressed['E'])
+		if (pKeyboard->bPressed['E'])
 		{
 			MoveUp(DELTA_TIME);
 		}
-		if (pKeyboard->Pressed['Q'])
+		if (pKeyboard->bPressed['Q'])
 		{
 			MoveUp(-DELTA_TIME);
 		}

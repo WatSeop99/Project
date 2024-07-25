@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "Resource.h"
 #include "framework.h"
+#include "Renderer/Renderer.h"
 #include "App/App.h"
 
 #ifdef _DEBUG
@@ -14,18 +15,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	/*Renderer* pRenderer = new Renderer;
-
-	pRenderer->Initizlie();
-	pRenderer->Run();
-
-	if (pRenderer)
-	{
-		delete pRenderer;
-		pRenderer = nullptr;
-	}*/
-
 	App* pApp = new App;
+
 	pApp->Initialize();
 	pApp->Run();
 
@@ -57,7 +48,7 @@ void CheckD3DMemoryLeak()
 	{
 		OutputDebugStringW(L"================================== Direct3D Object Memory Leak List ==================================\n");
 		pDebug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_DETAIL);
-		OutputDebugStringW(L"===========================================================================================\n");
+		OutputDebugStringW(L"=============================================================================================\n");
 
 		pDebug->Release();
 	}

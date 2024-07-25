@@ -2,8 +2,8 @@
 
 struct Container
 {
-	ULONGLONG MemSize;
-	ULONGLONG ElemCount;
+	UINT64 MemSize;
+	UINT64 ElemCount;
 	BYTE Data[1];
 };
 
@@ -11,11 +11,13 @@ void GetHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);
 void GetSoftwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);
 void SetDebugLayerInfo(ID3D12Device* pD3DDevice);
 
+void GetPhysicalCoreCount(UINT* pPhysicalCoreCount, UINT* pLogicalCoreCount);
+
 std::string RemoveBasePath(const std::string& szFilePath);
 std::wstring RemoveBasePath(const std::wstring& szFilePath);
 std::wstring GetFileExtension(const std::wstring& szFilepath);
 
-ULONGLONG GetAllocMemorySize(ULONGLONG size);
+UINT64 GetAllocMemSize(UINT64 size);
 
 int Min(int x, int y);
 int Max(int x, int y);
