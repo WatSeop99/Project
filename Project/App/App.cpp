@@ -167,34 +167,37 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 	// 조명 설정.
 	{
 		// 조명 0.
-		m_Lights[0].Property.Radiance = Vector3(3.0f);
-		m_Lights[0].Property.FallOffEnd = 10.0f;
-		m_Lights[0].Property.Position = Vector3(0.0f, 0.5f, -0.9f);
-		m_Lights[0].Property.Direction = Vector3(0.0f, 0.0f, 1.0f);
-		m_Lights[0].Property.SpotPower = 3.0f;
-		m_Lights[0].Property.LightType = LIGHT_POINT | LIGHT_SHADOW;
-		m_Lights[0].Property.Radius = 0.04f;
-		m_Lights[0].Initialize(pRenderer);
+		Light& light0 = m_Lights[0];
+		light0.Property.Radiance = Vector3(3.0f);
+		light0.Property.FallOffEnd = 10.0f;
+		light0.Property.Position = Vector3(0.0f, 0.5f, -0.9f);
+		light0.Property.Direction = Vector3(0.0f, 0.0f, 1.0f);
+		light0.Property.SpotPower = 3.0f;
+		light0.Property.LightType = LIGHT_POINT | LIGHT_SHADOW;
+		light0.Property.Radius = 0.04f;
+		light0.Initialize(pRenderer);
 
 		// 조명 1.
-		m_Lights[1].Property.Radiance = Vector3(3.0f);
-		m_Lights[1].Property.FallOffEnd = 10.0f;
-		m_Lights[1].Property.Position = Vector3(1.0f, 1.1f, 2.0f);
-		m_Lights[1].Property.SpotPower = 2.0f;
-		m_Lights[1].Property.Direction = Vector3(0.0f, -0.5f, 1.7f) - m_Lights[1].Property.Position;
-		m_Lights[1].Property.Direction.Normalize();
-		m_Lights[1].Property.LightType = LIGHT_SPOT | LIGHT_SHADOW;
-		m_Lights[1].Property.Radius = 0.02f;
-		m_Lights[1].Initialize(pRenderer);
+		Light& light1 = m_Lights[1];
+		light1.Property.Radiance = Vector3(3.0f);
+		light1.Property.FallOffEnd = 10.0f;
+		light1.Property.Position = Vector3(1.0f, 1.1f, 2.0f);
+		light1.Property.SpotPower = 2.0f;
+		light1.Property.Direction = Vector3(0.0f, -0.5f, 1.7f) - m_Lights[1].Property.Position;
+		light1.Property.Direction.Normalize();
+		light1.Property.LightType = LIGHT_SPOT | LIGHT_SHADOW;
+		light1.Property.Radius = 0.02f;
+		light1.Initialize(pRenderer);
 
 		// 조명 2.
-		m_Lights[2].Property.Radiance = Vector3(5.0f);
-		m_Lights[2].Property.Position = Vector3(5.0f, 5.0f, 5.0f);
-		m_Lights[2].Property.Direction = Vector3(-1.0f, -1.0f, -1.0f);
-		m_Lights[2].Property.Direction.Normalize();
-		m_Lights[2].Property.LightType = LIGHT_DIRECTIONAL | LIGHT_SHADOW;
-		m_Lights[2].Property.Radius = 0.05f;
-		m_Lights[2].Initialize(pRenderer);
+		Light& light2 = m_Lights[2];
+		light2.Property.Radiance = Vector3(5.0f);
+		light2.Property.Position = Vector3(5.0f, 5.0f, 5.0f);
+		light2.Property.Direction = Vector3(-1.0f, -1.0f, -1.0f);
+		light2.Property.Direction.Normalize();
+		light2.Property.LightType = LIGHT_DIRECTIONAL | LIGHT_SHADOW;
+		light2.Property.Radius = 0.05f;
+		light2.Initialize(pRenderer);
 	}
 
 	// 조명 위치 표시.
