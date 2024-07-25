@@ -151,7 +151,6 @@
     </ClInclude>
     <ClInclude Include="framework.h" />
     <ClInclude Include="Graphics\Camera.h" />
-    <ClInclude Include="Graphics\ConstantBuffer.h" />
     <ClInclude Include="Renderer\ConstantDataType.h" />
     <ClInclude Include="Graphics\GraphicsUtil.h" />
     <ClInclude Include="Graphics\ImageFilter.h" />
@@ -194,7 +193,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Graphics\Camera.cpp" />
-    <ClCompile Include="Graphics\ConstantBuffer.cpp" />
     <ClCompile Include="Graphics\GraphicsUtil.cpp" />
     <ClCompile Include="Graphics\ImageFilter.cpp" />
     <ClCompile Include="Graphics\Light.cpp" />
@@ -307,12 +305,6 @@
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.1</ShaderModel>
-    </FxCompile>
-    <FxCompile Include="Shaders\DepthOnlyVS.hlsl">
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.1</ShaderModel>
     </FxCompile>
     <FxCompile Include="Shaders\SamplingPS.hlsl">

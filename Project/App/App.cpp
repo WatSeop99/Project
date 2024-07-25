@@ -81,7 +81,6 @@ void App::Update(const float DELTA_TIME)
 		{
 			case RenderObjectType_DefaultType:
 			case RenderObjectType_MirrorType:
-				pModel->UpdateConstantBuffers();
 				break;
 
 			case RenderObjectType_SkinnedType:
@@ -89,11 +88,22 @@ void App::Update(const float DELTA_TIME)
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pModel;
 				int state = 0;
 				int frame = 0;
+				Vector3 rightFootPos;
+				Vector3 leftFootPos;
+				SkinnedMeshModel::JointUpdateInfo updateInfo;
 
-				updateAnimationState(pCharacter, DELTA_TIME, &state, &frame);
+				ZeroMemory(&updateInfo, sizeof(SkinnedMeshModel::JointUpdateInfo));
+				updateAnimationState(pCharacter, DELTA_TIME, &state, &frame, &updateInfo);
+				/*{
+					char szDebugString[256];
+					sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z);
+					OutputDebugStringA(szDebugString);
+					sprintf_s(szDebugString, 256, "leftFootPos: %f, %f, %f\n", leftFootPos.x, leftFootPos.y, leftFootPos.z);
+					OutputDebugStringA(szDebugString);
+				}*/
+
 				pCharacter->UpdateWorld(Matrix::CreateTranslation(m_pCharacter->MoveInfo.Position));
-				pCharacter->UpdateAnimation(state, frame, DELTA_TIME);
-				pCharacter->UpdateConstantBuffers();
+				pCharacter->UpdateAnimation(state, frame, DELTA_TIME, &updateInfo);
 			}
 			break;
 
@@ -197,9 +207,6 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 			m_LightSpheres[i] = new Model(pRenderer, { sphere });
 			m_LightSpheres[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
 
-			/*MaterialConstant* pSphereMaterialConst = (MaterialConstant*)m_LightSpheres[i]->Meshes[0]->MaterialConstant.pData;
-			pSphereMaterialConst->AlbedoFactor = Vector3(0.0f);
-			pSphereMaterialConst->EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);*/
 			MaterialConstant& sphereMaterialConstantData = m_LightSpheres[i]->Meshes[0]->MaterialConstantData;
 			sphereMaterialConstantData.AlbedoFactor = Vector3(0.0f);
 			sphereMaterialConstantData.EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
@@ -207,9 +214,6 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 			for (UINT64 j = 0, size = m_LightSpheres[i]->Meshes.size(); j < size; ++j)
 			{
 				Mesh* pCurMesh = m_LightSpheres[i]->Meshes[j];
-				/*MaterialConstant* pMeshMaterialConst = (MaterialConstant*)pCurMesh->MaterialConstant.pData;
-				pMeshMaterialConst->AlbedoFactor = Vector3(0.0f);
-				pMeshMaterialConst->EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);*/
 				MaterialConstant& meshMaterialConstantData = pCurMesh->MaterialConstantData;
 				meshMaterialConstantData.AlbedoFactor = Vector3(0.0f);
 				meshMaterialConstantData.EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
@@ -239,11 +243,6 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 
 		pGround = new Model(pRenderer, { mesh });
 
-		/*MaterialConstant* pGroundMaterialConst = (MaterialConstant*)pGround->Meshes[0]->MaterialConstant.pData;
-		pGroundMaterialConst->AlbedoFactor = Vector3(0.7f);
-		pGroundMaterialConst->EmissionFactor = Vector3(0.0f);
-		pGroundMaterialConst->MetallicFactor = 0.5f;
-		pGroundMaterialConst->RoughnessFactor = 0.3f;*/
 		MaterialConstant& groundMaterialConstantData = pGround->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
 		groundMaterialConstantData.EmissionFactor = Vector3(0.0f);
@@ -313,11 +312,6 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];
-			/*MaterialConstant* pMaterialConst = (MaterialConstant*)pCurMesh->MaterialConstant.pData;
-
-			pMaterialConst->AlbedoFactor = Vector3(1.0f);
-			pMaterialConst->RoughnessFactor = 0.8f;
-			pMaterialConst->MetallicFactor = 0.0f;*/
 			MaterialConstant& materialConstantData = pCurMesh->MaterialConstantData;
 			materialConstantData.AlbedoFactor = Vector3(1.0f);
 			materialConstantData.RoughnessFactor = 0.8f;
@@ -342,7 +336,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		// capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->MoveInfo.Position.x, m_pCharacter->MoveInfo.Position.y - 0.6f, m_pCharacter->MoveInfo.Position.z);
 		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->MoveInfo.Position.x, m_pCharacter->MoveInfo.Position.y, m_pCharacter->MoveInfo.Position.z);
 		capsuleDesc.material = m_PhysicsManager.pCommonMaterial;
-		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.5f;
+		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.3f;
 		capsuleDesc.climbingMode = physx::PxCapsuleClimbingMode::eCONSTRAINED;
 		pController = pControlManager->createController(capsuleDesc);
 		if (!pController)
@@ -368,11 +362,6 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 
 		pSlope = new Model(pRenderer, { mesh });
 
-		/*MaterialConstant* pGroundMaterialConst = (MaterialConstant*)pSlope->Meshes[0]->MaterialConstant.pData;
-		pGroundMaterialConst->AlbedoFactor = Vector3(0.7f);
-		pGroundMaterialConst->EmissionFactor = Vector3(0.0f);
-		pGroundMaterialConst->MetallicFactor = 0.5f;
-		pGroundMaterialConst->RoughnessFactor = 0.3f;*/
 		MaterialConstant& groundMaterialConstantData = pSlope->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
 		groundMaterialConstantData.EmissionFactor = Vector3(0.0f);
@@ -400,7 +389,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 	}
 }
 
-void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame)
+void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo)
 {
 	// States
 	// 0: idle
@@ -417,6 +406,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 	}*/
 
 	_ASSERT(pCharacter);
+	_ASSERT(pUpdateInfo);
 
 	const UINT64 ANIMATION_CLIP_SIZE = pCharacter->CharacterAnimationData.Clips[s_State].Keys[0].size();
 	switch (s_State)
@@ -441,7 +431,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			Vector3 deltaPos = pCharacter->MoveInfo.Direction * pCharacter->MoveInfo.Velocity * 0.5f * DELTA_TIME;
 			pCharacter->MoveInfo.Position += deltaPos;
 			deltaPos.y -= 0.4f;
-			simulateCharacterContol(pCharacter, deltaPos, DELTA_TIME);
+			simulateCharacterContol(pCharacter, pUpdateInfo, deltaPos, DELTA_TIME);
 
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -484,7 +474,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			deltaPos = pCharacter->MoveInfo.Direction * pCharacter->MoveInfo.Velocity * DELTA_TIME;
 			m_pCharacter->MoveInfo.Position += deltaPos;
 			deltaPos.y -= 0.4f;
-			simulateCharacterContol(pCharacter, deltaPos, DELTA_TIME);
+			simulateCharacterContol(pCharacter, pUpdateInfo, deltaPos, DELTA_TIME);
 
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -506,7 +496,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			Vector3 deltaPos = pCharacter->MoveInfo.Direction * pCharacter->MoveInfo.Velocity * 0.5f * DELTA_TIME;
 			pCharacter->MoveInfo.Position += deltaPos;
 			deltaPos.y -= 0.4f;
-			simulateCharacterContol(pCharacter, deltaPos, DELTA_TIME);
+			simulateCharacterContol(pCharacter, pUpdateInfo, deltaPos, DELTA_TIME);
 
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -536,9 +526,10 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 	++s_FrameCount;
 }
 
-void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& DELTA_POS, const float DELTA_TIME)
+void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo, const Vector3& DELTA_POS, const float DELTA_TIME)
 {
 	_ASSERT(pCharacter);
+	_ASSERT(pUpdateInfo);
 
 	// 위치 변위.
 	physx::PxVec3 displacement = physx::PxVec3(DELTA_POS.x, DELTA_POS.y, DELTA_POS.z);
@@ -547,10 +538,28 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, physx::PxControllerFilters());
 
 	// physx 상에서의 캐릭터 위치 받아오기.
+	const float TO_RADIAN = DirectX::XM_PI / 180.0f;
+	Vector3 rotatedRight = Vector3::Transform(pCharacter->MoveInfo.Direction, Matrix::CreateRotationY(90.0f * TO_RADIAN));
+	Vector3 rotatedLeft = Vector3::Transform(pCharacter->MoveInfo.Direction, Matrix::CreateRotationY(-90.0f * TO_RADIAN));
+
+	physx::PxExtendedVec3 bottomPos = pCharacter->pController->getFootPosition();
+	Vector3 footPos = Vector3((float)bottomPos.x, (float)bottomPos.y, (float)bottomPos.z);
+	//*pRightFootPos = footPos + rotatedRight * 0.2f; // 0.2f == radius;
+	//*pLeftFootPos = footPos + rotatedLeft * 0.2f; // 0.2f == radius;
+	//{
+	//	char szDebugString[256];
+	//	sprintf_s(szDebugString, 256, "bottomPos: %lf, %lf, %lf\n", bottomPos.x, bottomPos.y, bottomPos.z);
+	//	OutputDebugStringA(szDebugString);
+	//}
+	pUpdateInfo->bUpdatedJointParts[SkinnedMeshModel::JointPart_RightLeg] = true;
+	pUpdateInfo->bUpdatedJointParts[SkinnedMeshModel::JointPart_LeftLeg] = true;
+	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_RightLeg] = footPos + rotatedRight * 0.13f; // 0.2f == radius;
+	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_LeftLeg] = footPos + rotatedLeft * 0.13f; // 0.2f == radius;
+
 	physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
 	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
 
 	// 받아온 위치 기반 캐릭터 위치 갱신.
 	pCharacter->MoveInfo.Position = nextPosVec;
-	pCharacter->MoveInfo.Position.y += 0.4f;
+	pCharacter->MoveInfo.Position.y += 0.37f;
 }

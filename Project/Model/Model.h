@@ -21,12 +21,11 @@ public:
 	virtual void Initialize(Renderer* pRenderer) { }
 	virtual void InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh* pNewMesh);
 
-	virtual void UpdateConstantBuffers();
 	void UpdateWorld(const Matrix& WORLD);
-	virtual void UpdateAnimation(int clipID, int frame, const float DELTA_TIME) { }
+	// virtual void UpdateAnimation(int clipID, int frame, const float DELTA_TIME) { }
 
 	virtual void Render(Renderer* pRenderer, eRenderPSOType psoSetting);
-	virtual void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, int psoSetting);
+	virtual void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting);
 	void RenderBoundingBox(Renderer* pRenderer, eRenderPSOType psoSetting);
 	void RenderBoundingSphere(Renderer* pRenderer, eRenderPSOType psoSetting);
 
@@ -57,8 +56,6 @@ public:
 	bool bIsVisible = true;
 	bool bCastShadow = true;
 	bool bIsPickable = false;
-
-	// ListElem LinkToList = { nullptr, nullptr, this };
 
 protected:
 	Mesh* m_pBoundingBoxMesh = nullptr;

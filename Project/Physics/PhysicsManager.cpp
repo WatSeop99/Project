@@ -194,8 +194,10 @@ void PhysicsManager::Cleanup()
 	if (m_pPVD)
 	{
 		PxPvdTransport* pTransport = m_pPVD->getTransport();
-		PX_RELEASE(m_pPVD);
-		PX_RELEASE(pTransport);
+		m_pPVD->release();
+		m_pPVD = nullptr;
+		pTransport->release();
+		pTransport = nullptr;
 	}
 	PX_RELEASE(m_pFoundation);
 }

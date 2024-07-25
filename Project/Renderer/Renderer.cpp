@@ -39,12 +39,11 @@ void Renderer::Initizlie(InitialData* pIntialData)
 		{ m_pRenderTargets[0], m_pRenderTargets[1] },
 		m_pFloatBuffer,
 		m_pPrevBuffer,
-		&m_GlobalConstant,
+		&m_GlobalConstantData,
 		m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
 	};
 	Renderer* pRenderer = this;
 	m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 2);
-	m_PostProcessor.SetDescriptorHeap(pRenderer);
 
 	m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
 	m_ConstantBufferManager.Initialize(m_pDevice, 4096);
@@ -79,7 +78,7 @@ void Renderer::Render()
 
 	renderShadowmap();
 	renderObject();
-	// renderMirror();
+	renderMirror();
 	renderObjectBoundingModel();
 	postProcess();
 
@@ -96,12 +95,12 @@ void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int 
 	ID3D12CommandQueue* pCommandQueue = m_pCommandQueue;
 	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][threadIndex];
 	DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][threadIndex];
+	ConstantBufferManager* pConstantBufferManager = m_pppConstantBufferManager[m_FrameIndex][threadIndex];
 
 	switch (renderPass)
 	{
 		case RenderPass_Shadow:
-			// pCommandQueue = m_ppCommandQueue[RenderPass_Shadow];
-			m_pppRenderQueue[renderPass][threadIndex]->ProcessLight(threadIndex, pCommandQueue, pCommandListPool, pManager, pDescriptorPool, 100);
+			m_pppRenderQueue[renderPass][threadIndex]->ProcessLight(threadIndex, pCommandQueue, pCommandListPool, pManager, pDescriptorPool, pConstantBufferManager, 100);
 			break;
 
 		case RenderPass_Object:
@@ -111,12 +110,11 @@ void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int 
 			ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
 			CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(pManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-			// pCommandQueue = m_ppCommandQueue[RenderPass_MainRender];
 
 			pCommandList->RSSetViewports(1, &m_ScreenViewport);
 			pCommandList->RSSetScissorRects(1, &m_ScissorRect);
 			pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
-			m_pppRenderQueue[renderPass][threadIndex]->Process(threadIndex, pCommandQueue, pCommandListPool, pManager, pDescriptorPool, 100);
+			m_pppRenderQueue[renderPass][threadIndex]->Process(threadIndex, pCommandQueue, pCommandListPool, pManager, pDescriptorPool, pConstantBufferManager, 100);
 		}
 		break;
 
@@ -134,6 +132,12 @@ void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int 
 
 void Renderer::Cleanup()
 {
+	fence();
+	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+	{
+		waitForFenceValue(m_LastFenceValues[i]);
+	}
+
 #ifdef USE_MULTI_THREAD
 
 	if (m_pThreadDescList)
@@ -164,12 +168,6 @@ void Renderer::Cleanup()
 
 #endif
 
-	fence();
-	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-	{
-		waitForFenceValue(m_LastFenceValues[i]);
-	}
-
 	if (m_pResourceManager)
 	{
 		delete m_pResourceManager;
@@ -183,10 +181,6 @@ void Renderer::Cleanup()
 	}
 	m_FenceValue = 0;
 	SAFE_RELEASE(m_pFence);
-
-	m_GlobalConstant.Cleanup();
-	m_LightConstant.Cleanup();
-	m_ReflectionGlobalConstant.Cleanup();
 
 	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
@@ -211,7 +205,6 @@ void Renderer::Cleanup()
 	}
 	for (int i = 0; i < RenderPass_RenderPassCount; ++i)
 	{
-		// SAFE_RELEASE(m_ppCommandQueue[i]);
 		for (UINT j = 0; j < MAX_RENDER_THREAD_COUNT; ++j)
 		{
 			if (m_pppRenderQueue[i][j])
@@ -271,255 +264,252 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		case WM_SIZE:
 		{
-			// 화면 해상도가 바뀌면 SwapChain을 다시 생성.
-			if (m_pSwapChain)
+			if (!m_pSwapChain)
 			{
-				fence();
-				for (int i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-				{
-					waitForFenceValue(m_LastFenceValues[i]);
-				}
+				break;
+			}
+			
+			// 화면 해상도가 바뀌면 SwapChain을 다시 생성.
+			fence();
+			for (int i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+			{
+				waitForFenceValue(m_LastFenceValues[i]);
+			}
 
-				m_ScreenWidth = (UINT)LOWORD(lParam);
-				m_ScreenHeight = (UINT)HIWORD(lParam);
+			m_ScreenWidth = (UINT)LOWORD(lParam);
+			m_ScreenHeight = (UINT)HIWORD(lParam);
 
-				m_ScreenViewport.Width = (float)m_ScreenWidth;
-				m_ScreenViewport.Height = (float)m_ScreenHeight;
-				m_ScissorRect.right = m_ScreenWidth;
-				m_ScissorRect.bottom = m_ScreenHeight;
+			m_ScreenViewport.Width = (float)m_ScreenWidth;
+			m_ScreenViewport.Height = (float)m_ScreenHeight;
+			m_ScissorRect.right = m_ScreenWidth;
+			m_ScissorRect.bottom = m_ScreenHeight;
 
-				// 윈도우가 Minimize 모드에서는 screenWidth/Height가 0.
-				if (m_ScreenWidth && m_ScreenHeight)
-				{
+			// 윈도우가 Minimize 모드에서는 screenWidth/Height가 0.
+			if(m_ScreenWidth == 0 && m_ScreenHeight == 0)
+			{
+				break;
+			}
+
 #ifdef _DEBUG
-					char debugString[256] = { 0, };
-					OutputDebugStringA("Resize SwapChain to ");
-					sprintf(debugString, "%d", m_ScreenWidth);
-					OutputDebugStringA(debugString);
-					OutputDebugStringA(" ");
-					sprintf(debugString, "%d", m_ScreenHeight);
-					OutputDebugStringA(debugString);
-					OutputDebugStringA("\n");
+			char debugString[256] = { 0, };
+			OutputDebugStringA("Resize SwapChain to ");
+			sprintf(debugString, "%d", m_ScreenWidth);
+			OutputDebugStringA(debugString);
+			OutputDebugStringA(" ");
+			sprintf(debugString, "%d", m_ScreenHeight);
+			OutputDebugStringA(debugString);
+			OutputDebugStringA("\n");
 #endif 
 
-					// 기존 버퍼 초기화.
-					for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-					{
-						m_pRenderTargets[i]->Release();
-						m_pRenderTargets[i] = nullptr;
-					}
-					m_pFloatBuffer->Release();
-					m_pFloatBuffer = nullptr;
-					m_pPrevBuffer->Release();
-					m_pPrevBuffer = nullptr;
-					m_pDefaultDepthStencil->Release();
-					m_pDefaultDepthStencil = nullptr;
-					m_PostProcessor.Cleanup();
-					m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
-
-					// swap chain resize.
-					m_pSwapChain->ResizeBuffers(0,					 // 현재 개수 유지.
-												m_ScreenWidth,		 // 해상도 변경.
-												m_ScreenHeight,
-												DXGI_FORMAT_UNKNOWN, // 현재 포맷 유지.
-												0);
-					// float buffer, prev buffer 재생성.
-					{
-						HRESULT hr = S_OK;
-
-						D3D12_RESOURCE_DESC resourceDesc = {};
-						resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-						resourceDesc.Alignment = 0;
-						resourceDesc.Width = m_ScreenWidth;
-						resourceDesc.Height = m_ScreenHeight;
-						resourceDesc.DepthOrArraySize = 1;
-						resourceDesc.MipLevels = 1;
-						resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-						resourceDesc.SampleDesc.Count = 1;
-						resourceDesc.SampleDesc.Quality = 0;
-						resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-						resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-
-						D3D12_HEAP_PROPERTIES heapProps = {};
-						heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-						heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-						heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-						heapProps.CreationNodeMask = 1;
-						heapProps.VisibleNodeMask = 1;
-
-						hr = m_pDevice->CreateCommittedResource(&heapProps,
-																D3D12_HEAP_FLAG_NONE,
-																&resourceDesc,
-																D3D12_RESOURCE_STATE_COMMON,
-																nullptr,
-																IID_PPV_ARGS(&m_pFloatBuffer));
-						BREAK_IF_FAILED(hr);
-						m_pFloatBuffer->SetName(L"FloatBuffer");
-
-
-						resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-						resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-						hr = m_pDevice->CreateCommittedResource(&heapProps,
-																D3D12_HEAP_FLAG_NONE,
-																&resourceDesc,
-																D3D12_RESOURCE_STATE_COMMON,
-																nullptr,
-																IID_PPV_ARGS(&m_pPrevBuffer));
-						BREAK_IF_FAILED(hr);
-						m_pPrevBuffer->SetName(L"PrevBuffer");
-					}
-
-					// 변경된 크기에 맞춰 rtv, dsv, srv 재생성.
-					{
-						const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-						CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, RTV_DESCRIPTOR_SIZE);
-						CD3DX12_CPU_DESCRIPTOR_HANDLE startRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart());
-						for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-						{
-							m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&m_pRenderTargets[i]));
-							m_pDevice->CreateRenderTargetView(m_pRenderTargets[i], nullptr, rtvHandle);
-							rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
-						}
-						rtvHandle = startRtvHandle;
-
-						D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-						rtvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-						rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-						rtvDesc.Texture2D.MipSlice = 0;
-						rtvDesc.Texture2D.PlaneSlice = 0;
-						rtvHandle.Offset(m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-						m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);
-					}
-					{
-						HRESULT hr = S_OK;
-
-						D3D12_RESOURCE_DESC dsvDesc;
-						dsvDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-						dsvDesc.Alignment = 0;
-						dsvDesc.Width = m_ScreenWidth;
-						dsvDesc.Height = m_ScreenHeight;
-						dsvDesc.DepthOrArraySize = 1;
-						dsvDesc.MipLevels = 1;
-						dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-						dsvDesc.SampleDesc.Count = 1;
-						dsvDesc.SampleDesc.Quality = 0;
-						dsvDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-						dsvDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-
-						D3D12_HEAP_PROPERTIES heapProps;
-						heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-						heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-						heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-						heapProps.CreationNodeMask = 1;
-						heapProps.VisibleNodeMask = 1;
-
-						D3D12_CLEAR_VALUE clearValue;
-						clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-						clearValue.DepthStencil.Depth = 1.0f;
-						clearValue.DepthStencil.Stencil = 0;
-
-						hr = m_pDevice->CreateCommittedResource(&heapProps,
-																D3D12_HEAP_FLAG_NONE,
-																&dsvDesc,
-																D3D12_RESOURCE_STATE_DEPTH_WRITE,
-																&clearValue,
-																IID_PPV_ARGS(&m_pDefaultDepthStencil));
-						BREAK_IF_FAILED(hr);
-						m_pDefaultDepthStencil->SetName(L"DefaultDepthStencil");
-
-						D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-						depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-						depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-						depthStencilViewDesc.Texture2D.MipSlice = 0;
-
-						CD3DX12_CPU_DESCRIPTOR_HANDLE depthHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-						m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, depthHandle);
-					}
-					{
-						const UINT SRV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
-						CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-						CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
-
-						D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-						srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-						srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-						srvDesc.Texture2D.MostDetailedMip = 0;
-						srvDesc.Texture2D.MipLevels = 1;
-						srvDesc.Texture2D.PlaneSlice = 0;
-						srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-						// float buffer srv
-						srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-						m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
-
-						// prev buffer srv
-						srvHandle = startSrvHandle;
-						srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-						// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-						m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
-					}
-
-					PostProcessor::PostProcessingBuffers config =
-					{
-						{ m_pRenderTargets[0], m_pRenderTargets[1] },
-						m_pFloatBuffer,
-						m_pPrevBuffer,
-						&m_GlobalConstant,
-						m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
-					};
-					Renderer* pRenderer = this;
-					m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 4);
-					m_PostProcessor.SetDescriptorHeap(pRenderer);
-					m_Camera.SetAspectRatio((float)m_ScreenWidth / (float)m_ScreenHeight);
-				}
+			// 기존 버퍼 초기화.
+			for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+			{
+				m_pRenderTargets[i]->Release();
+				m_pRenderTargets[i] = nullptr;
 			}
+			m_pFloatBuffer->Release();
+			m_pFloatBuffer = nullptr;
+			m_pPrevBuffer->Release();
+			m_pPrevBuffer = nullptr;
+			m_pDefaultDepthStencil->Release();
+			m_pDefaultDepthStencil = nullptr;
+			m_PostProcessor.Cleanup();
+			m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
+
+			// swap chain resize.
+			m_pSwapChain->ResizeBuffers(0,					 // 현재 개수 유지.
+										m_ScreenWidth,		 // 해상도 변경.
+										m_ScreenHeight,
+										DXGI_FORMAT_UNKNOWN, // 현재 포맷 유지.
+										0);
+			// float buffer, prev buffer 재생성.
+			{
+				HRESULT hr = S_OK;
+
+				D3D12_RESOURCE_DESC resourceDesc = {};
+				resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+				resourceDesc.Alignment = 0;
+				resourceDesc.Width = m_ScreenWidth;
+				resourceDesc.Height = m_ScreenHeight;
+				resourceDesc.DepthOrArraySize = 1;
+				resourceDesc.MipLevels = 1;
+				resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				resourceDesc.SampleDesc.Count = 1;
+				resourceDesc.SampleDesc.Quality = 0;
+				resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+				resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+				D3D12_HEAP_PROPERTIES heapProps = {};
+				heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+				heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+				heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+				heapProps.CreationNodeMask = 1;
+				heapProps.VisibleNodeMask = 1;
+
+				hr = m_pDevice->CreateCommittedResource(&heapProps,
+														D3D12_HEAP_FLAG_NONE,
+														&resourceDesc,
+														D3D12_RESOURCE_STATE_COMMON,
+														nullptr,
+														IID_PPV_ARGS(&m_pFloatBuffer));
+				BREAK_IF_FAILED(hr);
+				m_pFloatBuffer->SetName(L"FloatBuffer");
+
+
+				resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+				hr = m_pDevice->CreateCommittedResource(&heapProps,
+														D3D12_HEAP_FLAG_NONE,
+														&resourceDesc,
+														D3D12_RESOURCE_STATE_COMMON,
+														nullptr,
+														IID_PPV_ARGS(&m_pPrevBuffer));
+				BREAK_IF_FAILED(hr);
+				m_pPrevBuffer->SetName(L"PrevBuffer");
+			}
+
+			// 변경된 크기에 맞춰 rtv, dsv, srv 재생성.
+			{
+				const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
+				CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, RTV_DESCRIPTOR_SIZE);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE startRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart());
+				for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+				{
+					m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&m_pRenderTargets[i]));
+					m_pDevice->CreateRenderTargetView(m_pRenderTargets[i], nullptr, rtvHandle);
+					rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
+				}
+				rtvHandle = startRtvHandle;
+
+				D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+				rtvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+				rtvDesc.Texture2D.MipSlice = 0;
+				rtvDesc.Texture2D.PlaneSlice = 0;
+				rtvHandle.Offset(m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
+				m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);
+			}
+			{
+				HRESULT hr = S_OK;
+
+				D3D12_RESOURCE_DESC dsvDesc;
+				dsvDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+				dsvDesc.Alignment = 0;
+				dsvDesc.Width = m_ScreenWidth;
+				dsvDesc.Height = m_ScreenHeight;
+				dsvDesc.DepthOrArraySize = 1;
+				dsvDesc.MipLevels = 1;
+				dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+				dsvDesc.SampleDesc.Count = 1;
+				dsvDesc.SampleDesc.Quality = 0;
+				dsvDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+				dsvDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+
+				D3D12_HEAP_PROPERTIES heapProps;
+				heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+				heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+				heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+				heapProps.CreationNodeMask = 1;
+				heapProps.VisibleNodeMask = 1;
+
+				D3D12_CLEAR_VALUE clearValue;
+				clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+				clearValue.DepthStencil.Depth = 1.0f;
+				clearValue.DepthStencil.Stencil = 0;
+
+				hr = m_pDevice->CreateCommittedResource(&heapProps,
+														D3D12_HEAP_FLAG_NONE,
+														&dsvDesc,
+														D3D12_RESOURCE_STATE_DEPTH_WRITE,
+														&clearValue,
+														IID_PPV_ARGS(&m_pDefaultDepthStencil));
+				BREAK_IF_FAILED(hr);
+				m_pDefaultDepthStencil->SetName(L"DefaultDepthStencil");
+
+				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+				depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+				depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+				depthStencilViewDesc.Texture2D.MipSlice = 0;
+
+				CD3DX12_CPU_DESCRIPTOR_HANDLE depthHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+				m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, depthHandle);
+			}
+			{
+				const UINT SRV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
+				CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
+
+				D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+				srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+				srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+				srvDesc.Texture2D.MostDetailedMip = 0;
+				srvDesc.Texture2D.MipLevels = 1;
+				srvDesc.Texture2D.PlaneSlice = 0;
+				srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+				// float buffer srv
+				srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
+
+				// prev buffer srv
+				srvHandle = startSrvHandle;
+				srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
+				// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
+			}
+
+			PostProcessor::PostProcessingBuffers config =
+			{
+				{ m_pRenderTargets[0], m_pRenderTargets[1] },
+				m_pFloatBuffer,
+				m_pPrevBuffer,
+				// &m_GlobalConstant,
+				&m_GlobalConstantData,
+				m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
+			};
+			Renderer* pRenderer = this;
+			m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 4);
+			m_Camera.SetAspectRatio((float)m_ScreenWidth / (float)m_ScreenHeight);
 		}
 		break;
 
 		case WM_SYSCOMMAND:
-		{
 			if ((wParam & 0xfff0) == SC_KEYMENU) // ALT키 비활성화.
 			{
 				return 0;
 			}
-		}
-		break;
+			break;
 
 		case WM_MOUSEMOVE:
 			onMouseMove(LOWORD(lParam), HIWORD(lParam));
 			break;
 
 		case WM_LBUTTONDOWN:
-		{
 			if (!m_Mouse.bMouseLeftButton)
 			{
 				m_Mouse.bMouseDragStartFlag = true; // 드래그를 새로 시작하는지 확인.
 			}
 			m_Mouse.bMouseLeftButton = true;
 			onMouseClick(LOWORD(lParam), HIWORD(lParam));
-		}
-		break;
+			break;
 
 		case WM_LBUTTONUP:
 			m_Mouse.bMouseLeftButton = false;
 			break;
 
 		case WM_RBUTTONDOWN:
-		{
 			if (!m_Mouse.bMouseRightButton)
 			{
 				m_Mouse.bMouseDragStartFlag = true; // 드래그를 새로 시작하는지 확인.
 			}
 			m_Mouse.bMouseRightButton = true;
-		}
-		break;
+			break;
 
 		case WM_RBUTTONUP:
 			m_Mouse.bMouseRightButton = false;
 			break;
 
 		case WM_KEYDOWN:
-		{
 			m_Keyboard.bPressed[wParam] = true;
 			if (wParam == VK_ESCAPE) // ESC키 종료.
 			{
@@ -529,19 +519,16 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			{
 				(*m_pLights)[1].bRotated = !(*m_pLights)[1].bRotated;
 			}
-		}
-		break;
+			break;
 
 		case WM_KEYUP:
-		{
 			if (wParam == 'F')  // f키 일인칭 시점.
 			{
 				m_Camera.bUseFirstPersonView = !m_Camera.bUseFirstPersonView;
 			}
 
 			m_Keyboard.bPressed[wParam] = false;
-		}
-		break;
+			break;
 
 		case WM_MOUSEWHEEL:
 			m_Mouse.WheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
@@ -687,16 +674,6 @@ LB_EXIT:
 		hr = m_pDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_pCommandQueue));
 		BREAK_IF_FAILED(hr);
 		m_pCommandQueue->SetName(L"CommandQueue");
-
-		/*for (int i = 0; i < RenderPass_RenderPassCount; ++i)
-		{
-			hr = m_pDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_ppCommandQueue[i]));
-			BREAK_IF_FAILED(hr);
-
-			wchar_t debugName[256];
-			swprintf_s(debugName, 256, L"CommandQueue%d", i);
-			m_ppCommandQueue[i]->SetName(debugName);
-		}*/
 	}
 
 	// create swapchain
@@ -764,7 +741,8 @@ LB_EXIT:
 			}
 		}
 
-		/*for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; i++)
+#ifdef USE_MULTI_THREAD
+		for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; i++)
 		{
 			for (UINT j = 0; j < m_RenderThreadCount; j++)
 			{
@@ -773,8 +751,12 @@ LB_EXIT:
 
 				m_pppDescriptorPool[i][j] = new DynamicDescriptorPool;
 				m_pppDescriptorPool[i][j]->Initialize(m_pDevice, 4096);
+
+				m_pppConstantBufferManager[i][j] = new ConstantBufferManager;
+				m_pppConstantBufferManager[i][j]->Initialize(m_pDevice, 4096);
 			}
-		}*/
+		}
+#endif
 	}
 
 	// create fence
@@ -864,21 +846,14 @@ void Renderer::initScene()
 	m_Camera.Reset(Vector3(0.0f, 3.0f, -2.0f), -0.819048f, 0.741502f);
 
 	Renderer* pRenderer = this;
-	m_GlobalConstant.Initialize(pRenderer, sizeof(GlobalConstant));
-	m_LightConstant.Initialize(pRenderer, sizeof(LightConstant));
-	m_ReflectionGlobalConstant.Initialize(pRenderer, sizeof(GlobalConstant));
-	m_pResourceManager->SetGlobalConstants(&m_GlobalConstant, &m_LightConstant, &m_ReflectionGlobalConstant);
+	
+	m_pResourceManager->SetGlobalConstants(&m_GlobalConstantData, &m_LightConstantData, &m_ReflectionGlobalConstantData);
 
 	// 공용 global constant 설정.
+	m_GlobalConstantData.StrengthIBL = 0.3f;
+	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
-		GlobalConstant* pGlobalData = (GlobalConstant*)m_GlobalConstant.pData;
-		pGlobalData->StrengthIBL = 0.3f;
-
-		LightConstant* pLightData = (LightConstant*)m_LightConstant.pData;
-		for (int i = 0; i < MAX_LIGHTS; ++i)
-		{
-			memcpy(&pLightData->Lights[i], &(*m_pLights)[i].Property, sizeof(LightProperty));
-		}
+		memcpy(&m_LightConstantData.Lights[i], &(*m_pLights)[i].Property, sizeof(LightProperty));
 	}
 }
 
@@ -971,32 +946,6 @@ void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceText
 	{
 		// UINT64 totalObject = m_RenderObjects.size();
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
-
-		// b0, b1
-		m_pResourceManager->m_GlobalConstantViewStartOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
-
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-		cbvDesc.BufferLocation = m_GlobalConstant.GetGPUMemAddr();
-		cbvDesc.SizeInBytes = (UINT)m_GlobalConstant.GetBufferSize();
-		m_pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
-		m_GlobalConstant.SetCBVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		cbvDesc.BufferLocation = m_ReflectionGlobalConstant.GetGPUMemAddr();
-		cbvDesc.SizeInBytes = (UINT)m_ReflectionGlobalConstant.GetBufferSize();
-		m_pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
-		m_ReflectionGlobalConstant.SetCBVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		cbvDesc.BufferLocation = m_LightConstant.GetGPUMemAddr();
-		cbvDesc.SizeInBytes = (UINT)m_LightConstant.GetBufferSize();
-		m_pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
-		m_LightConstant.SetCBVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -1142,16 +1091,16 @@ void Renderer::beginRender()
 	HRESULT hr = S_OK;
 
 #ifdef USE_MULTI_THREAD
-	
-	/*CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
-	ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
 
-	const CD3DX12_RESOURCE_BARRIER RTV_BEFORE_BARRIERS[2] =
+	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
+	ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
+	
+	const CD3DX12_RESOURCE_BARRIER BARRIERs[2] =
 	{
 		CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET),
-		CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET),
+		CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET)
 	};
-	pCommandList->ResourceBarrier(2, RTV_BEFORE_BARRIERS);
+	pCommandList->ResourceBarrier(2, BARRIERs);
 
 	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
@@ -1163,33 +1112,7 @@ void Renderer::beginRender()
 	pCommandList->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
 	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-	pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);*/
-
-	////////////////////////////////////
-	CommandListPool* pCommandListPool1 = m_pppCommandListPool[m_FrameIndex][0];
-	CommandListPool* pCommandListPool2 = m_pppCommandListPool[m_FrameIndex][1];
-	ID3D12GraphicsCommandList* pCommandList1 = pCommandListPool1->GetCurrentCommandList();
-	ID3D12GraphicsCommandList* pCommandList2 = pCommandListPool2->GetCurrentCommandList();
-
-	const CD3DX12_RESOURCE_BARRIER RENDER_TARGET_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	const CD3DX12_RESOURCE_BARRIER FLOAT_BUFFER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-
-	pCommandList1->ResourceBarrier(1, &FLOAT_BUFFER_BARRIER);
-	pCommandList2->ResourceBarrier(1, &RENDER_TARGET_BARRIER);
-
-	const float COLOR[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
-	pCommandList2->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
-	pCommandList1->ClearRenderTargetView(floatRtvHandle, COLOR, 0, nullptr);
-	pCommandList1->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-	// pCommandListPool1->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);
-	pCommandListPool1->ClosedAndExecute(m_pCommandQueue);
-	pCommandListPool2->ClosedAndExecute(m_pCommandQueue);
+	pCommandListPool->ClosedAndExecute(m_pCommandQueue);
 
 #else
 
@@ -1267,7 +1190,7 @@ void Renderer::renderShadowmap()
 			item.pFilter = nullptr;
 			item.PSOType = renderPSO;
 
-			if (pModel->ModelType == SkinnedModel)
+			if (pModel->ModelType == RenderObjectType_SkinnedType)
 			{
 				item.PSOType = (eRenderPSOType)(renderPSO + 1);			
 			}
@@ -1280,7 +1203,6 @@ void Renderer::renderShadowmap()
 		}
 	}
 
-	// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_Shadow]);
 	pCommandListPool->ClosedAndExecute(m_pCommandQueue);
 
 #else
@@ -1318,15 +1240,15 @@ void Renderer::renderObject()
 
 		switch (pCurModel->ModelType)
 		{
-			case DefaultModel:
+			case RenderObjectType_DefaultType:
 				item.PSOType = RenderPSOType_Default;
 				break;
 
-			case SkinnedModel:
+			case RenderObjectType_SkinnedType:
 				item.PSOType = RenderPSOType_Skinned;
 				break;
 
-			case SkyboxModel:
+			case RenderObjectType_SkyboxType:
 				item.PSOType = RenderPSOType_Skybox;
 				break;
 
@@ -1379,12 +1301,9 @@ void Renderer::renderObject()
 		switch (pCurModel->ModelType)
 		{
 			case RenderObjectType_DefaultType:
-			case RenderObjectType_MirrorType:
-			{
 				m_pResourceManager->SetCommonState(RenderPSOType_Default);
 				pCurModel->Render(pRenderer, RenderPSOType_Default);
-			}
-			break;
+				break;
 
 			case RenderObjectType_SkinnedType:
 			{
@@ -1395,11 +1314,9 @@ void Renderer::renderObject()
 			break;
 
 			case RenderObjectType_SkyboxType:
-			{
 				m_pResourceManager->SetCommonState(RenderPSOType_Skybox);
 				pCurModel->Render(pRenderer, RenderPSOType_Skybox);
-			}
-			break;
+				break;
 
 			default:
 				break;
@@ -1438,15 +1355,15 @@ void Renderer::renderMirror()
 
 		switch (pCurModel->ModelType)
 		{
-			case DefaultModel:
+			case RenderObjectType_DefaultType:
 				item.PSOType = RenderPSOType_ReflectionDefault;
 				break;
 
-			case SkinnedModel:
+			case RenderObjectType_SkinnedType:
 				item.PSOType = RenderPSOType_ReflectionSkinned;
 				break;
 
-			case SkyboxModel:
+			case RenderObjectType_SkyboxType:
 				item.PSOType = RenderPSOType_ReflectionSkybox;
 				break;
 
@@ -1521,6 +1438,73 @@ void Renderer::renderObjectBoundingModel()
 	Renderer* pRenderer = this;
 
 	// obb rendering
+	
+#ifdef USE_MULTI_THREAD
+
+	// register object to render queue.
+	m_CurThreadIndex = 0;
+	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+	{
+		RenderQueue* pRenderQue = m_pppRenderQueue[RenderPass_Mirror][m_CurThreadIndex];
+		Model* pCurModel = (*m_pRenderObjects)[i];
+
+		if (!pCurModel->bIsVisible)
+		{
+			continue;
+		}
+
+		RenderItem item;
+		item.ModelType = (eRenderObjectType)pCurModel->ModelType;
+		item.pObjectHandle = (void*)pCurModel;
+		item.pLight = nullptr;
+		item.pFilter = nullptr;
+
+		switch (pCurModel->ModelType)
+		{
+			case RenderObjectType_DefaultType:
+				item.PSOType = RenderPSOType_ReflectionDefault;
+				break;
+
+			case RenderObjectType_SkinnedType:
+				item.PSOType = RenderPSOType_ReflectionSkinned;
+				break;
+
+			case RenderObjectType_SkyboxType:
+				item.PSOType = RenderPSOType_ReflectionSkybox;
+				break;
+
+			default:
+				break;
+		}
+
+		m_pResourceManager->SetCommonState(RenderPSOType_Wire);
+		switch (pCurModel->ModelType)
+		{
+			case RenderObjectType_DefaultType:
+				// pCurModel->RenderBoundingSphere(pRenderer, RenderPSOType_Wire);
+				break;
+
+			case RenderObjectType_SkinnedType:
+			{
+				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+				pCharacter->RenderBoundingCapsule(pRenderer, RenderPSOType_Wire);
+				pCharacter->RenderJointSphere(pRenderer, RenderPSOType_Wire);
+			}
+			break;
+
+			default:
+				break;
+		}
+
+		if (!pRenderQue->Add(&item))
+		{
+			__debugbreak();
+		}
+		++m_CurThreadIndex;
+	}
+
+#else
+
 	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
 	{
 		Model* pCurModel = (*m_pRenderObjects)[i];
@@ -1549,6 +1533,8 @@ void Renderer::renderObjectBoundingModel()
 				break;
 		}
 	}
+
+#endif
 }
 
 void Renderer::postProcess()
@@ -1626,7 +1612,6 @@ void Renderer::endRender()
 #ifdef USE_MULTI_THREAD
 
 	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
-
 	for (int i = 0; i < RenderPass_RenderPassCount; ++i)
 	{
 		m_pActiveThreadCounts[i] = m_RenderThreadCount;
@@ -1668,9 +1653,7 @@ void Renderer::endRender()
 
 		pCommandList->ResourceBarrier(1, &barrier);
 	}
-	// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_Shadow]);
 	pCommandListPool->ClosedAndExecute(m_pCommandQueue);
-	fence();
 
 	// default render pass.
 	for (UINT i = 0; i < m_RenderThreadCount; ++i)
@@ -1684,6 +1667,7 @@ void Renderer::endRender()
 	{
 		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
 		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
+		ConstantBufferManager* pConstantBufferManager = m_pppConstantBufferManager[m_FrameIndex][0];
 		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
 		{
 			pDescriptorPool->GetDescriptorHeap(),
@@ -1695,9 +1679,9 @@ void Renderer::endRender()
 		m_PostProcessor.SetViewportsAndScissorRects(pCommandList);
 		pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
 		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		m_pResourceManager->SetCommonState(0, pCommandList, m_pppDescriptorPool[m_FrameIndex][0], RenderPSOType_StencilMask);
-		m_pMirror->Render(0, pCommandList, pDescriptorPool, m_pResourceManager, RenderPSOType_StencilMask);
-		// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);
+		m_pResourceManager->SetCommonState(0, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_StencilMask);
+		m_pMirror->Render(0, pCommandList, pDescriptorPool, pConstantBufferManager, m_pResourceManager, RenderPSOType_StencilMask);
+		
 		pCommandListPool->ClosedAndExecute(m_pCommandQueue);
 	}
 	for (UINT i = 0; i < m_RenderThreadCount; ++i)
@@ -1709,6 +1693,7 @@ void Renderer::endRender()
 	{
 		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
 		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
+		ConstantBufferManager* pConstantBufferManager = m_pppConstantBufferManager[m_FrameIndex][0];
 		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
 		{
 			pDescriptorPool->GetDescriptorHeap(),
@@ -1720,37 +1705,33 @@ void Renderer::endRender()
 		m_PostProcessor.SetViewportsAndScissorRects(pCommandList);
 		pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
 		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		m_pResourceManager->SetCommonState(0, pCommandList, m_pppDescriptorPool[m_FrameIndex][0], RenderPSOType_MirrorBlend);
-		m_pMirror->Render(0, pCommandList, pDescriptorPool, m_pResourceManager, RenderPSOType_MirrorBlend);
+		m_pResourceManager->SetCommonState(0, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_MirrorBlend);
+		m_pMirror->Render(0, pCommandList, pDescriptorPool, pConstantBufferManager, m_pResourceManager, RenderPSOType_MirrorBlend);
 		
 		const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
 		pCommandList->ResourceBarrier(1, &BARRIER);
 
-		// pCommandListPool->ClosedAndExecute(m_ppCommandQueue[RenderPass_MainRender]);
 		pCommandListPool->ClosedAndExecute(m_pCommandQueue);
 	}
-	fence();
 
 	// postprocessing pass.
 	{
 		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
 		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
-		// const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
+		ConstantBufferManager* pConstantBufferManager = m_pppConstantBufferManager[m_FrameIndex][0];
 		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
 		{
 			pDescriptorPool->GetDescriptorHeap(),
 			m_pResourceManager->m_pSamplerHeap,
 		};
 		
-		// pCommandList->ResourceBarrier(1, &BARRIER);
 		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		m_PostProcessor.Render(0, pCommandList, pDescriptorPool, m_pResourceManager, m_FrameIndex);
+		m_PostProcessor.Render(0, pCommandList, pDescriptorPool, pConstantBufferManager, m_pResourceManager, m_FrameIndex);
 	
 		const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
 		pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
 		pCommandListPool->ClosedAndExecute(m_pCommandQueue);
 	}
-	fence();
 
 	for (int i = 0; i < RenderPass_RenderPassCount; ++i)
 	{
@@ -1805,6 +1786,7 @@ void Renderer::present()
 	for (UINT i = 0; i < m_RenderThreadCount; ++i)
 	{
 		m_pppCommandListPool[nextFrameIndex][i]->Reset();
+		m_pppConstantBufferManager[nextFrameIndex][i]->Reset();
 		m_pppDescriptorPool[nextFrameIndex][i]->Reset();
 	}
 
@@ -1825,31 +1807,24 @@ void Renderer::updateGlobalConstants(const float DELTA_TIME)
 	const Matrix VIEW = m_Camera.GetView();
 	const Matrix PROJECTION = m_Camera.GetProjection();
 
-	GlobalConstant* pGlobalData = (GlobalConstant*)m_GlobalConstant.pData;
-	GlobalConstant* pReflectGlobalData = (GlobalConstant*)m_ReflectionGlobalConstant.pData;
+	m_GlobalConstantData.GlobalTime += DELTA_TIME;
+	m_GlobalConstantData.EyeWorld = EYE_WORLD;
+	m_GlobalConstantData.View = VIEW.Transpose();
+	m_GlobalConstantData.Projection = PROJECTION.Transpose();
+	m_GlobalConstantData.InverseProjection = PROJECTION.Invert().Transpose();
+	m_GlobalConstantData.ViewProjection = (VIEW * PROJECTION).Transpose();
+	m_GlobalConstantData.InverseView = VIEW.Invert().Transpose();
+	m_GlobalConstantData.InverseViewProjection = m_GlobalConstantData.ViewProjection.Invert();
 
-	pGlobalData->GlobalTime += DELTA_TIME;
-	pGlobalData->EyeWorld = EYE_WORLD;
-	pGlobalData->View = VIEW.Transpose();
-	pGlobalData->Projection = PROJECTION.Transpose();
-	pGlobalData->InverseProjection = PROJECTION.Invert().Transpose();
-	pGlobalData->ViewProjection = (VIEW * PROJECTION).Transpose();
-	pGlobalData->InverseView = VIEW.Invert().Transpose();
-	pGlobalData->InverseViewProjection = pGlobalData->ViewProjection.Invert();
-
-	memcpy(pReflectGlobalData, pGlobalData, sizeof(GlobalConstant));
-	pReflectGlobalData->View = (REFLECTION * VIEW).Transpose();
-	pReflectGlobalData->ViewProjection = (REFLECTION * VIEW * PROJECTION).Transpose();
-	pReflectGlobalData->InverseViewProjection = pReflectGlobalData->ViewProjection.Invert();
-
-	m_GlobalConstant.Upload();
-	m_ReflectionGlobalConstant.Upload();
+	memcpy(&m_ReflectionGlobalConstantData, &m_GlobalConstantData, sizeof(GlobalConstant));
+	m_ReflectionGlobalConstantData.View = (REFLECTION * VIEW).Transpose();
+	m_ReflectionGlobalConstantData.ViewProjection = (REFLECTION * VIEW * PROJECTION).Transpose();
+	m_ReflectionGlobalConstantData.InverseViewProjection = m_ReflectionGlobalConstantData.ViewProjection.Invert();
 }
 
 void Renderer::updateLightConstants(const float DELTA_TIME)
 {
 	Renderer* pRenderer = this;
-	LightConstant* pLightConstData = (LightConstant*)m_LightConstant.pData;
 
 	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
@@ -1857,10 +1832,8 @@ void Renderer::updateLightConstants(const float DELTA_TIME)
 
 		pLight->Update(pRenderer, DELTA_TIME, m_Camera);
 		(*m_pLightSpheres)[i]->UpdateWorld(Matrix::CreateScale(Max(0.01f, pLight->Property.Radius)) * Matrix::CreateTranslation(pLight->Property.Position));
-		memcpy(&pLightConstData->Lights[i], &pLight->Property, sizeof(LightProperty));
+		memcpy(&m_LightConstantData.Lights[i], &pLight->Property, sizeof(LightProperty));
 	}
-
-	m_LightConstant.Upload();
 }
 
 void Renderer::onMouseMove(const int MOUSE_X, const int MOUSE_Y)
@@ -2039,8 +2012,6 @@ void Renderer::processMouseControl(const float DELTA_TIME)
 		Vector3 translation;
 		if (s_pEndEffector)
 		{
-			/*MeshConstant* pMeshConstant = (MeshConstant*)s_pEndEffector->MeshConstant.pData;
-			translation = pMeshConstant->World.Transpose().Translation() + dragTranslation;*/
 			MeshConstant& meshConstantData = s_pEndEffector->MeshConstantData;
 			translation = meshConstantData.World.Transpose().Translation() + dragTranslation;
 			m_PickedTranslation = translation;

@@ -21,7 +21,6 @@ public:
 	inline void SetDirection(const Vector3& DIR) { m_LightViewCamera.SetViewDir(DIR); }
 	inline void SetShadowSize(const UINT WIDTH, const UINT HEIGHT) { LightShadowMap.SetShadowWidth(WIDTH); LightShadowMap.SetShadowHeight(HEIGHT); }
 	
-
 public:
 	LightProperty Property;
 	ShadowMap LightShadowMap;

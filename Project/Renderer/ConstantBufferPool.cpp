@@ -26,6 +26,7 @@ void ConstantBufferPool::Initialize(ID3D12Device* pDevice, eConstantBufferType t
 										  nullptr,
 										  IID_PPV_ARGS(&m_pResource));
 	BREAK_IF_FAILED(hr);
+	m_pResource->SetName(L"ConstantHeapInConstantBufferPool");
 
 
 	// Create descriptor heap.
@@ -97,5 +98,13 @@ void ConstantBufferPool::Cleanup()
 		m_pCBContainerList = nullptr;
 	}
 	SAFE_RELEASE(m_pCBVHeap);
-	SAFE_RELEASE(m_pResource);
+	if (m_pResource)
+	{
+		CD3DX12_RANGE writeRange(0, 0);
+		m_pResource->Unmap(0, &writeRange);
+		m_pSystemMemAddr = nullptr;
+
+		m_pResource->Release();
+		m_pResource = nullptr;
+	}
 }

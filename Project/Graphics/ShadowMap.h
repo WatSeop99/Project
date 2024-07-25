@@ -2,7 +2,6 @@
 
 #include "Camera.h"
 #include "../Renderer/ConstantDataType.h"
-#include "ConstantBuffer.h"
 #include "../Model/SkinnedMeshModel.h"
 #include "Texture.h"
 
@@ -27,8 +26,6 @@ public:
 	inline Texture* GetPointLightShadowBufferPtr() { return &m_PointLightShadowBuffer; }
 	inline Texture* GetDirectionalLightShadowBufferPtr() { return &m_DirectionalLightShadowBuffer; }
 
-	/*inline ConstantBuffer* GetShadowConstantsBufferPtr() { return m_ShadowConstantBuffers; }
-	inline ConstantBuffer* GetShadowConstantBufferForGSPtr() { return &m_ShadowConstantsBufferForGS; }*/
 	inline GlobalConstant* GetShadowConstantsBufferDataPtr() { return m_ShadowConstantBufferDatas; }
 	inline ShadowConstant* GetShadowConstantBufferDataForGSPtr() { return &m_ShadowConstantsBufferDataForGS; }
 
@@ -50,7 +47,7 @@ private:
 	UINT m_LightType = LIGHT_OFF;
 	const UINT m_TOTAL_LIGHT_TYPE = (LIGHT_DIRECTIONAL | LIGHT_POINT | LIGHT_SPOT);
 
-	D3D12_VIEWPORT m_pViewPorts[6] = { 0, };
+	D3D12_VIEWPORT m_pViewPorts[6] = { 0.0f, };
 	D3D12_RECT m_pScissorRects[6] = { 0, };
 
 	union
@@ -59,8 +56,6 @@ private:
 		Texture m_PointLightShadowBuffer;
 		Texture m_DirectionalLightShadowBuffer;
 	};
-	// ConstantBuffer m_ShadowConstantBuffers[6];	 // spot, point, direc => 0, 6, 4개씩 사용.
-	// ConstantBuffer m_ShadowConstantsBufferForGS; // 2개 이상의 view 행렬을 사용하는 광원을 위한  geometry용 상수버퍼;
 	GlobalConstant m_ShadowConstantBufferDatas[6];	 // spot, point, direc => 0, 6, 4개씩 사용.
 	ShadowConstant m_ShadowConstantsBufferDataForGS; // 2개 이상의 view 행렬을 사용하는 광원을 위한  geometry용 상수버퍼;
 };

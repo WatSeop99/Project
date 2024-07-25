@@ -39,15 +39,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 	{
 		const MeshInfo& MESH_DATA = MESH_INFOS[i];
 		Mesh* pNewMesh = new Mesh;
-		/*MeshConstant* pMeshConst = nullptr;
-		MaterialConstant* pMaterialConst = nullptr;
-
-		pNewMesh->MeshConstant.Initialize(pRenderer, sizeof(MeshConstant));
-		pNewMesh->MaterialConstant.Initialize(pRenderer, sizeof(MaterialConstant));
-		pMeshConst = (MeshConstant*)pNewMesh->MeshConstant.pData;
-		pMaterialConst = (MaterialConstant*)pNewMesh->MaterialConstant.pData;
-
-		pMeshConst->World = Matrix();*/
 		MeshConstant& meshConstantData = pNewMesh->MeshConstantData;
 		MaterialConstant& materialConstantData = pNewMesh->MaterialConstantData;
 
@@ -60,7 +51,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(albedoTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.Albedo.Initialize(pRenderer, MESH_DATA.szAlbedoTextureFileName.c_str(), true);
-				// pMaterialConst->bUseAlbedoMap = TRUE;
 				materialConstantData.bUseAlbedoMap = TRUE;
 			}
 			else
@@ -76,7 +66,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(emissiveTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.Emissive.Initialize(pRenderer, MESH_DATA.szEmissiveTextureFileName.c_str(), true);
-				// pMaterialConst->bUseEmissiveMap = TRUE;
 				materialConstantData.bUseEmissiveMap = TRUE;
 			}
 			else
@@ -92,7 +81,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(normalTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.Normal.Initialize(pRenderer, MESH_DATA.szNormalTextureFileName.c_str(), false);
-				// pMaterialConst->bUseNormalMap = TRUE;
 				materialConstantData.bUseNormalMap = TRUE;
 			}
 			else
@@ -108,7 +96,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(heightTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.Height.Initialize(pRenderer, MESH_DATA.szHeightTextureFileName.c_str(), false);
-				// pMeshConst->bUseHeightMap = TRUE;
 				meshConstantData.bUseHeightMap = TRUE;
 			}
 			else
@@ -124,7 +111,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(aoTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.AmbientOcclusion.Initialize(pRenderer, MESH_DATA.szAOTextureFileName.c_str(), false);
-				// pMaterialConst->bUseAOMap = TRUE;
 				materialConstantData.bUseAOMap = TRUE;
 			}
 			else
@@ -140,7 +126,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(metallicTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.Metallic.Initialize(pRenderer, MESH_DATA.szMetallicTextureFileName.c_str(), false);
-				// pMaterialConst->bUseMetallicMap = TRUE;
 				materialConstantData.bUseMetallicMap = TRUE;
 			}
 			else
@@ -156,7 +141,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			if (_stat64(roughnessTextureA.c_str(), &sourceFileStat) != -1)
 			{
 				pNewMesh->Material.Roughness.Initialize(pRenderer, MESH_DATA.szRoughnessTextureFileName.c_str(), false);
-				// pMaterialConst->bUseRoughnessMap = TRUE;
 				materialConstantData.bUseRoughnessMap = TRUE;
 			}
 			else
@@ -199,24 +183,6 @@ void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh
 	pNewMesh->Index.Count = (UINT)MESH_INFO.Indices.size();
 }
 
-void Model::UpdateConstantBuffers()
-{
-	/*if (!bIsVisible)
-	{
-		return;
-	}
-
-	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
-	{
-		Mesh* pCurMesh = Meshes[i];
-		pCurMesh->MeshConstant.Upload();
-		pCurMesh->MaterialConstant.Upload();
-	}
-
-	m_pBoundingBoxMesh->MeshConstant.Upload();
-	m_pBoundingSphereMesh->MeshConstant.Upload();*/
-}
-
 void Model::UpdateWorld(const Matrix& WORLD)
 {
 	World = WORLD;
@@ -227,25 +193,6 @@ void Model::UpdateWorld(const Matrix& WORLD)
 	// bounding sphere 위치 업데이트.
 	BoundingSphere.Center = World.Translation();
 	BoundingBox.Center = BoundingSphere.Center;
-
-	/*MeshConstant* pBoxMeshConst = (MeshConstant*)m_pBoundingBoxMesh->MeshConstant.pData;
-	MeshConstant* pSphereMeshConst = (MeshConstant*)m_pBoundingSphereMesh->MeshConstant.pData;
-
-	pBoxMeshConst->World = World.Transpose();
-	pBoxMeshConst->WorldInverseTranspose = WorldInverseTranspose.Transpose();
-	pBoxMeshConst->WorldInverse = WorldInverseTranspose;
-	pSphereMeshConst->World = pBoxMeshConst->World;
-	pSphereMeshConst->WorldInverseTranspose = pBoxMeshConst->WorldInverseTranspose;
-	pSphereMeshConst->WorldInverse = pBoxMeshConst->WorldInverse;
-
-	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
-	{
-		Mesh* pCurMesh = Meshes[i];
-		MeshConstant* pMeshConst = (MeshConstant*)pCurMesh->MeshConstant.pData;
-		pMeshConst->World = WORLD.Transpose();
-		pMeshConst->WorldInverseTranspose = WorldInverseTranspose.Transpose();
-		pMeshConst->WorldInverse = WorldInverseTranspose.Transpose();
-	}*/
 
 	MeshConstant& boxMeshConstantData = m_pBoundingBoxMesh->MeshConstantData;
 	MeshConstant& sphereMeshConstantData = m_pBoundingSphereMesh->MeshConstantData;
@@ -278,8 +225,8 @@ void Model::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -314,8 +261,6 @@ void Model::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
 				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
-				/*pDevice->CopyDescriptorsSimple(2, dstHandle, pCurMesh->MeshConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(2, CBV_SRV_DESCRIPTOR_SIZE);*/
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -343,7 +288,6 @@ void Model::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
 				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
-				// pDevice->CopyDescriptorsSimple(2, dstHandle, pCurMesh->MeshConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -364,16 +308,17 @@ void Model::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
 	}
 }
 
-void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, int psoSetting)
+void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting)
 {
 	_ASSERT(pCommandList);
 	_ASSERT(pManager);
 	_ASSERT(pDescriptorPool);
+	_ASSERT(pConstantBufferManager);
 
 	HRESULT hr = S_OK;
 	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -408,8 +353,6 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
-				/*pDevice->CopyDescriptorsSimple(2, dstHandle, pCurMesh->MeshConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(2, CBV_SRV_DESCRIPTOR_SIZE);*/
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -437,7 +380,6 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
-				// pDevice->CopyDescriptorsSimple(2, dstHandle, pCurMesh->MeshConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -469,8 +411,8 @@ void Model::RenderBoundingBox(Renderer* pRenderer, eRenderPSOType psoSetting)
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
 	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 
@@ -496,10 +438,6 @@ void Model::RenderBoundingBox(Renderer* pRenderer, eRenderPSOType psoSetting)
 	memcpy(pMaterialConstMem, &m_pBoundingBoxMesh->MaterialConstantData, sizeof(m_pBoundingBoxMesh->MaterialConstantData));
 
 	// b2, b3
-	/*pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBoundingBoxMesh->MeshConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
-	pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBoundingBoxMesh->MaterialConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);*/
 	pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 	pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -526,8 +464,8 @@ void Model::RenderBoundingSphere(Renderer* pRenderer, eRenderPSOType psoSetting)
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
 	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 
@@ -553,10 +491,6 @@ void Model::RenderBoundingSphere(Renderer* pRenderer, eRenderPSOType psoSetting)
 	memcpy(pMaterialConstMem, &m_pBoundingSphereMesh->MaterialConstantData, sizeof(m_pBoundingSphereMesh->MaterialConstantData));
 
 	// b2, b3
-	/*pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBoundingSphereMesh->MeshConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
-	pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBoundingSphereMesh->MaterialConstant.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);*/
 	pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 	pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -604,7 +538,6 @@ void Model::SetDescriptorHeap(Renderer* pRenderer)
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvLastHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_CBVSRVUAVHeapSize, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -618,23 +551,7 @@ void Model::SetDescriptorHeap(Renderer* pRenderer)
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
 	{
 		Mesh* pCurMesh = Meshes[i];
-		// ConstantBuffer& meshConstant = pCurMesh->MeshConstant;
-		// ConstantBuffer& materialConstant = pCurMesh->MaterialConstant;
 		Material* pMaterialBuffer = &pCurMesh->Material;
-
-		/*cbvDesc.BufferLocation = meshConstant.GetGPUMemAddr();
-		cbvDesc.SizeInBytes = (UINT)meshConstant.GetBufferSize();
-		pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-		meshConstant.SetCBVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		cbvDesc.BufferLocation = materialConstant.GetGPUMemAddr();
-		cbvDesc.SizeInBytes = (UINT)materialConstant.GetBufferSize();
-		pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-		materialConstant.SetCBVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);*/
 
 		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		pDevice->CreateShaderResourceView(pMaterialBuffer->Albedo.GetResource(), &srvDesc, cbvSrvLastHandle);
@@ -673,36 +590,6 @@ void Model::SetDescriptorHeap(Renderer* pRenderer)
 		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 		++(pManager->m_CBVSRVUAVHeapSize);
 	}
-
-	// bounding box
-	/*cbvDesc.BufferLocation = m_pBoundingBoxMesh->MeshConstant.GetGPUMemAddr();
-	cbvDesc.SizeInBytes = (UINT)m_pBoundingBoxMesh->MeshConstant.GetBufferSize();
-	pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-	m_pBoundingBoxMesh->MeshConstant.SetCBVHandle(cbvSrvLastHandle);
-	cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	++(pManager->m_CBVSRVUAVHeapSize);
-
-	cbvDesc.BufferLocation = m_pBoundingBoxMesh->MaterialConstant.GetGPUMemAddr();
-	cbvDesc.SizeInBytes = (UINT)m_pBoundingBoxMesh->MaterialConstant.GetBufferSize();
-	pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-	m_pBoundingBoxMesh->MaterialConstant.SetCBVHandle(cbvSrvLastHandle);
-	cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	++(pManager->m_CBVSRVUAVHeapSize);*/
-
-	// bounding sphere
-	/*cbvDesc.BufferLocation = m_pBoundingSphereMesh->MeshConstant.GetGPUMemAddr();
-	cbvDesc.SizeInBytes = (UINT)m_pBoundingSphereMesh->MeshConstant.GetBufferSize();
-	pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-	m_pBoundingSphereMesh->MeshConstant.SetCBVHandle(cbvSrvLastHandle);
-	cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	++(pManager->m_CBVSRVUAVHeapSize);
-
-	cbvDesc.BufferLocation = m_pBoundingSphereMesh->MaterialConstant.GetGPUMemAddr();
-	cbvDesc.SizeInBytes = (UINT)m_pBoundingSphereMesh->MaterialConstant.GetBufferSize();
-	pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-	m_pBoundingSphereMesh->MaterialConstant.SetCBVHandle(cbvSrvLastHandle);
-	cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	++(pManager->m_CBVSRVUAVHeapSize);*/
 }
 
 void Model::initBoundingBox(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS)
@@ -715,18 +602,6 @@ void Model::initBoundingBox(Renderer* pRenderer, const std::vector<MeshInfo>& ME
 	}
 
 	MeshInfo meshData = INIT_MESH_INFO;
-	/*MeshConstant* pMeshConst = nullptr;
-	MaterialConstant* pMaterialConst = nullptr;
-
-	MakeWireBox(&meshData, BoundingBox.Center, Vector3(BoundingBox.Extents) + Vector3(1e-3f));
-	m_pBoundingBoxMesh = new Mesh;
-	m_pBoundingBoxMesh->MeshConstant.Initialize(pRenderer, sizeof(MeshConstant));
-	m_pBoundingBoxMesh->MaterialConstant.Initialize(pRenderer, sizeof(MaterialConstant));
-	pMeshConst = (MeshConstant*)m_pBoundingBoxMesh->MeshConstant.pData;
-	pMaterialConst = (MaterialConstant*)m_pBoundingBoxMesh->MaterialConstant.pData;
-
-	pMeshConst->World = Matrix();*/
-
 	MakeWireBox(&meshData, BoundingBox.Center, Vector3(BoundingBox.Extents) + Vector3(1e-3f));
 	m_pBoundingBoxMesh = new Mesh;
 
@@ -754,19 +629,6 @@ void Model::initBoundingSphere(Renderer* pRenderer, const std::vector<MeshInfo>&
 	BoundingSphere = DirectX::BoundingSphere(BoundingBox.Center, maxRadius);
 
 	MeshInfo meshData = INIT_MESH_INFO;
-	/*MeshConstant* pMeshConst = nullptr;
-	MaterialConstant* pMaterialConst = nullptr;
-
-	MakeWireSphere(&meshData, BoundingSphere.Center, BoundingSphere.Radius);
-	// MakeWireCapsule(&meshData, BoundingSphere.Center, BoundingSphere.Radius, 3.0f);
-	m_pBoundingSphereMesh = new Mesh;
-	m_pBoundingSphereMesh->MeshConstant.Initialize(pRenderer, sizeof(MeshConstant));
-	m_pBoundingSphereMesh->MaterialConstant.Initialize(pRenderer, sizeof(MaterialConstant));
-	pMeshConst = (MeshConstant*)m_pBoundingSphereMesh->MeshConstant.pData;
-	pMaterialConst = (MaterialConstant*)m_pBoundingSphereMesh->MaterialConstant.pData;
-
-	pMeshConst->World = Matrix();*/
-
 	MakeWireSphere(&meshData, BoundingSphere.Center, BoundingSphere.Radius);
 	m_pBoundingSphereMesh = new Mesh;
 

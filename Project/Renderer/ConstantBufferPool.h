@@ -26,7 +26,7 @@ private:
 	ID3D12Resource* m_pResource = nullptr;
 	BYTE* m_pSystemMemAddr = nullptr;
 
-	eConstantBufferType m_ConstantBufferType;
+	eConstantBufferType m_ConstantBufferType = ConstantBufferType_ConstantTypeCount;
 	UINT m_SizePerCBV = 0;
 	UINT m_MaxCBVNum = 0;
 	UINT m_AllocatedCBVNum = 0;

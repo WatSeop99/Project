@@ -23,9 +23,9 @@ public:
 
 	bool Add(const RenderItem* pItem);
 
-	UINT Process(UINT threadIndex, ID3D12CommandQueue* pCommandQueue, CommandListPool* pCommandListPool, ResourceManager* pManager, DynamicDescriptorPool* pDescriptorPool, int processCountPerCommandList);
-	UINT ProcessLight(UINT threadIndex, ID3D12CommandQueue* pCommandQueue, CommandListPool* pCommandListPool, ResourceManager* pManager, DynamicDescriptorPool* pDescriptorPool, int processCountPerCommandList);
-	UINT ProcessPostProcessing(UINT threadIndex, ID3D12CommandQueue* pCommandQueue, CommandListPool* pCommandListPool, ResourceManager* pManager, DynamicDescriptorPool* pDescriptorPool, int processCountPerCommandList);
+	UINT Process(UINT threadIndex, ID3D12CommandQueue* pCommandQueue, CommandListPool* pCommandListPool, ResourceManager* pManager, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, int processCountPerCommandList);
+	UINT ProcessLight(UINT threadIndex, ID3D12CommandQueue* pCommandQueue, CommandListPool* pCommandListPool, ResourceManager* pManager, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, int processCountPerCommandList);
+	UINT ProcessPostProcessing(UINT threadIndex, ID3D12CommandQueue* pCommandQueue, CommandListPool* pCommandListPool, ResourceManager* pManager, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, int processCountPerCommandList);
 
 	void Reset();
 

@@ -24,8 +24,8 @@ public:
 protected:
 	void initExternalData(UINT64* pTotalRenderObjectCount);
 
-	void updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame);
-	void simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& DELTA_POS, const float DELTA_TIME);
+	void updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo);
+	void simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo, const Vector3& DELTA_POS, const float DELTA_TIME);
 
 private:
 	Timer m_Timer;

@@ -71,12 +71,12 @@ ALIGN(16) struct ShadowConstant
 };
 ALIGN(16) struct GlobalConstant
 {
-	Matrix View = Matrix();
-	Matrix Projection = Matrix();
-	Matrix InverseProjection = Matrix();
-	Matrix ViewProjection = Matrix();
-	Matrix InverseViewProjection = Matrix(); // Proj -> World
-	Matrix InverseView = Matrix();
+	Matrix View;
+	Matrix Projection;
+	Matrix InverseProjection;
+	Matrix ViewProjection;
+	Matrix InverseViewProjection; // Proj -> World
+	Matrix InverseView;
 
 	Vector3 EyeWorld = Vector3(0.0f);
 	float StrengthIBL = 0.0f;
@@ -90,12 +90,12 @@ ALIGN(16) struct GlobalConstant
 };
 ALIGN(16) struct ImageFilterConstant
 {
-	float DX;
-	float DY;
-	float Threshold;
-	float Strength;
-	float Option1; // exposure in CombinePS.hlsl
-	float Option2; // gamma in CombinePS.hlsl
-	float Option3; // blur in CombinePS.hlsl
-	float Option4;
+	float DX = 0.0f;
+	float DY = 0.0f;
+	float Threshold = 0.0f;
+	float Strength = 0.0f;
+	float Option1 = 0.0f; // exposure in CombinePS.hlsl
+	float Option2 = 0.0f; // gamma in CombinePS.hlsl
+	float Option3 = 0.0f; // blur in CombinePS.hlsl
+	float Option4 = 0.0f;
 };

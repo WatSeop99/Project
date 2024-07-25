@@ -6,6 +6,21 @@
 class SkinnedMeshModel final : public Model
 {
 public:
+	enum eJointPart
+	{
+		JointPart_RightArm = 0,
+		JointPart_LeftArm,
+		JointPart_RightLeg,
+		JointPart_LeftLeg,
+		JointPart_TotalJointParts
+	};
+	struct JointUpdateInfo
+	{
+		Vector3 EndEffectorTargetPoses[JointPart_TotalJointParts];
+		bool bUpdatedJointParts[JointPart_TotalJointParts];
+	};
+
+public:
 	SkinnedMeshModel(Renderer* pRenderer, const std::vector<MeshInfo>& MESHES, const AnimationData& ANIM_DATA);
 	~SkinnedMeshModel() { Cleanup(); }
 
@@ -14,12 +29,11 @@ public:
 	void InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh** ppNewMesh);
 	void InitAnimationData(Renderer* pRenderer, const AnimationData& ANIM_DATA);
 
-	void UpdateConstantBuffers() override;
-	void UpdateAnimation(int clipID, int frame, const float DELTA_TIME) override;
+	void UpdateAnimation(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 	void UpdateCharacterIK(Vector3& target, int chainPart, int clipID, int frame, const float DELTA_TIME);
 
 	void Render(Renderer* pRenderer, eRenderPSOType psoSetting) override;
-	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, int psoSetting) override;
+	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting) override;
 	void RenderBoundingCapsule(Renderer* pRenderer, eRenderPSOType psoSetting);
 	void RenderJointSphere(Renderer* pRenderer, eRenderPSOType psoSetting);
 
@@ -37,7 +51,10 @@ protected:
 	void initJointSpheres(Renderer* pRenderer);
 	void initChain();
 
+	void updateChainPosition();
 	void updateJointSpheres(int clipID, int frame);
+
+	void solveCharacterIK(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 
 public:
 	NonImageTexture BoneTransforms;
@@ -62,4 +79,6 @@ private:
 	Mesh* m_ppRightLeg[4] = { nullptr, }; // right up leg - right leg - right foot - right toe.
 	Mesh* m_ppLeftLeg[4] = { nullptr, }; // left up leg - left leg - left foot - left toe.
 	Mesh* m_pBoundingCapsuleMesh = nullptr;
+
+	const int TOTAL_JOINT_PART = 0;
 };

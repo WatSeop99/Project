@@ -93,9 +93,9 @@ protected:
 	Mouse m_Mouse;
 
 	// external data
-	ConstantBuffer m_GlobalConstant;
-	ConstantBuffer m_LightConstant;
-	ConstantBuffer m_ReflectionGlobalConstant;
+	GlobalConstant m_GlobalConstantData;
+	LightConstant m_LightConstantData;
+	GlobalConstant m_ReflectionGlobalConstantData;
 
 	std::vector<Model*>* m_pRenderObjects = nullptr;
 	std::vector<Light>* m_pLights = nullptr;
@@ -126,7 +126,6 @@ private:
 	ID3D12GraphicsCommandList* m_ppCommandList[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
 
 	// for multi-thread ////////////////////////
-	// ID3D12CommandQueue* m_ppCommandQueue[RenderPass_RenderPassCount] = { nullptr, };
 	RenderQueue* m_pppRenderQueue[RenderPass_RenderPassCount][MAX_RENDER_THREAD_COUNT] = { nullptr, };
 	CommandListPool* m_pppCommandListPool[SWAP_CHAIN_FRAME_COUNT][MAX_RENDER_THREAD_COUNT] = { nullptr, };
 	DynamicDescriptorPool* m_pppDescriptorPool[SWAP_CHAIN_FRAME_COUNT][MAX_RENDER_THREAD_COUNT] = { nullptr, };

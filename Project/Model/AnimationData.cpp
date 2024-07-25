@@ -27,13 +27,6 @@ void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_
 		AccumulatedRootTransform = Matrix::CreateFromQuaternion(MOVE_INFO.Rotation) * Matrix::CreateTranslation(MOVE_INFO.Position);
 		PrevPos = MOVE_INFO.Position;
 
-		/*{
-			char debugString[256];
-			Vector3 translation = AccumulatedRootTransform.Translation();
-			sprintf_s(debugString, 256, "translation: %f, %f, %f\n", translation.x, translation.y, translation.z);
-			OutputDebugStringA(debugString);
-		}*/
-
 		//if (frame != 0)
 		//{
 		//	AccumulatedRootTransform = (Matrix::CreateTranslation(key.Position - PrevPos) * AccumulatedRootTransform); // root 뼈의 변환을 누적시킴.
@@ -65,21 +58,6 @@ void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_
 		AnimationClip::Key& key = keys[frame % KEY_SIZE];
 
 		BoneTransforms[boneID] = key.GetTransform() * PARENT_MATRIX;
-		/*{
-			char debugString[256];
-
-			sprintf_s(debugString, 256, "boneID: %ud\n", boneID);
-			OutputDebugStringA(debugString);
-
-			sprintf_s(debugString, 256, "key pos: %f, %f, %f\n", key.Position.x, key.Position.y, key.Position.z);
-			OutputDebugStringA(debugString);
-
-			sprintf_s(debugString, 256, "key scale: %f, %f, %f\n", key.Scale.x, key.Scale.y, key.Scale.z);
-			OutputDebugStringA(debugString);
-
-			sprintf_s(debugString, 256, "key rotation: %f, %f, %f, %f\n\n", key.Rotation.x, key.Rotation.y, key.Rotation.z, key.Rotation.z);
-			OutputDebugStringA(debugString);
-		}*/
 	}
 }
 
@@ -180,11 +158,6 @@ void Joint::Update(float deltaThetaX, float deltaThetaY, float deltaThetaZ, std:
 		deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
 		newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
 	}
-	/*{
-		char debugString[256];
-		sprintf_s(debugString, 256, "roll: %f, lower: %f, upper: %f\n", roll, AngleLimitation[JointAxis_Z].x, AngleLimitation[JointAxis_Z].y);
-		OutputDebugStringA(debugString);
-	}*/
 
 	// 적용.
 	// key.UpdateRotation = newUpdateRot;
@@ -229,29 +202,18 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 	Eigen::VectorXf deltaTheta(TOTAL_JOINT * 3);
 	Joint& endEffector = BodyChain[TOTAL_JOINT - 1];
 
-	/*{
-		std::string debugString;
-		debugString = std::string("targetPos: ") + std::to_string(targetPos.x) + std::string(", ") + std::to_string(targetPos.y) + std::string(", ") + std::to_string(targetPos.z) + std::string("\n");
-		OutputDebugStringA(debugString.c_str());
-
-		debugString = std::string("delta time: ") + std::to_string(DELTA_TIME) + std::string("\n");
-		OutputDebugStringA(debugString.c_str());
-	}*/
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "targetPos: %f, %f, %f\n", targetPos.x, targetPos.y, targetPos.z);
+		OutputDebugStringA(szDebugString);
+	}
 
 	for (int step = 0; step < 50; ++step)
 	{
 		Vector3 deltaPos = targetPos - endEffector.Position;
 		float deltaPosLength = deltaPos.Length();
 
-		//{
-		//	char debugString[256];
-		//	Vector3 pos = endEffector.Position;
-		//	sprintf_s(debugString, "deltaPosLength: %f\n", deltaPosLength);
-		//	// sprintf_s(debugString, "deltaPos pos: %f, %f, %f\n", deltaPos.x, deltaPos.y, deltaPos.z);
-		//	OutputDebugStringA(debugString);
-		//}
-
-		if (deltaPosLength <= 0.0001f || deltaPosLength >= 1.0f)
+		if (deltaPosLength <= 0.001f || deltaPosLength >= 1.0f)
 		{
 			break;
 		}
@@ -280,7 +242,7 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 
 		deltaTheta = J.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 		deltaTheta *= DELTA_TIME;
-		{
+		/*{
 			char debugString[256];
 
 			sprintf_s(debugString, "Theta 1: %f, %f, %f\n", deltaTheta[0], deltaTheta[1], deltaTheta[2]);
@@ -291,7 +253,7 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 
 			sprintf_s(debugString, "Theta 3: %f, %f, %f\n\n", deltaTheta[6], deltaTheta[7], deltaTheta[8]);
 			OutputDebugStringA(debugString);
-		}
+		}*/
 		columnIndex = 0;
 		for (UINT64 i = 0; i < TOTAL_JOINT; ++i)
 		{

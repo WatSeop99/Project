@@ -69,38 +69,6 @@ void Light::Update(Renderer* pRenderer, const float DELTA_TIME, Camera& mainCame
 		Matrix lightProjection = m_LightViewCamera.GetProjection();
 		LightShadowMap.Update(pRenderer, Property, m_LightViewCamera, mainCamera);
 
-		/*ConstantBuffer* pShadowGlobalConstants = LightShadowMap.GetShadowConstantsBufferPtr();
-		switch (Property.LightType & m_TOTAL_LIGHT_TYPE)
-		{
-			case LIGHT_DIRECTIONAL:
-				for (int i = 0; i < 4; ++i)
-				{
-					GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(pShadowGlobalConstants[i].pData);
-					Property.ViewProjections[i] = pShadowGlobalConstantData->ViewProjection;
-					Property.Projections[i] = pShadowGlobalConstantData->Projection;
-					Property.InverseProjections[i] = pShadowGlobalConstantData->InverseProjection;
-				}
-				break;
-
-			case LIGHT_POINT:
-				for (int i = 0; i < 6; ++i)
-				{
-					GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(pShadowGlobalConstants[i].pData);
-					Property.ViewProjections[i] = (pShadowGlobalConstantData->View.Transpose() * lightProjection).Transpose();
-				}
-				Property.Projections[0] = lightProjection.Transpose();
-				Property.InverseProjections[0] = lightProjection.Invert().Transpose();
-				break;
-
-			case LIGHT_SPOT:
-				Property.ViewProjections[0] = (lightView * lightProjection).Transpose();
-				Property.Projections[0] = lightProjection.Transpose();
-				Property.InverseProjections[0] = lightProjection.Invert().Transpose();
-				break;
-
-			default:
-				break;
-		}*/
 		GlobalConstant* pShadowGlobalConstants = LightShadowMap.GetShadowConstantsBufferDataPtr();
 		switch (Property.LightType & m_TOTAL_LIGHT_TYPE)
 		{
@@ -108,8 +76,8 @@ void Light::Update(Renderer* pRenderer, const float DELTA_TIME, Camera& mainCame
 				for (int i = 0; i < 4; ++i)
 				{
 					Property.ViewProjections[i] = pShadowGlobalConstants[i].ViewProjection;
-					Property.Projections[i] = pShadowGlobalConstants->Projection;
-					Property.InverseProjections[i] = pShadowGlobalConstants->InverseProjection;
+					Property.Projections[i] = pShadowGlobalConstants[i].Projection;
+					Property.InverseProjections[i] = pShadowGlobalConstants[i].InverseProjection;
 				}
 				break;
 

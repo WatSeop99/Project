@@ -6,6 +6,8 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 {
 	m_LightType = lightType;
 
+	int screenDirSize = 0;
+
 	D3D12_RESOURCE_DESC dsvDesc = {};
 	dsvDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	dsvDesc.Alignment = 0;
@@ -23,12 +25,14 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 			dsvDesc.DepthOrArraySize = 4;
 			dsvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 			m_DirectionalLightShadowBuffer.Initialize(pRenderer, dsvDesc);
+			screenDirSize = 4;
 			break;
 
 		case LIGHT_POINT:
 			dsvDesc.DepthOrArraySize = 6;
 			dsvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 			m_PointLightShadowBuffer.Initialize(pRenderer, dsvDesc);
+			screenDirSize = 6;
 			break;
 
 		case LIGHT_SPOT:
@@ -36,20 +40,18 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 			// dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 			m_SpotLightShadowBuffer.Initialize(pRenderer, dsvDesc);
+			screenDirSize = 1;
 			break;
 
 		default:
 			break;
 	}
 
-	/*for (int i = 0; i < 6; ++i)
+	for (int i = 0; i < screenDirSize; ++i)
 	{
-		m_ShadowConstantBuffers[i].Initialize(pRenderer, sizeof(GlobalConstant));
-
 		m_pViewPorts[i] = { 0, 0, (float)m_ShadowMapWidth, (float)m_ShadowMapHeight, 0.0f, 1.0f };
 		m_pScissorRects[i] = { 0, 0, (long)m_ShadowMapWidth, (long)m_ShadowMapHeight };
 	}
-	m_ShadowConstantsBufferForGS.Initialize(pRenderer, sizeof(ShadowConstant));*/
 }
 
 void ShadowMap::Update(Renderer* pRenderer, LightProperty& property, Camera& lightCam, Camera& mainCamera)
@@ -70,24 +72,6 @@ void ShadowMap::Update(Renderer* pRenderer, LightProperty& property, Camera& lig
 			Matrix lightSectionProjection;
 			Vector3 lightSectionPosition;
 
-			/*for (int i = 0; i < 4; ++i)
-			{
-				GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(m_ShadowConstantBuffers[i].pData);
-				ShadowConstant* pShadowConstantData = (ShadowConstant*)(m_ShadowConstantsBufferForGS.pData);
-
-				calculateCascadeLightViewProjection(&lightSectionPosition, &lightSectionView, &lightSectionProjection, camView, camProjection, property.Direction, i);
-
-				pShadowGlobalConstantData->EyeWorld = lightSectionPosition;
-				pShadowGlobalConstantData->View = lightSectionView.Transpose();
-				pShadowGlobalConstantData->Projection = lightSectionProjection.Transpose();
-				pShadowGlobalConstantData->InverseProjection = lightSectionProjection.Invert().Transpose();
-				pShadowGlobalConstantData->ViewProjection = (lightSectionView * lightSectionProjection).Transpose();
-
-				pShadowConstantData->ViewProjects[i] = pShadowGlobalConstantData->ViewProjection;
-
-				m_ShadowConstantBuffers[i].Upload();
-			}
-			m_ShadowConstantsBufferForGS.Upload();*/
 			for (int i = 0; i < 4; ++i)
 			{
 				GlobalConstant* pShadowGlobalConstantData = &m_ShadowConstantBufferDatas[i];
@@ -200,7 +184,8 @@ void ShadowMap::Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects)
 
 	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
-	ConstantBufferPool* pShadowConstantBufferGSPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_ShadowConstant);
+	ConstantBufferPool* pShadowConstantBufferGSPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ShadowConstant);
+	ConstantBufferPool* pShadowConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
 	const UINT DSV_DESCRIPTOR_SIZE = pManager->m_DSVDescriptorSize;
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
@@ -244,15 +229,20 @@ void ShadowMap::Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects)
 	pCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
 
+
+	CBInfo* pShadowCBForGS = pShadowConstantBufferGSPool->AllocCB();
+	CBInfo* pShadowCB = pShadowConstantBufferPool->AllocCB();
+
+	// Upload constant buffer(mesh, material).
+	BYTE* pShadowGSConstMem = pShadowCBForGS->pSystemMemAddr;
+	BYTE* pShadowConstMem = pShadowCB->pSystemMemAddr;
+	memcpy(pShadowGSConstMem, &m_ShadowConstantsBufferDataForGS, sizeof(ShadowConstant));
+	memcpy(pShadowConstMem, &m_ShadowConstantBufferDatas[0], sizeof(GlobalConstant));
+
+
 	for (UINT64 i = 0, size = pRenderObjects->size(); i < size; ++i)
 	{
 		Model* pModel = (*pRenderObjects)[i];
-
-		CBInfo* pShadowCBForGS = pShadowConstantBufferGSPool->AllocCB();
-
-		// Upload constant buffer(mesh, material).
-		BYTE* pShadowCBGSConstMem = pShadowCBForGS->pSystemMemAddr;
-		memcpy(pShadowCBGSConstMem, &m_ShadowConstantsBufferDataForGS, sizeof(m_ShadowConstantsBufferDataForGS));
 
 		if (!pModel->bIsVisible || !pModel->bCastShadow)
 		{
@@ -265,8 +255,16 @@ void ShadowMap::Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects)
 			case RenderObjectType_MirrorType:
 			{
 				pManager->SetCommonState(pso);
-				// pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
-				pCommandList->SetGraphicsRootConstantBufferView(1, pShadowCBForGS->GPUMemAddr);
+				
+				if ((m_LightType & m_TOTAL_LIGHT_TYPE) == LIGHT_DIRECTIONAL || (m_LightType & m_TOTAL_LIGHT_TYPE) == LIGHT_POINT)
+				{
+					pCommandList->SetGraphicsRootConstantBufferView(1, pShadowCBForGS->GPUMemAddr);
+				}
+				else
+				{
+					pCommandList->SetGraphicsRootConstantBufferView(1, pShadowCB->GPUMemAddr);
+				}
+				
 				pModel->Render(pRenderer, pso);
 			}
 			break;
@@ -275,8 +273,16 @@ void ShadowMap::Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects)
 			{
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pModel;
 				pManager->SetCommonState((eRenderPSOType)(pso + 1));
-				// pCommandList->SetGraphicsRootConstantBufferView(1, m_ShadowConstantsBufferForGS.GetGPUMemAddr());
-				pCommandList->SetGraphicsRootConstantBufferView(1, pShadowCBForGS->GPUMemAddr);
+				
+				if ((m_LightType & m_TOTAL_LIGHT_TYPE) == LIGHT_DIRECTIONAL || (m_LightType & m_TOTAL_LIGHT_TYPE) == LIGHT_POINT)
+				{
+					pCommandList->SetGraphicsRootConstantBufferView(1, pShadowCBForGS->GPUMemAddr);
+				}
+				else
+				{
+					pCommandList->SetGraphicsRootConstantBufferView(1, pShadowCB->GPUMemAddr);
+				}
+				
 				pCharacter->Render(pRenderer, (eRenderPSOType)(pso + 1));
 			}
 			break;
@@ -292,34 +298,23 @@ void ShadowMap::Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects)
 
 void ShadowMap::Cleanup()
 {
-	/*switch (m_LightType & m_TOTAL_LIGHT_TYPE)
+	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
 	{
 		case LIGHT_DIRECTIONAL:
 			m_DirectionalLightShadowBuffer.Cleanup();
-			for (int i = 0; i < 4; ++i)
-			{
-				m_ShadowConstantBuffers[i].Cleanup();
-			}
-			m_ShadowConstantsBufferForGS.Cleanup();
 			break;
 
 		case LIGHT_POINT:
 			m_PointLightShadowBuffer.Cleanup();
-			for (int i = 0; i < 6; ++i)
-			{
-				m_ShadowConstantBuffers[i].Cleanup();
-			}
-			m_ShadowConstantsBufferForGS.Cleanup();
 			break;
 
 		case LIGHT_SPOT:
 			m_SpotLightShadowBuffer.Cleanup();
-			m_ShadowConstantBuffers[0].Cleanup();
 			break;
 
 		default:
 			break;
-	}*/
+	}
 }
 
 void ShadowMap::SetShadowWidth(const UINT WIDTH)
@@ -416,23 +411,14 @@ void ShadowMap::SetDescriptorHeap(Renderer* pRenderer)
 
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-			// dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
 			dsvDesc.Texture2D.MipSlice = 0;
-			// dsvDesc.Texture2DArray.FirstArraySlice = 0;
-			// dsvDesc.Texture2DArray.MipSlice = 0;
-			// dsvDesc.Texture2DArray.ArraySize = 1;
 			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
 			m_SpotLightShadowBuffer.SetDSVHandle(dsvHandle);
 
 			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			// srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
 			srvDesc.Texture2D.MostDetailedMip = 0;
 			srvDesc.Texture2D.MipLevels = 1;
-			// srvDesc.Texture2DArray.MostDetailedMip = 0;
-			// srvDesc.Texture2DArray.MipLevels = 1;
-			// srvDesc.Texture2DArray.FirstArraySlice = 0;
-			// srvDesc.Texture2DArray.ArraySize = 1;
 			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
 			m_SpotLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
 		}
@@ -472,7 +458,6 @@ void ShadowMap::setShadowViewport(ID3D12GraphicsCommandList* pCommandList)
 			break;
 
 		default:
-			__debugbreak();
 			break;
 	}
 }
@@ -496,7 +481,6 @@ void ShadowMap::setShadowScissorRect(ID3D12GraphicsCommandList* pCommandList)
 			break;
 
 		default:
-			__debugbreak();
 			break;
 	}
 }

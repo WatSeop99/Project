@@ -11,11 +11,6 @@ void ImageFilter::Initialize(Renderer* pRenderer, const int WIDTH, const int HEI
 
 	Cleanup();
 
-	/*m_ConstantBuffer.Initialize(pRenderer, sizeof(ImageFilterConstant));
-
-	ImageFilterConstant* pConstantData = (ImageFilterConstant*)m_ConstantBuffer.pData;
-	pConstantData->DX = 1.0f / WIDTH;
-	pConstantData->DY = 1.0f / HEIGHT;*/
 	m_ConstantBufferData.DX = 1.0f / WIDTH;
 	m_ConstantBufferData.DY = 1.0f / HEIGHT;
 }
@@ -36,7 +31,7 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pImageFilterConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
+	ConstantBufferPool* pImageFilterConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -108,10 +103,11 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 	}
 }
 
-void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ResourceManager* pManager, int psoSetting)
+void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting)
 {
 	_ASSERT(pCommandList);
 	_ASSERT(pDescriptorPool);
+	_ASSERT(pConstantBufferManager);
 	_ASSERT(pManager);
 	_ASSERT(m_RTVHandles.size() > 0);
 	_ASSERT(m_SRVHandles.size() > 0);
@@ -119,7 +115,7 @@ void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCom
 	HRESULT hr = S_OK;
 
 	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ConstantBufferPool* pImageFilterConstantBufferPool = pManager->m_pConstnatBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
+	ConstantBufferPool* pImageFilterConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -148,7 +144,6 @@ void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCom
 			dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 			// b4
-			// pDevice->CopyDescriptorsSimple(1, dstHandle, m_ConstantBuffer.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			pDevice->CopyDescriptorsSimple(1, dstHandle, pImageFilterCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->ResourceBarrier(1, &BARRIER);
@@ -177,7 +172,6 @@ void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCom
 			dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 			// b4
-			// pDevice->CopyDescriptorsSimple(1, dstHandle, m_ConstantBuffer.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			pDevice->CopyDescriptorsSimple(1, dstHandle, pImageFilterCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
@@ -250,7 +244,6 @@ void ImageFilter::Cleanup()
 {
 	m_SRVHandles.clear();
 	m_RTVHandles.clear();
-	// m_ConstantBuffer.Cleanup();
 }
 
 void ImageFilter::SetSRVOffsets(Renderer* pRenderer, const std::vector<ImageResource>& SRVs)
@@ -287,33 +280,4 @@ void ImageFilter::SetRTVOffsets(Renderer* pRenderer, const std::vector<ImageReso
 		m_RTVHandles[i] = { RTVs[i].pResource, rtvHandle.Offset(RTVs[i].RTVOffset, RTV_DESCRIPTOR_SIZE) };
 		rtvHandle = startRtvHandle;
 	}
-}
-
-void ImageFilter::SetDescriptorHeap(Renderer* pRenderer)
-{
-	/*_ASSERT(pRenderer);
-
-	ResourceManager* pManager = pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvLastHandle;
-
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-	cbvDesc.BufferLocation = m_ConstantBuffer.GetGPUMemAddr();
-	cbvDesc.SizeInBytes = (UINT)m_ConstantBuffer.GetBufferSize();
-	
-	if (m_ConstantBuffer.GetCBVHandle().ptr == 0xffffffffffffffff)
-	{
-		cbvSrvLastHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_CBVSRVUAVHeapSize, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-
-		pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-		m_ConstantBuffer.SetCBVHandle(cbvSrvLastHandle);
-		++(pManager->m_CBVSRVUAVHeapSize);
-	}
-	else
-	{
-		cbvSrvLastHandle = m_ConstantBuffer.GetCBVHandle();
-		pDevice->CreateConstantBufferView(&cbvDesc, cbvSrvLastHandle);
-	}*/
 }

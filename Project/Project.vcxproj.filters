@@ -27,9 +27,6 @@
     <ClInclude Include="Graphics\Camera.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Graphics\ConstantBuffer.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Renderer\ConstantDataType.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -132,9 +129,6 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Camera.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="Graphics\ConstantBuffer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\GraphicsUtil.cpp">
@@ -242,7 +236,6 @@
     <FxCompile Include="Shaders\DepthOnlyCubePS.hlsl" />
     <FxCompile Include="Shaders\DepthOnlyCubeVS.hlsl" />
     <FxCompile Include="Shaders\DepthOnlyPS.hlsl" />
-    <FxCompile Include="Shaders\DepthOnlyVS.hlsl" />
     <FxCompile Include="Shaders\SamplingPS.hlsl" />
     <FxCompile Include="Shaders\SamplingVS.hlsl" />
     <FxCompile Include="Shaders\SkyboxPS.hlsl" />

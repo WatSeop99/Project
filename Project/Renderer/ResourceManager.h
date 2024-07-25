@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ctype.h>
-#include "../Graphics/ConstantBuffer.h"
 #include "CommandListPool.h"
 #include "DynamicDescriptorPool.h"
 #include "RenderQueue.h"
@@ -50,9 +49,9 @@ public:
 
 	inline ID3D12GraphicsCommandList* GetCommandList() { return m_ppSingleCommandList[*m_pFrameIndex]; }
 
-	void SetGlobalConstants(ConstantBuffer* pGlobal, ConstantBuffer* pLight, ConstantBuffer* pReflection);
+	void SetGlobalConstants(GlobalConstant* pGlobal, LightConstant* pLight, GlobalConstant* pReflection);
 	void SetCommonState(eRenderPSOType psoState);
-	void SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, int psoState);
+	void SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, int psoState);
 
 protected:
 	void initSamplers();
@@ -76,7 +75,7 @@ public:
 	ID3D12DescriptorHeap* m_pCBVSRVUAVHeap = nullptr;
 	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
 	DynamicDescriptorPool* m_pDynamicDescriptorPool = nullptr;
-	ConstantBufferManager* m_pConstnatBufferManager = nullptr;
+	ConstantBufferManager* m_pConstantBufferManager = nullptr;
 
 	UINT* m_pFrameIndex = nullptr;
 
@@ -91,7 +90,6 @@ public:
 	UINT m_SamplerHeapSize = 0;
 
 	// descriptor set 편의를 위한 offset 저장 용도.
-	UINT m_GlobalConstantViewStartOffset = 0xffffffff; // b0, b1
 	UINT m_GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
 
 private:
@@ -185,7 +183,10 @@ private:
 	D3D12_BLEND_DESC m_BlendAlphaDesc = {};
 
 	// Global Constant Buffers.
-	ConstantBuffer* m_pGlobalConstant = nullptr;
+	/*ConstantBuffer* m_pGlobalConstant = nullptr;
 	ConstantBuffer* m_pLightConstant = nullptr;
-	ConstantBuffer* m_pReflectionConstant = nullptr;
+	ConstantBuffer* m_pReflectionConstant = nullptr;*/
+	GlobalConstant* m_pGlobalConstantData = nullptr;
+	LightConstant* m_pLightConstantData = nullptr;
+	GlobalConstant* m_pReflectionConstantData = nullptr;
 };
