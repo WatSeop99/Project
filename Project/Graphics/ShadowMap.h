@@ -4,6 +4,7 @@
 #include "../Renderer/ConstantDataType.h"
 #include "../Model/SkinnedMeshModel.h"
 #include "Texture.h"
+#include "../Renderer/TextureManager.h"
 
 class ShadowMap
 {
@@ -55,6 +56,12 @@ private:
 		Texture m_SpotLightShadowBuffer;
 		Texture m_PointLightShadowBuffer;
 		Texture m_DirectionalLightShadowBuffer;
+	};
+	union
+	{
+		TextureHandle* m_pSpotLightShadowBuffer;
+		TextureHandle* m_pPointLightShadoeBuffer;
+		TextureHandle* m_pDirectionalLightShadowBuffer;
 	};
 	GlobalConstant m_ShadowConstantBufferDatas[6];	 // spot, point, direc => 0, 6, 4개씩 사용.
 	ShadowConstant m_ShadowConstantsBufferDataForGS; // 2개 이상의 view 행렬을 사용하는 광원을 위한  geometry용 상수버퍼;

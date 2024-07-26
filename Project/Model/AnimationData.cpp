@@ -9,7 +9,8 @@ Matrix AnimationClip::Key::GetTransform()
 	return (Matrix::CreateScale(Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Position));
 }
 
-void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_INFO)
+// void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_INFO)
+void AnimationData::Update(int clipID, int frame)
 {
 	AnimationClip& clip = Clips[clipID];
 
@@ -24,8 +25,21 @@ void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_
 		const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 		AnimationClip::Key& key = keys[frame % KEY_SIZE];
 
-		AccumulatedRootTransform = Matrix::CreateFromQuaternion(MOVE_INFO.Rotation) * Matrix::CreateTranslation(MOVE_INFO.Position);
-		PrevPos = MOVE_INFO.Position;
+		/*AccumulatedRootTransform = Matrix::CreateFromQuaternion(Rotation) * Matrix::CreateTranslation(Position);
+		PrevPos = Position;*/
+
+		if (frame != 0)
+		{
+			// 걷기 시작하거나 멈추기 시작하는 동작은 자체 속도가 너무 큼. 따라서 0.3으로 고정.
+			Velocity = (clipID == 1 || clipID == 3 ? 
+						0.3f : (key.Position - PrevKeyPos).Length());
+			AccumulatedRootTransform = Matrix::CreateFromQuaternion(Rotation) * Matrix::CreateTranslation(Position);
+		}
+		else
+		{
+			AccumulatedRootTransform.Translation(Position);
+		}
+		PrevKeyPos = key.Position;
 
 		//if (frame != 0)
 		//{
@@ -38,13 +52,12 @@ void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_
 		//	rootBoneTranslation.y = key.Position.y - 8.0f;
 		//	AccumulatedRootTransform.Translation(rootBoneTranslation);
 		//}
-		//
-		// PrevPos = key.Position;
-		// key.Position = Vector3(0.0f);
+
+		//PrevPos = key.Position;
+		//// key.Position = Vector3(0.0f);
 
 		Quaternion newRot = Quaternion::Concatenate(key.Rotation, key.IKUpdateRotation);
 		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(key.Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX;
-	
 	}
 
 	// 나머지 bone transform 업데이트.
@@ -208,7 +221,7 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 		OutputDebugStringA(szDebugString);
 	}
 
-	for (int step = 0; step < 50; ++step)
+	for (int step = 0; step < 100; ++step)
 	{
 		Vector3 deltaPos = targetPos - endEffector.Position;
 		float deltaPosLength = deltaPos.Length();

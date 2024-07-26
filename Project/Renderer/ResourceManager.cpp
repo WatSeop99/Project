@@ -425,6 +425,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 	ID3D12GraphicsCommandList* pCommandList = m_ppSingleCommandList[*m_pFrameIndex];
 	ConstantBufferPool* pGlobalConstantBufferPool = m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
 	ConstantBufferPool* pLightConstantBufferPool = m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_LightConstant);
+	const UINT TOTAL_COMMON_SRV_COUNT = 9;
 
 	// set dynamic descriptor heap. (for commont resource)
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable({ 0xffffffffffffffff, });
@@ -472,7 +473,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			m_pDevice->CopyDescriptorsSimple(9, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		break;
 
@@ -506,7 +507,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			m_pDevice->CopyDescriptorsSimple(9, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		break;
 
@@ -533,7 +534,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			m_pDevice->CopyDescriptorsSimple(9, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		break;
 
@@ -740,6 +741,7 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 	const float BLEND_FECTOR[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
 	ConstantBufferPool* pGlobalConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
 	ConstantBufferPool* pLightConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_LightConstant);
+	const UINT TOTAL_COMMON_SRV_COUNT = 9;
 
 	// set dynamic descriptor heap. (for commont resource)
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable({ 0xffffffffffffffff, });
@@ -787,7 +789,7 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			m_pDevice->CopyDescriptorsSimple(9, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		break;
 
@@ -821,7 +823,7 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			m_pDevice->CopyDescriptorsSimple(9, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		break;
 
@@ -848,7 +850,7 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			m_pDevice->CopyDescriptorsSimple(9, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		break;
 

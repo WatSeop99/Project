@@ -2,6 +2,7 @@
 
 #include "../pch.h"
 #include "../Graphics/Texture.h"
+#include "../Renderer/TextureManager.h"
 
 // Vertex and Index Info
 struct BufferInfo
@@ -23,6 +24,14 @@ struct Material
 	Texture AmbientOcclusion;
 	Texture Metallic;
 	Texture Roughness;
+
+	TextureHandle* pAlbedo;
+	TextureHandle* pEmissive;
+	TextureHandle* pNormal;
+	TextureHandle* pHeight;
+	TextureHandle* pAmbientOcclusion;
+	TextureHandle* pMetallic;
+	TextureHandle* pRoughness;
 };
 class Mesh
 {
@@ -40,9 +49,6 @@ public:
 			Index.pBuffer->Release();
 			Index.pBuffer = nullptr;
 		}
-
-		// MeshConstant.Cleanup();
-		// MaterialConstant.Cleanup();
 	}
 
 public:
@@ -50,8 +56,6 @@ public:
 	BufferInfo Index;
 	Material Material;
 
-	// ConstantBuffer MeshConstant;
-	// ConstantBuffer MaterialConstant;
 	MeshConstant MeshConstantData;
 	MaterialConstant MaterialConstantData;
 

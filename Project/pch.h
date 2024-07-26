@@ -1,5 +1,4 @@
-#ifndef PCH_H
-#define PCH_H
+#pragma once
 
 #include <PxPhysicsAPI.h>
 
@@ -62,6 +61,3 @@
 			(p)->Release(); \
 			(p) = nullptr;	\
 		}
-
-
-#endif

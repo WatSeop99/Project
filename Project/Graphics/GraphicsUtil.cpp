@@ -13,7 +13,7 @@
 
 #include "GraphicsUtil.h"
 
-HRESULT CompileShader(const wchar_t* pszFileName, const char* pszShaderVersion, const D3D_SHADER_MACRO* pSHADER_MACROS, ID3DBlob** ppShader)
+HRESULT CompileShader(const WCHAR* pszFileName, const char* pszShaderVersion, const D3D_SHADER_MACRO* pSHADER_MACROS, ID3DBlob** ppShader)
 {
 	_ASSERT(*ppShader == nullptr);
 
@@ -36,7 +36,7 @@ HRESULT CompileShader(const wchar_t* pszFileName, const char* pszShaderVersion, 
 	return hr;
 }
 
-HRESULT ReadImage(const wchar_t* pszAlbedoFileName, const wchar_t* pszOpacityFileName, std::vector<UCHAR>& image, int* pWidth, int* pHeight)
+HRESULT ReadImage(const WCHAR* pszAlbedoFileName, const WCHAR* pszOpacityFileName, std::vector<UCHAR>& image, int* pWidth, int* pHeight)
 {
 	std::vector<UCHAR> opacityImage;
 	HRESULT hr = ReadImage(pszAlbedoFileName, image, pWidth, pHeight);
@@ -70,7 +70,7 @@ LB_RET:
 	return hr;
 }
 
-HRESULT ReadImage(const wchar_t* pszFileName, std::vector<UCHAR>& image, int* pWidth, int* pHeight)
+HRESULT ReadImage(const WCHAR* pszFileName, std::vector<UCHAR>& image, int* pWidth, int* pHeight)
 {
 	HRESULT hr = S_OK;
 	int channels = 0;
@@ -149,7 +149,7 @@ HRESULT ReadImage(const wchar_t* pszFileName, std::vector<UCHAR>& image, int* pW
 	return hr;
 }
 
-HRESULT ReadEXRImage(const wchar_t* pszFileName, std::vector<UCHAR>& image, int* pWidth, int* pHeight, DXGI_FORMAT* pPixelFormat)
+HRESULT ReadEXRImage(const WCHAR* pszFileName, std::vector<UCHAR>& image, int* pWidth, int* pHeight, DXGI_FORMAT* pPixelFormat)
 {
 	HRESULT hr = S_OK;
 
@@ -179,7 +179,7 @@ LB_RET:
 	return hr;
 }
 
-HRESULT ReadDDSImage(ID3D12Device* pDevice, ID3D12CommandQueue* pCommandQueue, const wchar_t* pszFileName, ID3D12Resource** ppResource)
+HRESULT ReadDDSImage(ID3D12Device* pDevice, ID3D12CommandQueue* pCommandQueue, const WCHAR* pszFileName, ID3D12Resource** ppResource)
 {
 	_ASSERT(pDevice);
 	_ASSERT(pCommandQueue);
@@ -238,10 +238,8 @@ UINT64 GetPixelSize(const DXGI_FORMAT PIXEL_FORMAT)
 	}
 
 	char debugString[256];
-	OutputDebugStringA("PixelFormat not implemented ");
-	sprintf_s(debugString, "%d", PIXEL_FORMAT);
+	sprintf_s(debugString, 256, "PixelFormat not implemented %d\n", PIXEL_FORMAT);
 	OutputDebugStringA(debugString);
-	OutputDebugStringA("\n");
 
 	return sizeof(UCHAR) * 4;
 }

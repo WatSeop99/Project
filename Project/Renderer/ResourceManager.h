@@ -183,9 +183,6 @@ private:
 	D3D12_BLEND_DESC m_BlendAlphaDesc = {};
 
 	// Global Constant Buffers.
-	/*ConstantBuffer* m_pGlobalConstant = nullptr;
-	ConstantBuffer* m_pLightConstant = nullptr;
-	ConstantBuffer* m_pReflectionConstant = nullptr;*/
 	GlobalConstant* m_pGlobalConstantData = nullptr;
 	LightConstant* m_pLightConstantData = nullptr;
 	GlobalConstant* m_pReflectionConstantData = nullptr;

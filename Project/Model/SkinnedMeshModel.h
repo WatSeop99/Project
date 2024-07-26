@@ -59,7 +59,7 @@ protected:
 public:
 	NonImageTexture BoneTransforms;
 	AnimationData CharacterAnimationData;
-	CharacterMoveInfo MoveInfo;
+	// CharacterMoveInfo MoveInfo;
 
 	DirectX::BoundingSphere RightHandMiddle;
 	DirectX::BoundingSphere LeftHandMiddle;

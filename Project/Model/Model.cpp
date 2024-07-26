@@ -41,6 +41,15 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 		Mesh* pNewMesh = new Mesh;
 		MeshConstant& meshConstantData = pNewMesh->MeshConstantData;
 		MaterialConstant& materialConstantData = pNewMesh->MaterialConstantData;
+		Material* pMeshMaterial = &pNewMesh->Material;
+
+		pMeshMaterial->pAlbedo = nullptr;
+		pMeshMaterial->pEmissive = nullptr;
+		pMeshMaterial->pNormal = nullptr;
+		pMeshMaterial->pHeight = nullptr;
+		pMeshMaterial->pAmbientOcclusion = nullptr;
+		pMeshMaterial->pMetallic = nullptr;
+		pMeshMaterial->pRoughness = nullptr;
 
 		InitMeshBuffers(pRenderer, MESH_DATA, pNewMesh);
 
@@ -160,25 +169,26 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh* pNewMesh)
 {
 	_ASSERT(pRenderer);
+	_ASSERT(pNewMesh);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
 
 	// vertex buffer.
-	hr = pManager->CreateVertexBuffer(sizeof(Vertex),
-									  (UINT)MESH_INFO.Vertices.size(),
-									  &pNewMesh->Vertex.VertexBufferView,
-									  &pNewMesh->Vertex.pBuffer,
-									  (void*)MESH_INFO.Vertices.data());
+	hr = pResourceManager->CreateVertexBuffer(sizeof(Vertex),
+											  (UINT)MESH_INFO.Vertices.size(),
+											  &pNewMesh->Vertex.VertexBufferView,
+											  &pNewMesh->Vertex.pBuffer,
+											  (void*)MESH_INFO.Vertices.data());
 	BREAK_IF_FAILED(hr);
 	pNewMesh->Vertex.Count = (UINT)MESH_INFO.Vertices.size();
 
 	// index buffer.
-	hr = pManager->CreateIndexBuffer(sizeof(UINT),
-									 (UINT)MESH_INFO.Indices.size(),
-									 &pNewMesh->Index.IndexBufferView,
-									 &pNewMesh->Index.pBuffer,
-									 (void*)MESH_INFO.Indices.data());
+	hr = pResourceManager->CreateIndexBuffer(sizeof(UINT),
+											 (UINT)MESH_INFO.Indices.size(),
+											 &pNewMesh->Index.IndexBufferView,
+											 &pNewMesh->Index.pBuffer,
+											 (void*)MESH_INFO.Indices.data());
 	BREAK_IF_FAILED(hr);
 	pNewMesh->Index.Count = (UINT)MESH_INFO.Indices.size();
 }
@@ -190,7 +200,7 @@ void Model::UpdateWorld(const Matrix& WORLD)
 	WorldInverseTranspose.Translation(Vector3(0.0f));
 	WorldInverseTranspose = WorldInverseTranspose.Invert().Transpose();
 
-	// bounding sphere 위치 업데이트.
+	// bounding box, sphere 위치 업데이트.
 	BoundingSphere.Center = World.Translation();
 	BoundingBox.Center = BoundingSphere.Center;
 
@@ -236,6 +246,7 @@ void Model::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
 	{
 		Mesh* pCurMesh = Meshes[i];
 		
+		Material* pMeshMaterialTextures = &pCurMesh->Material;
 		MeshConstant* pMeshConstantData = &pCurMesh->MeshConstantData;
 		MaterialConstant* pMaterialConstantData = &pCurMesh->MaterialConstantData;
 		CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();

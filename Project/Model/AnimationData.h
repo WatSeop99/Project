@@ -48,7 +48,7 @@ public:
 	AnimationData() = default;
 	~AnimationData() = default;
 
-	void Update(int clipID, int frame, const CharacterMoveInfo& MOVE_INFO);
+	void Update(int clipID, int frame);
 
 	void ResetAllUpdateRotationInClip(int clipID);
 
@@ -59,7 +59,7 @@ public:
 	Matrix GetRootBoneTransformWithoutLocalRot(int clipID, int frame);
 
 public:
-	std::unordered_map<std::string, int> BoneNameToID; // 뼈 이름과 인덱스 정수.
+	std::unordered_map<std::string, int> BoneNameToID;	// 뼈 이름과 인덱스 정수.
 	std::vector<std::string> BoneIDToNames;				// BoneNameToID의 ID 순서대로 뼈 이름 저장.
 	std::vector<int> BoneParents;					    // 부모 뼈의 인덱스.
 	std::vector<Matrix> OffsetMatrices;					// root 뼈로부터 위치 offset 변환 행렬.
@@ -67,11 +67,14 @@ public:
 	std::vector<Matrix> BoneTransforms;					// 해당 시점 key data의 움직임에 따른 뼈의 변환 행렬.
 	std::vector<AnimationClip> Clips;					// 애니메이션 동작.
 
-	Matrix DefaultTransform;		// normalizing을 위한 변환 행렬 [-1, 1]^3
-	Matrix InverseDefaultTransform;	// 모델 좌표계 복귀 변환 행렬.
-	Matrix RootTransform;
-	Matrix AccumulatedRootTransform;
-	Vector3 PrevPos;
+	Matrix DefaultTransform;			// normalizing을 위한 변환 행렬 [-1, 1]^3
+	Matrix InverseDefaultTransform;		// 모델 좌표계 복귀 변환 행렬.
+	Matrix AccumulatedRootTransform;	// root 뼈에 적용할 변환 행렬.
+	Vector3 PrevKeyPos;					// 이전 clip의 키 데이터 위치.
+	Vector3 Position;					// 캐릭터 위치.
+	Vector3 Direction;					// direction은 회전 방향만 결정.
+	Quaternion Rotation;				// 회전 정보.
+	float Velocity = 0.0f;
 };
 
 class Joint
@@ -85,9 +88,6 @@ public:
 	void JacobianX(Vector3* pOutput, Vector3& parentPos);
 	void JacobianY(Vector3* pOutput, Vector3& parentPos);
 	void JacobianZ(Vector3* pOutput, Vector3& parentPos);
-
-protected:
-	
 
 public:
 	enum eJointAxis

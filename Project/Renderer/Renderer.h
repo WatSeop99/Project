@@ -3,6 +3,7 @@
 #include "../Graphics/Camera.h"
 #include "ConstantDataType.h"
 #include "ConstantBufferManager.h"
+#include "DescriptorAllocator.h"
 #include "DynamicDescriptorPool.h"
 #include "../Util/KnM.h"
 #include "../Graphics/Light.h"
@@ -46,9 +47,12 @@ public:
 
 	LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+	inline ID3D12Device5* GetD3DDevice() { return m_pDevice; }
 	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
 	inline PhysicsManager* GetPhysicsManager() { return &m_PhysicsManager; }
 	inline HWND GetWindow() { return m_hMainWindow; }
+	ConstantBufferManager* GetConstantBufferManager(UINT threadIndex = 0);
+	DynamicDescriptorPool* GetDynamicDescriptorPool(UINT threadIndex = 0);
 
 protected:
 	void initMainWidndow();
@@ -57,6 +61,9 @@ protected:
 	void initScene();
 	void initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture);
 	void initRenderThreadPool(UINT renderThreadCount);
+	void initRenderTarget();
+	void initDepthStencil();
+	void initShaderResources(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture);
 
 	void beginRender();
 	void renderShadowmap();
@@ -109,8 +116,6 @@ protected:
 	DirectX::SimpleMath::Plane* m_pMirrorPlane = nullptr;
 
 private:
-	ResourceManager* m_pResourceManager = nullptr;
-
 	D3D_FEATURE_LEVEL m_FeatureLevel;
 	DXGI_FORMAT m_BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	D3D12_VIEWPORT m_ScreenViewport = { 0, };
@@ -139,8 +144,12 @@ private:
 	/////////////////////////////////////////////
 
 	// main resources.
+	ResourceManager* m_pResourceManager = nullptr;
 	DynamicDescriptorPool m_DynamicDescriptorPool;
 	ConstantBufferManager m_ConstantBufferManager; // when multi-thread used, need to be create more manager.
+	DescriptorAllocator* m_pRTVAllocator = nullptr;
+	DescriptorAllocator* m_pDSVAllocator = nullptr;
+	DescriptorAllocator* m_pSRVUAVAllocator = nullptr;
 
 	ID3D12Resource* m_pRenderTargets[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
 	ID3D12Resource* m_pFloatBuffer = nullptr;

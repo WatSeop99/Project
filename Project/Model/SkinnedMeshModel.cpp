@@ -18,10 +18,8 @@ void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInf
 	initJointSpheres(pRenderer);
 	initChain();
 
-	MoveInfo.Position = World.Translation();
-	MoveInfo.Direction = Vector3(0.0f, 0.0f, -1.0f); // should be normalized.
-	MoveInfo.Rotation = Quaternion();
-	MoveInfo.Velocity = 1.0f;
+	CharacterAnimationData.Position = World.Translation();
+	CharacterAnimationData.Direction = Vector3(0.0f, 0.0f, -1.0f); // should be normalized.
 }
 
 void SkinnedMeshModel::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh* pNewMesh)
@@ -135,7 +133,7 @@ void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_
 	}
 
 	// 입력에 따른 변환행렬 업데이트.
-	CharacterAnimationData.Update(clipID, frame, MoveInfo);
+	CharacterAnimationData.Update(clipID, frame);
 
 	// joint 위치 갱신.
 	updateChainPosition();
@@ -143,10 +141,8 @@ void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_
 	// IK 계산. 서 있을 때만.
 	if (clipID == 0)
 	{
-		/*UpdateCharacterIK(rightFootPos, 2, clipID, frame, DELTA_TIME);
-		UpdateCharacterIK(leftFootPos, 3, clipID, frame, DELTA_TIME);*/
 		solveCharacterIK(clipID, frame, DELTA_TIME, pUpdateInfo);
-		CharacterAnimationData.Update(clipID, frame, MoveInfo);
+		CharacterAnimationData.Update(clipID, frame);
 	}
 
 	// 버퍼 업데이트.
@@ -764,13 +760,7 @@ void SkinnedMeshModel::initJointSpheres(Renderer* pRenderer)
 		*ppLeftArmPart = new Mesh;
 		*ppRightLegPart = new Mesh;
 		*ppLeftLegPart = new Mesh;
-
-		(*ppRightArmPart)->MeshConstantData.World = Matrix();
-		(*ppLeftArmPart)->MeshConstantData.World = Matrix();
-		(*ppRightLegPart)->MeshConstantData.World = Matrix();
-		(*ppLeftLegPart)->MeshConstantData.World = Matrix();
 		
-		// need to be for pp ver.
 		InitMeshBuffers(pRenderer, meshData, ppRightArmPart);
 		InitMeshBuffers(pRenderer, meshData, ppLeftArmPart);
 		InitMeshBuffers(pRenderer, meshData, ppRightLegPart);
@@ -889,7 +879,6 @@ void SkinnedMeshModel::initChain()
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->Position = m_ppRightArm[i]->MeshConstantData.World.Transpose().Translation();
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
@@ -909,7 +898,6 @@ void SkinnedMeshModel::initChain()
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->Position = m_ppLeftArm[i]->MeshConstantData.World.Transpose().Translation();
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
@@ -929,7 +917,6 @@ void SkinnedMeshModel::initChain()
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->Position = m_ppRightLeg[i]->MeshConstantData.World.Transpose().Translation();
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
@@ -949,7 +936,6 @@ void SkinnedMeshModel::initChain()
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->Position = m_ppLeftLeg[i]->MeshConstantData.World.Transpose().Translation();
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
@@ -1209,22 +1195,32 @@ void SkinnedMeshModel::solveCharacterIK(int clipID, int frame, const float DELTA
 			continue;
 		}
 
+		Vector3 targetPos;
+
 		switch (JointPart)
 		{
 			case JointPart_RightArm:
-				RightArm.SolveIK(pUpdateInfo->EndEffectorTargetPoses[JointPart], clipID, frame, DELTA_TIME);
+				targetPos = RightArm.BodyChain[3].Position;
+				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
+				RightArm.SolveIK(targetPos, clipID, frame, DELTA_TIME);
 				break;
 
 			case JointPart_LeftArm:
-				LeftArm.SolveIK(pUpdateInfo->EndEffectorTargetPoses[JointPart], clipID, frame, DELTA_TIME);
+				targetPos = LeftArm.BodyChain[3].Position;
+				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
+				LeftArm.SolveIK(targetPos, clipID, frame, DELTA_TIME);
 				break;
 
 			case JointPart_RightLeg:
-				RightLeg.SolveIK(pUpdateInfo->EndEffectorTargetPoses[JointPart], clipID, frame, DELTA_TIME);
+				targetPos = RightLeg.BodyChain[3].Position;
+				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
+				RightLeg.SolveIK(targetPos, clipID, frame, DELTA_TIME);
 				break;
 
 			case JointPart_LeftLeg:
-				LeftLeg.SolveIK(pUpdateInfo->EndEffectorTargetPoses[JointPart], clipID, frame, DELTA_TIME);
+				targetPos = LeftLeg.BodyChain[3].Position;
+				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
+				LeftLeg.SolveIK(targetPos, clipID, frame, DELTA_TIME);
 				break;
 
 			default:

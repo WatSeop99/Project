@@ -32,6 +32,7 @@ private:
 
 	// data
 	std::vector<Model*> m_RenderObjects;
+
 	std::vector<Light> m_Lights;
 	std::vector<Model*> m_LightSpheres;
 
@@ -39,6 +40,11 @@ private:
 	Texture m_IrradianceTexture;
 	Texture m_SpecularTexture;
 	Texture m_BRDFTexture;
+
+	TextureHandle* m_pEnvTexture = nullptr;
+	TextureHandle* m_pIrradianceTexture = nullptr;
+	TextureHandle* m_pSpecularTexture = nullptr;
+	TextureHandle* m_pBRDFTexture = nullptr;
 	
 	Model* m_pMirror = nullptr;
 	SkinnedMeshModel* m_pCharacter = nullptr; // main character

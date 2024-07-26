@@ -112,24 +112,6 @@ void ShadowMap::Update(Renderer* pRenderer, LightProperty& property, Camera& lig
 				Vector3(0.0f, 1.0f, 0.0f)
 			};
 
-			/*for (int i = 0; i < 6; ++i)
-			{
-				GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(m_ShadowConstantBuffers[i].pData);
-				ShadowConstant* pShadowConstantData = (ShadowConstant*)(m_ShadowConstantsBufferForGS.pData);
-
-				lightView = DirectX::XMMatrixLookAtLH(property.Position, property.Position + pVIEW_DIRs[i], pUP_DIRs[i]);
-
-				pShadowGlobalConstantData->EyeWorld = property.Position;
-				pShadowGlobalConstantData->View = lightView.Transpose();
-				pShadowGlobalConstantData->Projection = lightProjection.Transpose();
-				pShadowGlobalConstantData->InverseProjection = lightProjection.Invert().Transpose();
-				pShadowGlobalConstantData->ViewProjection = (lightView * lightProjection).Transpose();
-
-				pShadowConstantData->ViewProjects[i] = pShadowGlobalConstantData->ViewProjection;
-
-				m_ShadowConstantBuffers[i].Upload();
-			}
-			m_ShadowConstantsBufferForGS.Upload();*/
 			for (int i = 0; i < 6; ++i)
 			{
 				GlobalConstant* pShadowGlobalConstantData = &m_ShadowConstantBufferDatas[i];
@@ -149,18 +131,6 @@ void ShadowMap::Update(Renderer* pRenderer, LightProperty& property, Camera& lig
 
 		case LIGHT_SPOT:
 		{
-			/*GlobalConstant* pShadowGlobalConstantData = (GlobalConstant*)(m_ShadowConstantBuffers[0].pData);
-
-			lightView = DirectX::XMMatrixLookAtLH(property.Position, property.Position + property.Direction, lightCam.GetUpDir());
-
-			pShadowGlobalConstantData->EyeWorld = property.Position;
-			pShadowGlobalConstantData->View = lightView.Transpose();
-			pShadowGlobalConstantData->Projection = lightProjection.Transpose();
-			pShadowGlobalConstantData->InverseProjection = lightProjection.Invert().Transpose();
-			pShadowGlobalConstantData->ViewProjection = (lightView * lightProjection).Transpose();
-
-			m_ShadowConstantBuffers[0].Upload();*/
-
 			GlobalConstant* pShadowGlobalConstantData = &m_ShadowConstantBufferDatas[0];
 
 			lightView = DirectX::XMMatrixLookAtLH(property.Position, property.Position + property.Direction, lightCam.GetUpDir());

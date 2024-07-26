@@ -16,9 +16,7 @@ void App::Initialize()
 		&m_RenderObjects,
 		&m_Lights,
 		&m_LightSpheres,
-
 		&m_EnvTexture, &m_IrradianceTexture, &m_SpecularTexture, &m_BRDFTexture,
-
 		m_pMirror, &m_MirrorPlane,
 	};
 	Renderer::Initizlie(&initData);
@@ -50,9 +48,9 @@ int App::Run()
 			++s_FrameCount;
 
 			Update(frameChange);
-			s_PrevUpdateTick = curTick;
 			Render();
 
+			s_PrevUpdateTick = curTick;
 			if (curTick - s_PrevFrameCheckTick > 1000)
 			{
 				s_PrevFrameCheckTick = curTick;
@@ -94,15 +92,8 @@ void App::Update(const float DELTA_TIME)
 
 				ZeroMemory(&updateInfo, sizeof(SkinnedMeshModel::JointUpdateInfo));
 				updateAnimationState(pCharacter, DELTA_TIME, &state, &frame, &updateInfo);
-				/*{
-					char szDebugString[256];
-					sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z);
-					OutputDebugStringA(szDebugString);
-					sprintf_s(szDebugString, 256, "leftFootPos: %f, %f, %f\n", leftFootPos.x, leftFootPos.y, leftFootPos.z);
-					OutputDebugStringA(szDebugString);
-				}*/
 
-				pCharacter->UpdateWorld(Matrix::CreateTranslation(m_pCharacter->MoveInfo.Position));
+				pCharacter->UpdateWorld(Matrix::CreateTranslation(m_pCharacter->CharacterAnimationData.Position));
 				pCharacter->UpdateAnimation(state, frame, DELTA_TIME, &updateInfo);
 			}
 			break;
@@ -145,12 +136,12 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 	m_LightSpheres.resize(MAX_LIGHTS);
 
 	// 환경맵 텍스쳐 로드.
-	{
-		m_EnvTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-		m_IrradianceTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-		m_SpecularTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-		m_BRDFTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	}
+	m_EnvTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_IrradianceTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_SpecularTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_BRDFTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+
+
 
 	// 환경 박스 초기화.
 	{
@@ -201,33 +192,31 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 	}
 
 	// 조명 위치 표시.
+	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
-		for (int i = 0; i < MAX_LIGHTS; ++i)
+		MeshInfo sphere = INIT_MESH_INFO;
+		MakeSphere(&sphere, 1.0f, 20, 20);
+
+		m_LightSpheres[i] = new Model(pRenderer, { sphere });
+		m_LightSpheres[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
+
+		MaterialConstant& sphereMaterialConstantData = m_LightSpheres[i]->Meshes[0]->MaterialConstantData;
+		sphereMaterialConstantData.AlbedoFactor = Vector3(0.0f);
+		sphereMaterialConstantData.EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
+		m_LightSpheres[i]->bCastShadow = false; // 조명 표시 물체들은 그림자 X.
+		for (UINT64 j = 0, size = m_LightSpheres[i]->Meshes.size(); j < size; ++j)
 		{
-			MeshInfo sphere = INIT_MESH_INFO;
-			MakeSphere(&sphere, 1.0f, 20, 20);
-
-			m_LightSpheres[i] = new Model(pRenderer, { sphere });
-			m_LightSpheres[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
-
-			MaterialConstant& sphereMaterialConstantData = m_LightSpheres[i]->Meshes[0]->MaterialConstantData;
-			sphereMaterialConstantData.AlbedoFactor = Vector3(0.0f);
-			sphereMaterialConstantData.EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
-			m_LightSpheres[i]->bCastShadow = false; // 조명 표시 물체들은 그림자 X.
-			for (UINT64 j = 0, size = m_LightSpheres[i]->Meshes.size(); j < size; ++j)
-			{
-				Mesh* pCurMesh = m_LightSpheres[i]->Meshes[j];
-				MaterialConstant& meshMaterialConstantData = pCurMesh->MaterialConstantData;
-				meshMaterialConstantData.AlbedoFactor = Vector3(0.0f);
-				meshMaterialConstantData.EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
-			}
-
-			m_LightSpheres[i]->bIsVisible = true;
-			m_LightSpheres[i]->Name = "LightSphere" + std::to_string(i);
-			m_LightSpheres[i]->bIsPickable = false;
-
-			m_RenderObjects.push_back(m_LightSpheres[i]);
+			Mesh* pCurMesh = m_LightSpheres[i]->Meshes[j];
+			MaterialConstant& meshMaterialConstantData = pCurMesh->MaterialConstantData;
+			meshMaterialConstantData.AlbedoFactor = Vector3(0.0f);
+			meshMaterialConstantData.EmissionFactor = Vector3(1.0f, 1.0f, 0.0f);
 		}
+
+		m_LightSpheres[i]->bIsVisible = true;
+		m_LightSpheres[i]->Name = "LightSphere" + std::to_string(i);
+		m_LightSpheres[i]->bIsPickable = false;
+
+		m_RenderObjects.push_back(m_LightSpheres[i]);
 	}
 
 	// 바닥(거울).
@@ -324,7 +313,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		m_pCharacter->Name = "MainCharacter";
 		m_pCharacter->bIsPickable = true;
 		m_pCharacter->UpdateWorld(Matrix::CreateScale(1.0f) * Matrix::CreateTranslation(center));
-		m_pCharacter->MoveInfo.Position = center;
+		m_pCharacter->CharacterAnimationData.Position = center;
 		m_RenderObjects.push_back((Model*)m_pCharacter);
 
 
@@ -336,8 +325,8 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		capsuleDesc.height = (m_pCharacter->BoundingSphere.Radius * 1.35f) - 0.5f;
 		capsuleDesc.radius = 0.25f;
 		capsuleDesc.upDirection = physx::PxVec3(0.0f, 1.0f, 0.0f);
-		// capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->MoveInfo.Position.x, m_pCharacter->MoveInfo.Position.y - 0.6f, m_pCharacter->MoveInfo.Position.z);
-		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->MoveInfo.Position.x, m_pCharacter->MoveInfo.Position.y, m_pCharacter->MoveInfo.Position.z);
+		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, m_pCharacter->CharacterAnimationData.Position.y, m_pCharacter->CharacterAnimationData.Position.z);
+		capsuleDesc.contactOffset = 0.05f;
 		capsuleDesc.material = m_PhysicsManager.pCommonMaterial;
 		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.3f;
 		capsuleDesc.climbingMode = physx::PxCapsuleClimbingMode::eCONSTRAINED;
@@ -402,12 +391,6 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 	static int s_State = 0;
 	static int s_FrameCount = 0;
 
-	// 별도의 애니메이션 클립이 없을 경우.
-	/*if (m_pCharacter->CharacterAnimationData.Clips.size() == 1)
-	{
-		goto LB_IK_PROCESS;
-	}*/
-
 	_ASSERT(pCharacter);
 	_ASSERT(pUpdateInfo);
 
@@ -431,8 +414,8 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 
 		case 1:
 		{
-			Vector3 deltaPos = pCharacter->MoveInfo.Direction * pCharacter->MoveInfo.Velocity * 0.5f * DELTA_TIME;
-			pCharacter->MoveInfo.Position += deltaPos;
+			Vector3 deltaPos = pCharacter->CharacterAnimationData.Direction * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
+			pCharacter->CharacterAnimationData.Position += deltaPos;
 			deltaPos.y -= 0.4f;
 			simulateCharacterContol(pCharacter, pUpdateInfo, deltaPos, DELTA_TIME);
 
@@ -455,27 +438,19 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			if (m_Keyboard.bPressed[VK_RIGHT])
 			{
 				Quaternion newRot = Quaternion::CreateFromYawPitchRoll(DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f, 0.0f, 0.0f);
-				pCharacter->MoveInfo.Direction = Vector3::TransformNormal(pCharacter->MoveInfo.Direction, Matrix::CreateFromQuaternion(newRot));
-				pCharacter->MoveInfo.Rotation = Quaternion::Concatenate(pCharacter->MoveInfo.Rotation, newRot);
-
-				/*pCharacter->CharacterAnimationData.AccumulatedRootTransform =
-					Matrix::CreateRotationY(DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f) *
-					pCharacter->CharacterAnimationData.AccumulatedRootTransform;*/
+				pCharacter->CharacterAnimationData.Direction = Vector3::TransformNormal(pCharacter->CharacterAnimationData.Direction, Matrix::CreateFromQuaternion(newRot));
+				pCharacter->CharacterAnimationData.Rotation = Quaternion::Concatenate(pCharacter->CharacterAnimationData.Rotation, newRot);
 			}
 			// moveinfo.direction과 moveinfo.rotation을 왼쪽으로 같이 회전.
 			if (m_Keyboard.bPressed[VK_LEFT])
 			{
 				Quaternion newRot = Quaternion::CreateFromYawPitchRoll(-DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f, 0.0f, 0.0f);
-				pCharacter->MoveInfo.Direction = Vector3::TransformNormal(pCharacter->MoveInfo.Direction, Matrix::CreateFromQuaternion(newRot));
-				pCharacter->MoveInfo.Rotation = Quaternion::Concatenate(pCharacter->MoveInfo.Rotation, newRot);
-
-				/*pCharacter->CharacterAnimationData.AccumulatedRootTransform =
-					Matrix::CreateRotationY(-DirectX::XM_PI * 60.0f / 180.0f * DELTA_TIME * 2.0f) *
-					pCharacter->CharacterAnimationData.AccumulatedRootTransform;*/
+				pCharacter->CharacterAnimationData.Direction = Vector3::TransformNormal(pCharacter->CharacterAnimationData.Direction, Matrix::CreateFromQuaternion(newRot));
+				pCharacter->CharacterAnimationData.Rotation = Quaternion::Concatenate(pCharacter->CharacterAnimationData.Rotation, newRot);
 			}
 
-			deltaPos = pCharacter->MoveInfo.Direction * pCharacter->MoveInfo.Velocity * DELTA_TIME;
-			m_pCharacter->MoveInfo.Position += deltaPos;
+			deltaPos = pCharacter->CharacterAnimationData.Direction * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
+			m_pCharacter->CharacterAnimationData.Position += deltaPos;
 			deltaPos.y -= 0.4f;
 			simulateCharacterContol(pCharacter, pUpdateInfo, deltaPos, DELTA_TIME);
 
@@ -496,8 +471,8 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 
 		case 3:
 		{
-			Vector3 deltaPos = pCharacter->MoveInfo.Direction * pCharacter->MoveInfo.Velocity * 0.5f * DELTA_TIME;
-			pCharacter->MoveInfo.Position += deltaPos;
+			Vector3 deltaPos = pCharacter->CharacterAnimationData.Direction * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
+			pCharacter->CharacterAnimationData.Position += deltaPos;
 			deltaPos.y -= 0.4f;
 			simulateCharacterContol(pCharacter, pUpdateInfo, deltaPos, DELTA_TIME);
 
@@ -518,14 +493,6 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 
 	*pState = s_State;
 	*pFrame = s_FrameCount;
-
-	//LB_IK_PROCESS:
-	//	if (!m_pPickedEndEffector)
-	//	{
-	//		goto LB_UPDATE;
-	//	}
-	//	m_pCharacter->UpdateCharacterIK(m_PickedTranslation, m_PickedEndEffectorType, s_State, s_FrameCount, DELTA_TIME);
-
 	++s_FrameCount;
 }
 
@@ -542,27 +509,29 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel
 
 	// physx 상에서의 캐릭터 위치 받아오기.
 	const float TO_RADIAN = DirectX::XM_PI / 180.0f;
-	Vector3 rotatedRight = Vector3::Transform(pCharacter->MoveInfo.Direction, Matrix::CreateRotationY(90.0f * TO_RADIAN));
-	Vector3 rotatedLeft = Vector3::Transform(pCharacter->MoveInfo.Direction, Matrix::CreateRotationY(-90.0f * TO_RADIAN));
+	Vector3 rotatedRight = Vector3::Transform(pCharacter->CharacterAnimationData.Direction, Matrix::CreateRotationY(89.0f * TO_RADIAN));
+	Vector3 rotatedLeft = Vector3::Transform(pCharacter->CharacterAnimationData.Direction, Matrix::CreateRotationY(-89.0f * TO_RADIAN));
 
 	physx::PxExtendedVec3 bottomPos = pCharacter->pController->getFootPosition();
 	Vector3 footPos = Vector3((float)bottomPos.x, (float)bottomPos.y, (float)bottomPos.z);
-	//*pRightFootPos = footPos + rotatedRight * 0.2f; // 0.2f == radius;
-	//*pLeftFootPos = footPos + rotatedLeft * 0.2f; // 0.2f == radius;
-	//{
-	//	char szDebugString[256];
-	//	sprintf_s(szDebugString, 256, "bottomPos: %lf, %lf, %lf\n", bottomPos.x, bottomPos.y, bottomPos.z);
-	//	OutputDebugStringA(szDebugString);
-	//}
 	pUpdateInfo->bUpdatedJointParts[SkinnedMeshModel::JointPart_RightLeg] = true;
 	pUpdateInfo->bUpdatedJointParts[SkinnedMeshModel::JointPart_LeftLeg] = true;
-	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_RightLeg] = footPos + rotatedRight * 0.13f; // 0.2f == radius;
-	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_LeftLeg] = footPos + rotatedLeft * 0.13f; // 0.2f == radius;
+	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_RightLeg] = footPos + rotatedRight * 0.11f; // 0.2f == radius;
+	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_LeftLeg] = footPos + rotatedLeft * 0.11f; // 0.2f == radius;
 
 	physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
 	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
 
 	// 받아온 위치 기반 캐릭터 위치 갱신.
-	pCharacter->MoveInfo.Position = nextPosVec;
-	pCharacter->MoveInfo.Position.y += 0.37f;
+	pCharacter->CharacterAnimationData.Position = nextPosVec;
+	pCharacter->CharacterAnimationData.Position.y += 0.4f;
+
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "character pos: %f, %f, %f\n", pCharacter->CharacterAnimationData.Position.x, pCharacter->CharacterAnimationData.Position.y, pCharacter->CharacterAnimationData.Position.z);
+		OutputDebugStringA(szDebugString);
+
+		sprintf_s(szDebugString, 256, "direction: %f, %f, %f\n", pCharacter->CharacterAnimationData.Direction.x, pCharacter->CharacterAnimationData.Direction.y, pCharacter->CharacterAnimationData.Direction.z);
+		OutputDebugStringA(szDebugString);
+	}
 }

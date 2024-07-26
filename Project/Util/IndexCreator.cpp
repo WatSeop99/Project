@@ -10,7 +10,7 @@ IndexCreator::~IndexCreator()
 void IndexCreator::Initialize(ULONG num)
 {
 	m_pIndexTable = new ULONG[num];
-	memset(m_pIndexTable, 0, sizeof(ULONG) * num);
+	ZeroMemory(m_pIndexTable, sizeof(ULONG) * num);
 	m_MaxNum = num;
 
 	for (ULONG i = 0; i < m_MaxNum; ++i)
