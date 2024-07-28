@@ -43,7 +43,13 @@ public:
 	HRESULT CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, D3D12_VERTEX_BUFFER_VIEW* pOutVertexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData);
 	HRESULT CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D12_INDEX_BUFFER_VIEW* pOutIndexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData);
 	
-	HRESULT UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* originalState);
+	HRESULT CreateTextureFromFile(ID3D12Resource** ppOutResource, D3D12_RESOURCE_DESC* pOutDesc, const WCHAR* pszFileName, bool bUseSRGB);
+	HRESULT CreateTextureCubeFromFile(ID3D12Resource** ppOutResource, D3D12_RESOURCE_DESC* pOutDesc, const WCHAR* pszFileName);
+	HRESULT CreateTexturePair(ID3D12Resource** ppOutResource, ID3D12Resource** ppOutUploadBuffer, UINT width, UINT height, DXGI_FORMAT format);
+	HRESULT CreateTexture(ID3D12Resource** ppOutResource, UINT width, UINT height, DXGI_FORMAT format, const BYTE* pInitImage);
+	HRESULT CreateNonImageUploadTexture(ID3D12Resource** ppOutResource, ID3D12Resource** ppOutUploadBuffer, UINT numElement, UINT elementSize);
+
+	HRESULT UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* pOriginalState);
 
 	void Cleanup();
 

@@ -6,6 +6,8 @@
 #include "Texture.h"
 #include "../Renderer/TextureManager.h"
 
+class Renderer;
+
 class ShadowMap
 {
 public:
@@ -14,18 +16,21 @@ public:
 
 	void Initialize(Renderer* pRenderer, UINT lightType);
 
-	void Update(Renderer* pRenderer, LightProperty& property, Camera& lightCam, Camera& mainCamera);
+	void Update(LightProperty& property, Camera& lightCam, Camera& mainCamera);
 
-	void Render(Renderer* pRenderer, std::vector<Model*>* pRenderObjects);
+	void Render(std::vector<Model*>* pRenderObjects);
 
 	void Cleanup();
 
 	inline UINT GetShadowWidth() { return m_ShadowMapWidth; }
 	inline UINT GetShadowHeight() { return m_ShadowMapHeight; }
 
-	inline Texture* GetSpotLightShadowBufferPtr() { return &m_SpotLightShadowBuffer; }
+	/*inline Texture* GetSpotLightShadowBufferPtr() { return &m_SpotLightShadowBuffer; }
 	inline Texture* GetPointLightShadowBufferPtr() { return &m_PointLightShadowBuffer; }
-	inline Texture* GetDirectionalLightShadowBufferPtr() { return &m_DirectionalLightShadowBuffer; }
+	inline Texture* GetDirectionalLightShadowBufferPtr() { return &m_DirectionalLightShadowBuffer; }*/
+	inline TextureHandle* GetSpotLightShadowBufferPtr() { return m_pSpotLightShadowBuffer; }
+	inline TextureHandle* GetPointLightShadowBufferPtr() { return m_pPointLightShadowBuffer; }
+	inline TextureHandle* GetDirectionalLightShadowBufferPtr() { return m_pDirectionalLightShadowBuffer; }
 
 	inline GlobalConstant* GetShadowConstantsBufferDataPtr() { return m_ShadowConstantBufferDatas; }
 	inline ShadowConstant* GetShadowConstantBufferDataForGSPtr() { return &m_ShadowConstantsBufferDataForGS; }
@@ -43,6 +48,8 @@ protected:
 	void calculateCascadeLightViewProjection(Vector3* pPosition, Matrix* pView, Matrix* pProjection, const Matrix& VIEW, const Matrix& PROJECTION, const Vector3& DIR, int cascadeIndex);
 
 private:
+	Renderer* m_pRenderer = nullptr;
+
 	UINT m_ShadowMapWidth;
 	UINT m_ShadowMapHeight;
 	UINT m_LightType = LIGHT_OFF;
@@ -51,16 +58,16 @@ private:
 	D3D12_VIEWPORT m_pViewPorts[6] = { 0.0f, };
 	D3D12_RECT m_pScissorRects[6] = { 0, };
 
-	union
+	/*union
 	{
 		Texture m_SpotLightShadowBuffer;
 		Texture m_PointLightShadowBuffer;
 		Texture m_DirectionalLightShadowBuffer;
-	};
+	};*/
 	union
 	{
 		TextureHandle* m_pSpotLightShadowBuffer;
-		TextureHandle* m_pPointLightShadoeBuffer;
+		TextureHandle* m_pPointLightShadowBuffer;
 		TextureHandle* m_pDirectionalLightShadowBuffer;
 	};
 	GlobalConstant m_ShadowConstantBufferDatas[6];	 // spot, point, direc => 0, 6, 4개씩 사용.

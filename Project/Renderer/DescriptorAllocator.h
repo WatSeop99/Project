@@ -10,7 +10,7 @@ public:
 
 	void Initialize(ID3D12Device5* pDevice, UINT maxCount, D3D12_DESCRIPTOR_HEAP_FLAGS flag, D3D12_DESCRIPTOR_HEAP_TYPE heapType);
 
-	UINT AllocDescriptorHandle(D3D12_CPU_DESCRIPTOR_HANDLE* pCPUHandle);
+	UINT AllocDescriptorHandle(D3D12_CPU_DESCRIPTOR_HANDLE* pOutCPUHandle);
 	void FreeDescriptorHandle(D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle);
 
 	bool Check(D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle);

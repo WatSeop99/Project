@@ -32,10 +32,10 @@ public:
 	void UpdateAnimation(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 	void UpdateCharacterIK(Vector3& target, int chainPart, int clipID, int frame, const float DELTA_TIME);
 
-	void Render(Renderer* pRenderer, eRenderPSOType psoSetting) override;
+	void Render(eRenderPSOType psoSetting) override;
 	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting) override;
-	void RenderBoundingCapsule(Renderer* pRenderer, eRenderPSOType psoSetting);
-	void RenderJointSphere(Renderer* pRenderer, eRenderPSOType psoSetting);
+	void RenderBoundingCapsule(eRenderPSOType psoSetting);
+	void RenderJointSphere(eRenderPSOType psoSetting);
 
 	void Cleanup();
 
@@ -47,8 +47,8 @@ public:
 	void SetDescriptorHeap(Renderer* pRenderer) override;
 
 protected:
-	void initBoundingCapsule(Renderer* pRenderer);
-	void initJointSpheres(Renderer* pRenderer);
+	void initBoundingCapsule();
+	void initJointSpheres();
 	void initChain();
 
 	void updateChainPosition();
@@ -58,6 +58,7 @@ protected:
 
 public:
 	NonImageTexture BoneTransforms;
+	TextureHandle* pBoneTransform = nullptr;
 	AnimationData CharacterAnimationData;
 	// CharacterMoveInfo MoveInfo;
 

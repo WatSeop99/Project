@@ -23,7 +23,7 @@ void DynamicDescriptorPool::Initialize(ID3D12Device5* pDevice, UINT maxDescripto
 	m_GPUDescriptorHandle = m_pDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 }
 
-HRESULT DynamicDescriptorPool::AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE* pCPUDescriptor, D3D12_GPU_DESCRIPTOR_HANDLE* pGPUDescriptorHandle, UINT descriptorCount)
+HRESULT DynamicDescriptorPool::AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE* pOutCPUDescriptor, D3D12_GPU_DESCRIPTOR_HANDLE* pOutGPUDescriptorHandle, UINT descriptorCount)
 {
 	if (m_AllocatedDescriptorCount + (UINT64)descriptorCount > m_MaxDescriptorCount)
 	{
@@ -36,8 +36,8 @@ HRESULT DynamicDescriptorPool::AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE*
 //	OutputDebugStringA(debugString);
 //#endif
 
-	*pCPUDescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_CPUDescriptorHandle, (int)m_AllocatedDescriptorCount, m_CBVSRVUAVDescriptorSize);
-	*pGPUDescriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_GPUDescriptorHandle, (int)m_AllocatedDescriptorCount, m_CBVSRVUAVDescriptorSize);
+	*pOutCPUDescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_CPUDescriptorHandle, (int)m_AllocatedDescriptorCount, m_CBVSRVUAVDescriptorSize);
+	*pOutGPUDescriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_GPUDescriptorHandle, (int)m_AllocatedDescriptorCount, m_CBVSRVUAVDescriptorSize);
 	m_AllocatedDescriptorCount += descriptorCount;
 
 	return S_OK;

@@ -8,7 +8,7 @@ public:
 
 	void Initialize(ID3D12Device5* pDevice, UINT maxDescriptorCount);
 
-	HRESULT AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE* pCPUDescriptor, D3D12_GPU_DESCRIPTOR_HANDLE* pGPUDescriptorHandle, UINT descriptorCount);
+	HRESULT AllocDescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE* pOutCPUDescriptor, D3D12_GPU_DESCRIPTOR_HANDLE* pOutGPUDescriptorHandle, UINT descriptorCount);
 
 	void Reset();
 

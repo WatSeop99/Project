@@ -36,17 +36,11 @@ private:
 	std::vector<Light> m_Lights;
 	std::vector<Model*> m_LightSpheres;
 
-	Texture m_EnvTexture;
+	/*Texture m_EnvTexture;
 	Texture m_IrradianceTexture;
 	Texture m_SpecularTexture;
-	Texture m_BRDFTexture;
+	Texture m_BRDFTexture;*/
 
-	TextureHandle* m_pEnvTexture = nullptr;
-	TextureHandle* m_pIrradianceTexture = nullptr;
-	TextureHandle* m_pSpecularTexture = nullptr;
-	TextureHandle* m_pBRDFTexture = nullptr;
-	
-	Model* m_pMirror = nullptr;
 	SkinnedMeshModel* m_pCharacter = nullptr; // main character
 	DirectX::SimpleMath::Plane m_MirrorPlane;
 };

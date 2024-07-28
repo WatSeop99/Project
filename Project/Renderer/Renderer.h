@@ -28,6 +28,11 @@ public:
 		Texture* pSpecularTexture;
 		Texture* pBRDFTexture;
 
+		TextureHandle* pEnvTextureHandle;
+		TextureHandle* pIrradianceTextureHandle;
+		TextureHandle* pSpecularTextureHandle;
+		TextureHandle* pBRDFTextureHandle;
+
 		Model* pMirror;
 		DirectX::SimpleMath::Plane* pMirrorPlane;
 	};
@@ -36,7 +41,7 @@ public:
 	Renderer();
 	virtual ~Renderer();
 
-	void Initizlie(InitialData* pIntialData);
+	void Initizlie();
 
 	void Update(const float DELTA_TIME);
 
@@ -50,9 +55,15 @@ public:
 	inline ID3D12Device5* GetD3DDevice() { return m_pDevice; }
 	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
 	inline PhysicsManager* GetPhysicsManager() { return &m_PhysicsManager; }
+	inline DescriptorAllocator* GetRTVAllocator() { return m_pRTVAllocator; }
+	inline DescriptorAllocator* GetDSVAllocator() { return m_pDSVAllocator; }
+	inline DescriptorAllocator* GetSRVUAVAllocator() { return m_pSRVUAVAllocator; }
+	inline TextureManager* GetTextureManager() { return m_pTextureManager; }
 	inline HWND GetWindow() { return m_hMainWindow; }
 	ConstantBufferManager* GetConstantBufferManager(UINT threadIndex = 0);
 	DynamicDescriptorPool* GetDynamicDescriptorPool(UINT threadIndex = 0);
+
+	void SetExternalDatas(InitialData* pInitialData);
 
 protected:
 	void initMainWidndow();
@@ -104,6 +115,11 @@ protected:
 	LightConstant m_LightConstantData;
 	GlobalConstant m_ReflectionGlobalConstantData;
 
+	TextureHandle* m_pEnvTextureHandle = nullptr;
+	TextureHandle* m_pIrradianceTextureHandle = nullptr;
+	TextureHandle* m_pSpecularTextureHandle = nullptr;
+	TextureHandle* m_pBRDFTextureHandle = nullptr;
+
 	std::vector<Model*>* m_pRenderObjects = nullptr;
 	std::vector<Light>* m_pLights = nullptr;
 	std::vector<Model*>* m_pLightSpheres = nullptr;
@@ -146,7 +162,8 @@ private:
 	// main resources.
 	ResourceManager* m_pResourceManager = nullptr;
 	DynamicDescriptorPool m_DynamicDescriptorPool;
-	ConstantBufferManager m_ConstantBufferManager; // when multi-thread used, need to be create more manager.
+	ConstantBufferManager m_ConstantBufferManager;
+	TextureManager* m_pTextureManager = nullptr;
 	DescriptorAllocator* m_pRTVAllocator = nullptr;
 	DescriptorAllocator* m_pDSVAllocator = nullptr;
 	DescriptorAllocator* m_pSRVUAVAllocator = nullptr;

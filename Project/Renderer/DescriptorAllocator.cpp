@@ -24,9 +24,9 @@ void DescriptorAllocator::Initialize(ID3D12Device5* pDevice, UINT maxCount, D3D1
 	m_DescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(heapType);
 }
 
-UINT DescriptorAllocator::AllocDescriptorHandle(D3D12_CPU_DESCRIPTOR_HANDLE* pCPUHandle)
+UINT DescriptorAllocator::AllocDescriptorHandle(D3D12_CPU_DESCRIPTOR_HANDLE* pOutCPUHandle)
 {
-	_ASSERT(pCPUHandle);
+	_ASSERT(pOutCPUHandle);
 
 	UINT index = m_IndexCreator.Alloc();
 	if (index == -1)
@@ -35,7 +35,7 @@ UINT DescriptorAllocator::AllocDescriptorHandle(D3D12_CPU_DESCRIPTOR_HANDLE* pCP
 	}
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE DescriptorHandle(m_pHeap->GetCPUDescriptorHandleForHeapStart(), index, m_DescriptorSize);
-	*pCPUHandle = DescriptorHandle;
+	*pOutCPUHandle = DescriptorHandle;
 
 	return index;
 }

@@ -147,7 +147,7 @@ UINT RenderQueue::ProcessLight(UINT threadIndex, ID3D12CommandQueue* pCommandQue
 		pCommandList = pCommandListPool->GetCurrentCommandList();
 
 		Light* pCurLight = (Light*)pRenderItem->pLight;
-		Texture* pShadowBuffer = nullptr;
+		TextureHandle* pShadowBuffer = nullptr;
 		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle;
 		ID3D12Resource* pDepthStencilResource = nullptr;
 
@@ -187,8 +187,8 @@ UINT RenderQueue::ProcessLight(UINT threadIndex, ID3D12CommandQueue* pCommandQue
 				__debugbreak();
 				break;
 		}
-		dsvHandle = pShadowBuffer->GetDSVHandle();
-		pDepthStencilResource = pShadowBuffer->GetResource();
+		dsvHandle = pShadowBuffer->DSVHandle;
+		pDepthStencilResource = pShadowBuffer->pTextureResource;
 
 		pCurLight->LightShadowMap.SetViewportsAndScissorRect(pCommandList);
 		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);

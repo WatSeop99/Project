@@ -26,9 +26,9 @@ public:
 	void Reset();
 
 	ID3D12GraphicsCommandList* GetCurrentCommandList();
-	inline UINT GetTotalCmdListNum() const { return m_TotalCmdNum; }
-	inline UINT GetAllocatedCmdListNum() const { return m_AllocatedCmdNum; }
-	inline UINT GetAvailableCmdListNum() const { return m_AvailableCmdNum; }
+	inline UINT GetTotalCmdListNum() { return m_TotalCmdNum; }
+	inline UINT GetAllocatedCmdListNum() { return m_AllocatedCmdNum; }
+	inline UINT GetAvailableCmdListNum() { return m_AvailableCmdNum; }
 	inline ID3D12Device5* GetDevice() { return m_pDevice; }
 
 protected:

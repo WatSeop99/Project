@@ -3,6 +3,8 @@
 #include "Camera.h"
 #include "ShadowMap.h"
 
+class Renderer;
+
 class Light
 {
 public:
@@ -11,9 +13,9 @@ public:
 
 	void Initialize(Renderer* pRenderer);
 
-	void Update(Renderer* pRenderer, const float DELTA_TIME, Camera& mainCamera);
+	void Update(const float DELTA_TIME, Camera& mainCamera);
 
-	void RenderShadowMap(Renderer* pRenderer, std::vector<Model*>* pRenderObjects);
+	void RenderShadowMap(std::vector<Model*>* pRenderObjects);
 
 	void Cleanup();
 
@@ -28,6 +30,8 @@ public:
 	bool bVisible = true;
 
 private:
+	Renderer* m_pRenderer = nullptr;
+
 	Camera m_LightViewCamera;
 	const UINT m_TOTAL_LIGHT_TYPE = (LIGHT_DIRECTIONAL | LIGHT_POINT | LIGHT_SPOT);
 };

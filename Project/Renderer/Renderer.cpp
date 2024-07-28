@@ -22,17 +22,15 @@ Renderer::~Renderer()
 	Cleanup();
 }
 
-void Renderer::Initizlie(InitialData* pIntialData)
+void Renderer::Initizlie()
 {
-	m_pRenderObjects = pIntialData->pRenderObjects;
-	m_pLights = pIntialData->pLights;
-	m_pLightSpheres = pIntialData->pLightSpheres;
-
-	m_pMirror = pIntialData->pMirror;
-	m_pMirrorPlane = pIntialData->pMirrorPlane;
-
+	initMainWidndow();
+	initDirect3D();
+	initPhysics();
 	initScene();
-	initDescriptorHeap(pIntialData->pEnvTexture, pIntialData->pIrradianceTexture, pIntialData->pSpecularTexture, pIntialData->pBRDFTexture);
+	// initDescriptorHeap(pIntialData->pEnvTexture, pIntialData->pIrradianceTexture, pIntialData->pSpecularTexture, pIntialData->pBRDFTexture);
+	initRenderTarget();
+	initDepthStencil();
 
 	PostProcessor::PostProcessingBuffers config =
 	{
@@ -42,11 +40,7 @@ void Renderer::Initizlie(InitialData* pIntialData)
 		&m_GlobalConstantData,
 		m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
 	};
-	Renderer* pRenderer = this;
-	m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 2);
-
-	m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
-	m_ConstantBufferManager.Initialize(m_pDevice, 4096);
+	m_PostProcessor.Initizlie(this, config, m_ScreenWidth, m_ScreenHeight, 2);
 
 	m_ScreenViewport.TopLeftX = 0;
 	m_ScreenViewport.TopLeftY = 0;
@@ -168,6 +162,34 @@ void Renderer::Cleanup()
 
 #endif
 
+	if (m_pEnvTextureHandle)
+	{
+		m_pTextureManager->DeleteTexture(m_pEnvTextureHandle);
+		m_pEnvTextureHandle = nullptr;
+	}
+	if (m_pIrradianceTextureHandle)
+	{
+		m_pTextureManager->DeleteTexture(m_pIrradianceTextureHandle);
+		m_pIrradianceTextureHandle = nullptr;
+	}
+	if (m_pSpecularTextureHandle)
+	{
+		m_pTextureManager->DeleteTexture(m_pSpecularTextureHandle);
+		m_pSpecularTextureHandle = nullptr;
+	}
+	if (m_pBRDFTextureHandle)
+	{
+		m_pTextureManager->DeleteTexture(m_pBRDFTextureHandle);
+		m_pBRDFTextureHandle = nullptr;
+	}
+	m_pRenderObjects = nullptr;
+	m_pLights = nullptr;
+	m_pLightSpheres = nullptr;
+	m_pMirror = nullptr;
+	m_pPickedModel = nullptr;
+	m_pPickedEndEffector = nullptr;
+	m_pMirrorPlane = nullptr;
+
 	if (m_pResourceManager)
 	{
 		delete m_pResourceManager;
@@ -218,6 +240,11 @@ void Renderer::Cleanup()
 	m_PostProcessor.Cleanup();
 	m_DynamicDescriptorPool.Cleanup();
 	m_ConstantBufferManager.Cleanup();
+	if (m_pTextureManager)
+	{
+		delete m_pTextureManager;
+		m_pTextureManager = nullptr;
+	}
 	if(m_pRTVAllocator)
 	{
 		delete m_pRTVAllocator;
@@ -571,6 +598,23 @@ DynamicDescriptorPool* Renderer::GetDynamicDescriptorPool(UINT threadIndex)
 	return m_pppDescriptorPool[m_FrameIndex][threadIndex];
 }
 
+void Renderer::SetExternalDatas(InitialData* pInitialData)
+{
+	_ASSERT(pInitialData);
+
+	m_pRenderObjects = pInitialData->pRenderObjects;
+	m_pLights = pInitialData->pLights;
+	m_pLightSpheres = pInitialData->pLightSpheres;
+
+	m_pMirror = pInitialData->pMirror;
+	m_pMirrorPlane = pInitialData->pMirrorPlane;
+
+	m_pEnvTextureHandle = pInitialData->pEnvTextureHandle;
+	m_pIrradianceTextureHandle = pInitialData->pIrradianceTextureHandle;
+	m_pSpecularTextureHandle = pInitialData->pSpecularTextureHandle;
+	m_pBRDFTextureHandle = pInitialData->pBRDFTextureHandle;
+}
+
 void Renderer::initMainWidndow()
 {
 	WNDCLASSEX wc =
@@ -839,10 +883,25 @@ LB_EXIT:
 	ResourceManager::InitialData initData = { m_pDevice, m_pCommandQueue, m_ppCommandAllocator, m_ppCommandList, &m_DynamicDescriptorPool, &m_ConstantBufferManager, m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues };
 	m_pResourceManager = new ResourceManager;
 	m_pResourceManager->Initialize(&initData);
-	m_pResourceManager->InitRTVDescriptorHeap(16);
+	m_pResourceManager->InitRTVDescriptorHeap(8);
 	m_pResourceManager->InitDSVDescriptorHeap(8);
 	m_pResourceManager->InitCBVSRVUAVDescriptorHeap(1024);
+
+	m_pTextureManager = new TextureManager;
+	m_pTextureManager->Initialize(this, 1024 / 16, 1024);
+
+	m_pRTVAllocator = new DescriptorAllocator;
+	m_pRTVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+	m_pDSVAllocator = new DescriptorAllocator;
+	m_pDSVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
+	m_pSRVUAVAllocator = new DescriptorAllocator;
+	m_pSRVUAVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	
+	m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
+	m_ConstantBufferManager.Initialize(m_pDevice, 4096);
+
 #ifdef USE_MULTI_THREAD
 	// create thread and event
 	{
@@ -868,17 +927,15 @@ void Renderer::initScene()
 {
 	// m_Camera.Reset(Vector3(3.74966f, 5.03645f, -2.54918f), -0.819048f, 0.741502f);
 	m_Camera.Reset(Vector3(0.0f, 3.0f, -2.0f), -0.819048f, 0.741502f);
-
-	Renderer* pRenderer = this;
 	
 	m_pResourceManager->SetGlobalConstants(&m_GlobalConstantData, &m_LightConstantData, &m_ReflectionGlobalConstantData);
 
 	// 공용 global constant 설정.
-	m_GlobalConstantData.StrengthIBL = 0.3f;
-	for (int i = 0; i < MAX_LIGHTS; ++i)
+	// m_GlobalConstantData.StrengthIBL = 0.3f;
+	/*for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
 		memcpy(&m_LightConstantData.Lights[i], &(*m_pLights)[i].Property, sizeof(LightProperty));
-	}
+	}*/
 }
 
 void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture)
@@ -1438,10 +1495,9 @@ void Renderer::renderShadowmap()
 
 #else
 
-	Renderer* pRenderer = this;
 	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
-		(*m_pLights)[i].RenderShadowMap(pRenderer, m_pRenderObjects);
+		(*m_pLights)[i].RenderShadowMap(m_pRenderObjects);
 	}
 
 #endif
@@ -1496,7 +1552,6 @@ void Renderer::renderObject()
 
 #else
 
-	Renderer* pRenderer = this;
 	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_FrameIndex];
 
 	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
@@ -1533,20 +1588,20 @@ void Renderer::renderObject()
 		{
 			case RenderObjectType_DefaultType:
 				m_pResourceManager->SetCommonState(RenderPSOType_Default);
-				pCurModel->Render(pRenderer, RenderPSOType_Default);
+				pCurModel->Render(RenderPSOType_Default);
 				break;
 
 			case RenderObjectType_SkinnedType:
 			{
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
 				m_pResourceManager->SetCommonState(RenderPSOType_Skinned);
-				pCharacter->Render(pRenderer, RenderPSOType_Skinned);
+				pCharacter->Render(RenderPSOType_Skinned);
 			}
 			break;
 
 			case RenderObjectType_SkyboxType:
 				m_pResourceManager->SetCommonState(RenderPSOType_Skybox);
-				pCurModel->Render(pRenderer, RenderPSOType_Skybox);
+				pCurModel->Render(RenderPSOType_Skybox);
 				break;
 
 			default:
@@ -1611,12 +1666,10 @@ void Renderer::renderMirror()
 
 #else
 
-	Renderer* pRenderer = this;
-
 	// 0.5의 투명도를 가진다고 가정.
 	// 거울 위치만 StencilBuffer에 1로 표기.
 	m_pResourceManager->SetCommonState(RenderPSOType_StencilMask);
-	m_pMirror->Render(pRenderer, RenderPSOType_StencilMask);
+	m_pMirror->Render(RenderPSOType_StencilMask);
 
 	// 거울 위치에 반사된 물체들을 렌더링.
 	for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
@@ -1633,7 +1686,7 @@ void Renderer::renderMirror()
 			case RenderObjectType_DefaultType:
 			{
 				m_pResourceManager->SetCommonState(RenderPSOType_ReflectionDefault);
-				pCurModel->Render(pRenderer, RenderPSOType_ReflectionDefault);
+				pCurModel->Render(RenderPSOType_ReflectionDefault);
 			}
 			break;
 
@@ -1641,14 +1694,14 @@ void Renderer::renderMirror()
 			{
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
 				m_pResourceManager->SetCommonState(RenderPSOType_ReflectionSkinned);
-				pCharacter->Render(pRenderer, RenderPSOType_ReflectionSkinned);
+				pCharacter->Render(RenderPSOType_ReflectionSkinned);
 			}
 			break;
 
 			case RenderObjectType_SkyboxType:
 			{
 				m_pResourceManager->SetCommonState(RenderPSOType_ReflectionSkybox);
-				pCurModel->Render(pRenderer, RenderPSOType_ReflectionSkybox);
+				pCurModel->Render(RenderPSOType_ReflectionSkybox);
 			}
 			break;
 
@@ -1659,7 +1712,7 @@ void Renderer::renderMirror()
 
 	// 거울 렌더링.
 	m_pResourceManager->SetCommonState(RenderPSOType_MirrorBlend);
-	m_pMirror->Render(pRenderer, RenderPSOType_MirrorBlend);
+	m_pMirror->Render(RenderPSOType_MirrorBlend);
 
 #endif
 }
@@ -1749,14 +1802,14 @@ void Renderer::renderObjectBoundingModel()
 		switch (pCurModel->ModelType)
 		{
 			case RenderObjectType_DefaultType:
-				// pCurModel->RenderBoundingSphere(pRenderer, RenderPSOType_Wire);
+				// pCurModel->RenderBoundingSphere(RenderPSOType_Wire);
 				break;
 
 			case RenderObjectType_SkinnedType:
 			{
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
-				pCharacter->RenderBoundingCapsule(pRenderer, RenderPSOType_Wire);
-				pCharacter->RenderJointSphere(pRenderer, RenderPSOType_Wire);
+				pCharacter->RenderBoundingCapsule(RenderPSOType_Wire);
+				pCharacter->RenderJointSphere(RenderPSOType_Wire);
 			}
 			break;
 
@@ -1829,11 +1882,9 @@ void Renderer::postProcess()
 
 #else
 
-	Renderer* pRenderer = this;
-
 	const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
 	m_ppCommandList[m_FrameIndex]->ResourceBarrier(1, &BARRIER);
-	m_PostProcessor.Render(pRenderer, m_FrameIndex);
+	m_PostProcessor.Render(this, m_FrameIndex);
 
 #endif
 }
@@ -2055,13 +2106,11 @@ void Renderer::updateGlobalConstants(const float DELTA_TIME)
 
 void Renderer::updateLightConstants(const float DELTA_TIME)
 {
-	Renderer* pRenderer = this;
-
 	for (int i = 0; i < MAX_LIGHTS; ++i)
 	{
 		Light* pLight = &(*m_pLights)[i];
 
-		pLight->Update(pRenderer, DELTA_TIME, m_Camera);
+		pLight->Update(DELTA_TIME, m_Camera);
 		(*m_pLightSpheres)[i]->UpdateWorld(Matrix::CreateScale(Max(0.01f, pLight->Property.Radius)) * Matrix::CreateTranslation(pLight->Property.Position));
 		memcpy(&m_LightConstantData.Lights[i], &pLight->Property, sizeof(LightProperty));
 	}
@@ -2132,9 +2181,11 @@ void Renderer::processMouseControl(const float DELTA_TIME)
 			if (pSelectedModel)
 			{
 #ifdef _DEBUG
-				OutputDebugStringA("Newly selected model: ");
-				OutputDebugStringA(pSelectedModel->Name.c_str());
-				OutputDebugStringA("\n");
+				{
+					char szDebugString[256];
+					sprintf_s(szDebugString, 256, "Newly selected model: %s\n", pSelectedModel->Name.c_str());
+					OutputDebugStringA(szDebugString);
+				}
 #endif
 				s_pActiveModel = pSelectedModel;
 				s_pEndEffector = pEndEffector;

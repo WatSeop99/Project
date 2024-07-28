@@ -26,12 +26,15 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 {
 	_ASSERT(pRenderer);
 
+	m_pRenderer = pRenderer;
+
 	HRESULT hr = S_OK;
 	struct _stat64 sourceFileStat;
 
-	ResourceManager* pManager = pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
+	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
+	TextureManager* pTextureManager = pRenderer->GetTextureManager();
+	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
+	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
 
 	Meshes.reserve(MESH_INFOS.size());
 
@@ -59,7 +62,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(albedoTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.Albedo.Initialize(pRenderer, MESH_DATA.szAlbedoTextureFileName.c_str(), true);
+				// pNewMesh->Material.Albedo.Initialize(pRenderer, MESH_DATA.szAlbedoTextureFileName.c_str(), true);
+				pMeshMaterial->pAlbedo = pTextureManager->CreateTextureFromFile(MESH_DATA.szAlbedoTextureFileName.c_str(), true);
 				materialConstantData.bUseAlbedoMap = TRUE;
 			}
 			else
@@ -74,7 +78,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(emissiveTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.Emissive.Initialize(pRenderer, MESH_DATA.szEmissiveTextureFileName.c_str(), true);
+				// pNewMesh->Material.Emissive.Initialize(pRenderer, MESH_DATA.szEmissiveTextureFileName.c_str(), true);
+				pMeshMaterial->pEmissive = pTextureManager->CreateTextureFromFile(MESH_DATA.szEmissiveTextureFileName.c_str(), true);
 				materialConstantData.bUseEmissiveMap = TRUE;
 			}
 			else
@@ -89,7 +94,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(normalTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.Normal.Initialize(pRenderer, MESH_DATA.szNormalTextureFileName.c_str(), false);
+				// pNewMesh->Material.Normal.Initialize(pRenderer, MESH_DATA.szNormalTextureFileName.c_str(), false);
+				pMeshMaterial->pNormal = pTextureManager->CreateTextureFromFile(MESH_DATA.szNormalTextureFileName.c_str(), false);
 				materialConstantData.bUseNormalMap = TRUE;
 			}
 			else
@@ -104,7 +110,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(heightTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.Height.Initialize(pRenderer, MESH_DATA.szHeightTextureFileName.c_str(), false);
+				// pNewMesh->Material.Height.Initialize(pRenderer, MESH_DATA.szHeightTextureFileName.c_str(), false);
+				pMeshMaterial->pHeight = pTextureManager->CreateTextureFromFile(MESH_DATA.szHeightTextureFileName.c_str(), false);
 				meshConstantData.bUseHeightMap = TRUE;
 			}
 			else
@@ -119,7 +126,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(aoTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.AmbientOcclusion.Initialize(pRenderer, MESH_DATA.szAOTextureFileName.c_str(), false);
+				// pNewMesh->Material.AmbientOcclusion.Initialize(pRenderer, MESH_DATA.szAOTextureFileName.c_str(), false);
+				pMeshMaterial->pAmbientOcclusion = pTextureManager->CreateTextureFromFile(MESH_DATA.szAOTextureFileName.c_str(), false);
 				materialConstantData.bUseAOMap = TRUE;
 			}
 			else
@@ -134,7 +142,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(metallicTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.Metallic.Initialize(pRenderer, MESH_DATA.szMetallicTextureFileName.c_str(), false);
+				// pNewMesh->Material.Metallic.Initialize(pRenderer, MESH_DATA.szMetallicTextureFileName.c_str(), false);
+				pMeshMaterial->pMetallic = pTextureManager->CreateTextureFromFile(MESH_DATA.szMetallicTextureFileName.c_str(), false);
 				materialConstantData.bUseMetallicMap = TRUE;
 			}
 			else
@@ -149,7 +158,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(roughnessTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				pNewMesh->Material.Roughness.Initialize(pRenderer, MESH_DATA.szRoughnessTextureFileName.c_str(), false);
+				// pNewMesh->Material.Roughness.Initialize(pRenderer, MESH_DATA.szRoughnessTextureFileName.c_str(), false);
+				pMeshMaterial->pRoughness = pTextureManager->CreateTextureFromFile(MESH_DATA.szRoughnessTextureFileName.c_str(), false);
 				materialConstantData.bUseRoughnessMap = TRUE;
 			}
 			else
@@ -162,8 +172,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 		Meshes.push_back(pNewMesh);
 	}
 
-	initBoundingBox(pRenderer, MESH_INFOS);
-	initBoundingSphere(pRenderer, MESH_INFOS);
+	initBoundingBox(MESH_INFOS);
+	initBoundingSphere(MESH_INFOS);
 }
 
 void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh* pNewMesh)
@@ -225,12 +235,12 @@ void Model::UpdateWorld(const Matrix& WORLD)
 	}
 }
 
-void Model::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
+void Model::Render(eRenderPSOType psoSetting)
 {
-	_ASSERT(pRenderer);
+	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pManager = m_pRenderer->GetResourceManager();
 
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
@@ -411,12 +421,12 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 	}
 }
 
-void Model::RenderBoundingBox(Renderer* pRenderer, eRenderPSOType psoSetting)
+void Model::RenderBoundingBox(eRenderPSOType psoSetting)
 {
-	_ASSERT(pRenderer);
+	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pManager = m_pRenderer->GetResourceManager();
 
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
@@ -464,12 +474,12 @@ void Model::RenderBoundingBox(Renderer* pRenderer, eRenderPSOType psoSetting)
 	pCommandList->DrawIndexedInstanced(m_pBoundingBoxMesh->Index.Count, 1, 0, 0, 0);
 }
 
-void Model::RenderBoundingSphere(Renderer* pRenderer, eRenderPSOType psoSetting)
+void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 {
-	_ASSERT(pRenderer);
+	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pManager = m_pRenderer->GetResourceManager();
 
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
@@ -530,12 +540,47 @@ void Model::Cleanup()
 		m_pBoundingBoxMesh = nullptr;
 	}
 
+	TextureManager* pTextureManager = m_pRenderer->GetTextureManager();
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
 	{
-		delete Meshes[i];
-		Meshes[i] = nullptr;
+		Mesh** pMesh = &Meshes[i];
+		Material* pMaterial = &(*pMesh)->Material;
+		
+		if (pMaterial->pAlbedo)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pAlbedo);
+		}
+		if (pMaterial->pEmissive)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pEmissive);
+		}
+		if (pMaterial->pNormal)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pNormal);
+		}
+		if (pMaterial->pHeight)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pHeight);
+		}
+		if (pMaterial->pAmbientOcclusion)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pAmbientOcclusion);
+		}
+		if (pMaterial->pMetallic)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pMetallic);
+		}
+		if (pMaterial->pRoughness)
+		{
+			pTextureManager->DeleteTexture(pMaterial->pRoughness);
+		}
+
+		delete (*pMesh);
+		*pMesh = nullptr;
 	}
 	Meshes.clear();
+
+	m_pRenderer = nullptr;
 }
 
 void Model::SetDescriptorHeap(Renderer* pRenderer)
@@ -603,7 +648,7 @@ void Model::SetDescriptorHeap(Renderer* pRenderer)
 	}
 }
 
-void Model::initBoundingBox(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS)
+void Model::initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS)
 {
 	BoundingBox = getBoundingBox(MESH_INFOS[0].Vertices);
 	for (UINT64 i = 1, size = MESH_INFOS.size(); i < size; ++i)
@@ -620,10 +665,10 @@ void Model::initBoundingBox(Renderer* pRenderer, const std::vector<MeshInfo>& ME
 	MaterialConstant& materialConstantData = m_pBoundingBoxMesh->MaterialConstantData;
 	meshConstantData.World = Matrix();
 
-	InitMeshBuffers(pRenderer, meshData, m_pBoundingBoxMesh);
+	InitMeshBuffers(m_pRenderer, meshData, m_pBoundingBoxMesh);
 }
 
-void Model::initBoundingSphere(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS)
+void Model::initBoundingSphere(const std::vector<MeshInfo>& MESH_INFOS)
 {
 	float maxRadius = 0.0f;
 	for (UINT64 i = 0, size = MESH_INFOS.size(); i < size; ++i)
@@ -647,7 +692,7 @@ void Model::initBoundingSphere(Renderer* pRenderer, const std::vector<MeshInfo>&
 	MaterialConstant& materialConstantData = m_pBoundingSphereMesh->MaterialConstantData;
 	meshConstantData.World = Matrix();
 
-	InitMeshBuffers(pRenderer, meshData, m_pBoundingSphereMesh);
+	InitMeshBuffers(m_pRenderer, meshData, m_pBoundingSphereMesh);
 }
 
 DirectX::BoundingBox Model::getBoundingBox(const std::vector<Vertex>& VERTICES)

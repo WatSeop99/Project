@@ -8,6 +8,8 @@
 
 using DirectX::SimpleMath::Matrix;
 
+class Renderer;
+
 class Model
 {
 public:
@@ -23,18 +25,18 @@ public:
 
 	void UpdateWorld(const Matrix& WORLD);
 	
-	virtual void Render(Renderer* pRenderer, eRenderPSOType psoSetting);
+	virtual void Render(eRenderPSOType psoSetting);
 	virtual void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting);
-	void RenderBoundingBox(Renderer* pRenderer, eRenderPSOType psoSetting);
-	void RenderBoundingSphere(Renderer* pRenderer, eRenderPSOType psoSetting);
+	void RenderBoundingBox(eRenderPSOType psoSetting);
+	void RenderBoundingSphere(eRenderPSOType psoSetting);
 
 	virtual void Cleanup();
 
 	virtual void SetDescriptorHeap(Renderer* pRenderer);
 
 protected:
-	void initBoundingBox(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS);
-	void initBoundingSphere(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS);
+	void initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS);
+	void initBoundingSphere(const std::vector<MeshInfo>& MESH_INFOS);
 
 	DirectX::BoundingBox getBoundingBox(const std::vector<Vertex>& VERTICES);
 	void extendBoundingBox(const DirectX::BoundingBox& SRC_BOX, DirectX::BoundingBox* pDestBox);
@@ -57,6 +59,8 @@ public:
 	bool bIsPickable = false;
 
 protected:
+	Renderer* m_pRenderer = nullptr;
+
 	Mesh* m_pBoundingBoxMesh = nullptr;
 	Mesh* m_pBoundingSphereMesh = nullptr;
 };

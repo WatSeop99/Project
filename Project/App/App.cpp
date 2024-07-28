@@ -4,22 +4,23 @@
 
 void App::Initialize()
 {
-	UINT64 totalRenderObjectCount = 0;
+	Renderer::Initizlie();
 
-	initMainWidndow();
-	initDirect3D();
-	initPhysics();
+	UINT64 totalRenderObjectCount = 0;
 	initExternalData(&totalRenderObjectCount);
 
-	Renderer::InitialData initData =
+	/*Renderer::InitialData initData =
 	{
 		&m_RenderObjects,
 		&m_Lights,
 		&m_LightSpheres,
 		&m_EnvTexture, &m_IrradianceTexture, &m_SpecularTexture, &m_BRDFTexture,
 		m_pMirror, &m_MirrorPlane,
-	};
-	Renderer::Initizlie(&initData);
+	};*/
+	m_pRenderObjects = &m_RenderObjects;
+	m_pLights = &m_Lights;
+	m_pLightSpheres = &m_LightSpheres;
+	m_pMirrorPlane = &m_MirrorPlane;
 }
 
 int App::Run()
@@ -129,19 +130,22 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 {
 	_ASSERT(pTotalRenderObjectCount);
 
-	Renderer* pRenderer = this;
 	physx::PxPhysics* pPhysics = m_PhysicsManager.GetPhysics();
 
 	m_Lights.resize(MAX_LIGHTS);
 	m_LightSpheres.resize(MAX_LIGHTS);
 
 	// 환경맵 텍스쳐 로드.
-	m_EnvTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_IrradianceTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_SpecularTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_BRDFTexture.InitializeWithDDS(pRenderer, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	/*m_EnvTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_IrradianceTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_SpecularTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_BRDFTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");*/
 
-
+	TextureManager* pTextureManager = GetTextureManager();
+	m_pEnvTextureHandle = pTextureManager->CreateTextureCubeFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_pIrradianceTextureHandle = pTextureManager->CreateTextureCubeFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_pSpecularTextureHandle = pTextureManager->CreateTextureCubeFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
+	m_pBRDFTextureHandle = pTextureManager->CreateTextureFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds", true);
 
 	// 환경 박스 초기화.
 	{
@@ -149,7 +153,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		MakeBox(&skyboxMeshInfo, 40.0f);
 
 		std::reverse(skyboxMeshInfo.Indices.begin(), skyboxMeshInfo.Indices.end());
-		Model* pSkybox = new Model(pRenderer, { skyboxMeshInfo });
+		Model* pSkybox = new Model(this, { skyboxMeshInfo });
 		pSkybox->Name = "SkyBox";
 		pSkybox->ModelType = RenderObjectType_SkyboxType;
 		m_RenderObjects.push_back(pSkybox);
@@ -166,7 +170,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		light0.Property.SpotPower = 3.0f;
 		light0.Property.LightType = LIGHT_POINT | LIGHT_SHADOW;
 		light0.Property.Radius = 0.04f;
-		light0.Initialize(pRenderer);
+		light0.Initialize(this);
 
 		// 조명 1.
 		Light& light1 = m_Lights[1];
@@ -178,7 +182,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		light1.Property.Direction.Normalize();
 		light1.Property.LightType = LIGHT_SPOT | LIGHT_SHADOW;
 		light1.Property.Radius = 0.02f;
-		light1.Initialize(pRenderer);
+		light1.Initialize(this);
 
 		// 조명 2.
 		Light& light2 = m_Lights[2];
@@ -188,7 +192,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		light2.Property.Direction.Normalize();
 		light2.Property.LightType = LIGHT_DIRECTIONAL | LIGHT_SHADOW;
 		light2.Property.Radius = 0.05f;
-		light2.Initialize(pRenderer);
+		light2.Initialize(this);
 	}
 
 	// 조명 위치 표시.
@@ -197,7 +201,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		MeshInfo sphere = INIT_MESH_INFO;
 		MakeSphere(&sphere, 1.0f, 20, 20);
 
-		m_LightSpheres[i] = new Model(pRenderer, { sphere });
+		m_LightSpheres[i] = new Model(this, { sphere });
 		m_LightSpheres[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
 
 		MaterialConstant& sphereMaterialConstantData = m_LightSpheres[i]->Meshes[0]->MaterialConstantData;
@@ -219,6 +223,13 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		m_RenderObjects.push_back(m_LightSpheres[i]);
 	}
 
+	// 공용 global constant 설정.
+	m_GlobalConstantData.StrengthIBL = 0.3f;
+	for (int i = 0; i < MAX_LIGHTS; ++i)
+	{
+		memcpy(&m_LightConstantData.Lights[i], &m_Lights[i].Property, sizeof(LightProperty));
+	}
+
 	// 바닥(거울).
 	{
 		Model* pGround = nullptr;
@@ -233,7 +244,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
 		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
 
-		pGround = new Model(pRenderer, { mesh });
+		pGround = new Model(this, { mesh });
 
 		MaterialConstant& groundMaterialConstantData = pGround->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
@@ -292,11 +303,11 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 
 		if (animationData.Clips.size() > 1)
 		{
-			m_pCharacter = new SkinnedMeshModel(pRenderer, characterMeshInfo, animationData);
+			m_pCharacter = new SkinnedMeshModel(this, characterMeshInfo, animationData);
 		}
 		else
 		{
-			m_pCharacter = new SkinnedMeshModel(pRenderer, characterMeshInfo, characterDefaultAnimData);
+			m_pCharacter = new SkinnedMeshModel(this, characterMeshInfo, characterDefaultAnimData);
 		}
 
 		// Vector3 center(0.0f, 0.5f, 2.0f);
@@ -352,7 +363,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
 		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
 
-		pSlope = new Model(pRenderer, { mesh });
+		pSlope = new Model(this, { mesh });
 
 		MaterialConstant& groundMaterialConstantData = pSlope->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
@@ -525,13 +536,4 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel
 	// 받아온 위치 기반 캐릭터 위치 갱신.
 	pCharacter->CharacterAnimationData.Position = nextPosVec;
 	pCharacter->CharacterAnimationData.Position.y += 0.4f;
-
-	{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "character pos: %f, %f, %f\n", pCharacter->CharacterAnimationData.Position.x, pCharacter->CharacterAnimationData.Position.y, pCharacter->CharacterAnimationData.Position.z);
-		OutputDebugStringA(szDebugString);
-
-		sprintf_s(szDebugString, 256, "direction: %f, %f, %f\n", pCharacter->CharacterAnimationData.Direction.x, pCharacter->CharacterAnimationData.Direction.y, pCharacter->CharacterAnimationData.Direction.z);
-		OutputDebugStringA(szDebugString);
-	}
 }

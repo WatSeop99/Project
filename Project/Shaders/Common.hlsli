@@ -97,11 +97,11 @@ cbuffer MaterialConstants : register(b3)
 };
 
 #ifdef SKINNED
-StructuredBuffer<float4x4> g_BoneTransforms : register(t7);
+StructuredBuffer<matrix> g_BoneTransforms : register(t7);
 
 //cbuffer SkinnedConstants : register(b3)
 //{
-//    float4x4 g_BoneTransforms[52]; // 관절 개수에 따라 조절
+//    matrix g_BoneTransforms[52]; // 관절 개수에 따라 조절
 //};
 #endif
 

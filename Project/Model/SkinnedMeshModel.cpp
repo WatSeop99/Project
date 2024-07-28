@@ -12,10 +12,14 @@ SkinnedMeshModel::SkinnedMeshModel(Renderer* pRenderer, const std::vector<MeshIn
 
 void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS, const AnimationData& ANIM_DATA)
 {
+	_ASSERT(pRenderer);
+
+	m_pRenderer = pRenderer;
+
 	Model::Initialize(pRenderer, MESH_INFOS);
 	InitAnimationData(pRenderer, ANIM_DATA);
-	initBoundingCapsule(pRenderer);
-	initJointSpheres(pRenderer);
+	initBoundingCapsule();
+	initJointSpheres();
 	initChain();
 
 	CharacterAnimationData.Position = World.Translation();
@@ -186,9 +190,9 @@ void SkinnedMeshModel::UpdateCharacterIK(Vector3& target, int chainPart, int cli
 	}
 }
 
-void SkinnedMeshModel::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
+void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 {
-	_ASSERT(pRenderer);
+	_ASSERT(m_pRenderer);
 
 	if (!bIsVisible)
 	{
@@ -196,14 +200,14 @@ void SkinnedMeshModel::Render(Renderer* pRenderer, eRenderPSOType psoSetting)
 	}
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
-	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
+	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
+	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable;
@@ -393,20 +397,20 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 	}
 }
 
-void SkinnedMeshModel::RenderBoundingCapsule(Renderer* pRenderer, eRenderPSOType psoSetting)
+void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 {
-	_ASSERT(pRenderer);
+	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
-	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
-	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
+	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12DescriptorHeap* pCBVSRVHeap = pResourceManager->m_pCBVSRVUAVHeap;
+	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
+	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -447,12 +451,12 @@ void SkinnedMeshModel::RenderBoundingCapsule(Renderer* pRenderer, eRenderPSOType
 	pCommandList->DrawIndexedInstanced(m_pBoundingCapsuleMesh->Index.Count, 1, 0, 0, 0);
 }
 
-void SkinnedMeshModel::RenderJointSphere(Renderer* pRenderer, eRenderPSOType psoSetting)
+void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 {
-	_ASSERT(pRenderer);
+	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pManager = m_pRenderer->GetResourceManager();
 
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
@@ -722,7 +726,7 @@ void SkinnedMeshModel::SetDescriptorHeap(Renderer* pRenderer)
 	}
 }
 
-void SkinnedMeshModel::initBoundingCapsule(Renderer* pRenderer)
+void SkinnedMeshModel::initBoundingCapsule()
 {
 	MeshInfo meshData = INIT_MESH_INFO;
 	MakeWireCapsule(&meshData, BoundingSphere.Center, 0.2f, BoundingSphere.Radius * 1.3f);
@@ -732,10 +736,10 @@ void SkinnedMeshModel::initBoundingCapsule(Renderer* pRenderer)
 	MaterialConstant& materialConstantData = m_pBoundingCapsuleMesh->MaterialConstantData;
 	meshConstantData.World = Matrix();
 
-	Model::InitMeshBuffers(pRenderer, meshData, m_pBoundingCapsuleMesh);
+	Model::InitMeshBuffers(m_pRenderer, meshData, m_pBoundingCapsuleMesh);
 }
 
-void SkinnedMeshModel::initJointSpheres(Renderer* pRenderer)
+void SkinnedMeshModel::initJointSpheres()
 {
 	MeshInfo meshData;
 	MeshConstant* pMeshConst = nullptr;
@@ -761,10 +765,10 @@ void SkinnedMeshModel::initJointSpheres(Renderer* pRenderer)
 		*ppRightLegPart = new Mesh;
 		*ppLeftLegPart = new Mesh;
 		
-		InitMeshBuffers(pRenderer, meshData, ppRightArmPart);
-		InitMeshBuffers(pRenderer, meshData, ppLeftArmPart);
-		InitMeshBuffers(pRenderer, meshData, ppRightLegPart);
-		InitMeshBuffers(pRenderer, meshData, ppLeftLegPart);
+		InitMeshBuffers(m_pRenderer, meshData, ppRightArmPart);
+		InitMeshBuffers(m_pRenderer, meshData, ppLeftArmPart);
+		InitMeshBuffers(m_pRenderer, meshData, ppRightLegPart);
+		InitMeshBuffers(m_pRenderer, meshData, ppLeftLegPart);
 	}
 }
 

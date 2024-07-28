@@ -1,5 +1,6 @@
 #include "../pch.h"
 #include "../Graphics/GraphicsUtil.h"
+#include "../Util/Utility.h"
 #include "ResourceManager.h"
 
 void ResourceManager::Initialize(InitialData* pInitialData)
@@ -255,20 +256,320 @@ HRESULT ResourceManager::CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D
 	return hr;
 }
 
-HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* originalState)
+HRESULT ResourceManager::CreateTextureFromFile(ID3D12Resource** ppOutResource, D3D12_RESOURCE_DESC* pOutDesc, const WCHAR* pszFileName, bool bUseSRGB)
+{
+	_ASSERT(m_pDevice);
+
+	HRESULT hr = S_OK;
+	std::vector<UCHAR> image;
+	DXGI_FORMAT pixelFormat = (bUseSRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM);
+
+	int width = 0;
+	int height = 0;
+
+	if (GetFileExtension(pszFileName).compare(L"exr") == 0)
+	{
+		hr = ReadEXRImage(pszFileName, image, &width, &height, &pixelFormat);
+	}
+	else
+	{
+		hr = ReadImage(pszFileName, image, &width, &height);
+	}
+	BREAK_IF_FAILED(hr);
+
+
+	ID3D12Resource* pResource = nullptr;
+	D3D12_RESOURCE_DESC textureDesc;
+	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	textureDesc.Alignment = 0;
+	textureDesc.Width = width;
+	textureDesc.Height = height;
+	textureDesc.DepthOrArraySize = 1;
+	textureDesc.MipLevels = 1;
+	textureDesc.Format = pixelFormat;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+	D3D12_RESOURCE_STATES curState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+	hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&textureDesc,
+											curState,
+											nullptr,
+											IID_PPV_ARGS(&pResource));
+	BREAK_IF_FAILED(hr);
+	pResource->SetName(L"TextureResource");
+
+
+	ID3D12Resource* pUploadResource = nullptr;
+	BYTE* pMappedPtr = nullptr;
+	UINT64 pixelSize = GetPixelSize(textureDesc.Format);
+	UINT num2DSubresources = textureDesc.DepthOrArraySize * textureDesc.MipLevels;
+	UINT64 uploadBufferSize = GetRequiredIntermediateSize(pResource, 0, num2DSubresources);
+
+	D3D12_RESOURCE_DESC desc = pResource->GetDesc();
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footPrint;
+	UINT rows = 0;
+	UINT64 rowSize = 0;
+	UINT64 totalBytes = 0;
+	CD3DX12_RESOURCE_DESC uploadResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+	m_pDevice->GetCopyableFootprints(&desc, 0, 1, 0, &footPrint, &rows, &rowSize, &totalBytes);
+	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+	hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&uploadResourceDesc,
+											D3D12_RESOURCE_STATE_GENERIC_READ,
+											nullptr,
+											IID_PPV_ARGS(&pUploadResource));
+	BREAK_IF_FAILED(hr);
+	pUploadResource->SetName(L"TextureUploader");
+
+	CD3DX12_RANGE writeRange(0, 0);
+	hr = pUploadResource->Map(0, &writeRange, (void**)(&pMappedPtr));
+	BREAK_IF_FAILED(hr);
+
+	const BYTE* pSrc = image.data();
+	BYTE* pDest = pMappedPtr;
+	for (UINT i = 0; i < width; ++i)
+	{
+		memcpy(pDest, pSrc, width * pixelSize);
+		pSrc += (width * pixelSize);
+		pDest += footPrint.Footprint.RowPitch;
+	}
+
+	pUploadResource->Unmap(0, nullptr);
+	UpdateTexture(pResource, pUploadResource, &curState);
+
+	SAFE_RELEASE(pUploadResource);
+
+	*ppOutResource = pResource;
+	*pOutDesc = textureDesc;
+
+	return hr;
+}
+
+HRESULT ResourceManager::CreateTextureCubeFromFile(ID3D12Resource** ppOutResource, D3D12_RESOURCE_DESC* pOutDesc, const WCHAR* pszFileName)
+{
+	HRESULT hr = S_OK;
+
+	hr = ReadDDSImage(m_pDevice, m_pCommandQueue, pszFileName, ppOutResource);
+	BREAK_IF_FAILED(hr);
+	(*ppOutResource)->SetName(L"TextureResource");
+
+	*pOutDesc = (*ppOutResource)->GetDesc();
+
+	return hr;
+}
+
+HRESULT ResourceManager::CreateTexturePair(ID3D12Resource** ppOutResource, ID3D12Resource** ppOutUploadBuffer, UINT width, UINT height, DXGI_FORMAT format)
+{
+	_ASSERT(m_pDevice);
+
+	HRESULT hr = S_OK;
+
+	ID3D12Resource* pTextureResource = nullptr;
+	ID3D12Resource* pUploadBuffer = nullptr;
+
+	D3D12_RESOURCE_DESC textureDesc;
+	textureDesc.MipLevels = 1;
+	textureDesc.Format = format;	// ex) DXGI_FORMAT_R8G8B8A8_UNORM, etc...
+	textureDesc.Width = width;
+	textureDesc.Height = height;
+	textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	textureDesc.DepthOrArraySize = 1;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+	hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&textureDesc,
+											D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+											nullptr,
+											IID_PPV_ARGS(&pTextureResource));
+	BREAK_IF_FAILED(hr);
+	pTextureResource->SetName(L"TextureResource");
+
+
+	UINT64 uploadBufferSize = GetRequiredIntermediateSize(pTextureResource, 0, 1);
+	CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC uploadHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+	hr = m_pDevice->CreateCommittedResource(&uploadHeapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&uploadHeapDesc,
+											D3D12_RESOURCE_STATE_GENERIC_READ,
+											nullptr,
+											IID_PPV_ARGS(&pUploadBuffer));
+	BREAK_IF_FAILED(hr);
+	pUploadBuffer->SetName(L"TextureUploader");
+
+	*ppOutResource = pTextureResource;
+	*ppOutUploadBuffer = pUploadBuffer;
+
+	return hr;
+}
+
+HRESULT ResourceManager::CreateTexture(ID3D12Resource** ppOutResource, UINT width, UINT height, DXGI_FORMAT format, const BYTE* pInitImage)
+{
+	_ASSERT(m_pDevice);
+
+	HRESULT hr = S_OK;
+
+	ID3D12Resource* pTextureResource = nullptr;
+	ID3D12Resource* pUploadBuffer = nullptr;
+
+	D3D12_RESOURCE_DESC textureDesc;
+	textureDesc.MipLevels = 1;
+	textureDesc.Format = format;	// ex) DXGI_FORMAT_R8G8B8A8_UNORM, etc...
+	textureDesc.Width = width;
+	textureDesc.Height = height;
+	textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	textureDesc.DepthOrArraySize = 1;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+	hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&textureDesc,
+											D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+											nullptr,
+											IID_PPV_ARGS(&pTextureResource));
+	BREAK_IF_FAILED(hr);
+	pTextureResource->SetName(L"TextureResource");
+
+	if (pInitImage)
+	{
+		D3D12_RESOURCE_DESC desc = pTextureResource->GetDesc();
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+		UINT rows = 0;
+		UINT64 rowSize = 0;
+		UINT64 totalBytes = 0;
+
+		m_pDevice->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, &rows, &rowSize, &totalBytes);
+
+		BYTE* pMappedPtr = nullptr;
+		CD3DX12_RANGE writeRange(0, 0);
+
+		UINT64 uploadBufferSize = GetRequiredIntermediateSize(pTextureResource, 0, 1);
+		CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+		CD3DX12_RESOURCE_DESC uploadResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+		hr = m_pDevice->CreateCommittedResource(&heapProps,
+												D3D12_HEAP_FLAG_NONE,
+												&uploadResourceDesc,
+												D3D12_RESOURCE_STATE_GENERIC_READ,
+												nullptr,
+												IID_PPV_ARGS(&pUploadBuffer));
+		BREAK_IF_FAILED(hr);
+		pUploadBuffer->SetName(L"TextureUploader");
+
+		hr = pUploadBuffer->Map(0, &writeRange, reinterpret_cast<void**>(&pMappedPtr));
+		BREAK_IF_FAILED(hr);
+
+		const BYTE* pSrc = pInitImage;
+		BYTE* pDest = pMappedPtr;
+		for (UINT y = 0; y < height; ++y)
+		{
+			memcpy(pDest, pSrc, width * 4);
+			pSrc += (width * 4);
+			pDest += footprint.Footprint.RowPitch;
+		}
+		// Unmap
+		pUploadBuffer->Unmap(0, nullptr);
+
+		// D3D12_RESOURCE_STATES curState = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
+		D3D12_RESOURCE_STATES curState = D3D12_RESOURCE_STATE_GENERIC_READ;
+		UpdateTexture(pTextureResource, pUploadBuffer, &curState);
+
+		SAFE_RELEASE(pUploadBuffer);
+	}
+	*ppOutResource = pTextureResource;
+
+	return hr;
+}
+
+HRESULT ResourceManager::CreateNonImageUploadTexture(ID3D12Resource** ppOutResource, ID3D12Resource** ppOutUploadBuffer, UINT numElement, UINT elementSize)
+{
+	_ASSERT(m_pDevice);
+	_ASSERT(numElement > 0);
+	_ASSERT(elementSize > 0);
+
+	HRESULT hr = S_OK;
+
+	ID3D12Resource* pTextureResource = nullptr;
+	ID3D12Resource* pUploadBuffer = nullptr;
+
+	D3D12_RESOURCE_DESC resourceDesc;
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resourceDesc.Alignment = 0;
+	resourceDesc.Width = numElement * elementSize;
+	resourceDesc.Height = 1;
+	resourceDesc.DepthOrArraySize = 1;
+	resourceDesc.MipLevels = 1;
+	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resourceDesc.SampleDesc.Count = 1;
+	resourceDesc.SampleDesc.Quality = 0;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+	hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&resourceDesc,
+											D3D12_RESOURCE_STATE_GENERIC_READ,
+											nullptr,
+											IID_PPV_ARGS(&pTextureResource));
+	BREAK_IF_FAILED(hr);
+	pTextureResource->SetName(L"NonImageTextureResource");
+
+
+	UINT64 uploadBufferSize = GetRequiredIntermediateSize(pTextureResource, 0, 1);
+
+	CD3DX12_RESOURCE_DESC uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+	CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+
+	hr = m_pDevice->CreateCommittedResource(&uploadHeapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&uploadBufferDesc,
+											D3D12_RESOURCE_STATE_GENERIC_READ,
+											nullptr,
+											IID_PPV_ARGS(&pUploadBuffer));
+	BREAK_IF_FAILED(hr);
+	pUploadBuffer->SetName(L"nonImageTextureUploader");
+
+	*ppOutResource = pTextureResource;
+	*ppOutUploadBuffer = pUploadBuffer;
+
+	return hr;
+}
+
+HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* pOriginalState)
 {
 	_ASSERT(m_pDevice);
 	_ASSERT(m_ppSingleCommandAllocator);
 	_ASSERT(m_ppSingleCommandList);
 
+	HRESULT hr = S_OK;
+
 	ID3D12CommandAllocator* pCommandAllocator = m_ppSingleCommandAllocator[*m_pFrameIndex];
 	ID3D12GraphicsCommandList* pCommandList = m_ppSingleCommandList[*m_pFrameIndex];
-	const DWORD MAX_SUB_RESOURCE_NUM = 32;
+	const UINT MAX_SUB_RESOURCE_NUM = 32;
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint[MAX_SUB_RESOURCE_NUM] = {};
-	UINT	rows[MAX_SUB_RESOURCE_NUM] = {};
-	UINT64	rowSize[MAX_SUB_RESOURCE_NUM] = {};
-	UINT64	totalBytes = 0;
-	HRESULT hr = S_OK;
+	UINT rows[MAX_SUB_RESOURCE_NUM] = {};
+	UINT64 rowSize[MAX_SUB_RESOURCE_NUM] = {};
+	UINT64 totalBytes = 0;
 
 	D3D12_RESOURCE_DESC Desc = pDestResource->GetDesc();
 	if (Desc.MipLevels > (UINT)_countof(footprint))
@@ -284,19 +585,19 @@ HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Reso
 	hr = pCommandList->Reset(pCommandAllocator, nullptr);
 	BREAK_IF_FAILED(hr);
 
-	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pDestResource, *originalState, D3D12_RESOURCE_STATE_COPY_DEST);
-	const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pDestResource, D3D12_RESOURCE_STATE_COPY_DEST, *originalState);
+	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pDestResource, *pOriginalState, D3D12_RESOURCE_STATE_COPY_DEST);
+	const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pDestResource, D3D12_RESOURCE_STATE_COPY_DEST, *pOriginalState);
 	
 	pCommandList->ResourceBarrier(1, &BEFORE_BARRIER);
-	for (DWORD i = 0; i < Desc.MipLevels; i++)
+	for (UINT i = 0; i < Desc.MipLevels; ++i)
 	{
-		D3D12_TEXTURE_COPY_LOCATION	destLocation = {};
+		D3D12_TEXTURE_COPY_LOCATION	destLocation;
 		destLocation.PlacedFootprint = footprint[i];
 		destLocation.pResource = pDestResource;
 		destLocation.SubresourceIndex = i;
 		destLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
-		D3D12_TEXTURE_COPY_LOCATION	srcLocation = {};
+		D3D12_TEXTURE_COPY_LOCATION	srcLocation;
 		srcLocation.PlacedFootprint = footprint[i];
 		srcLocation.pResource = pSrcResource;
 		srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;

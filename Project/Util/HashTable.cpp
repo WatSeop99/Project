@@ -139,7 +139,7 @@ UINT HashTable::createKey(const void* pData, UINT size, UINT bucketNum)
 	const char* pEntry = (char*)pData;
 	if (size & 0x00000001)
 	{
-		keyData += (DWORD)(*(BYTE*)pEntry);
+		keyData += (UINT)(*(BYTE*)pEntry);
 		++pEntry;
 		--size;
 	}
