@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Graphics/Camera.h"
+#include "CommandListPool.h"
 #include "ConstantDataType.h"
 #include "ConstantBufferManager.h"
 #include "DescriptorAllocator.h"
@@ -22,11 +23,6 @@ public:
 		std::vector<Model*>* pRenderObjects;
 		std::vector<Light>* pLights;
 		std::vector<Model*>* pLightSpheres;
-
-		Texture* pEnvTexture;
-		Texture* pIrradianceTexture;
-		Texture* pSpecularTexture;
-		Texture* pBRDFTexture;
 
 		TextureHandle* pEnvTextureHandle;
 		TextureHandle* pIrradianceTextureHandle;
@@ -70,11 +66,14 @@ protected:
 	void initDirect3D();
 	void initPhysics();
 	void initScene();
-	void initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture);
 	void initRenderThreadPool(UINT renderThreadCount);
-	void initRenderTarget();
-	void initDepthStencil();
-	void initShaderResources(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture);
+	void initRenderTargets();
+	void initDepthStencils();
+	void initShaderResources();
+
+	void cleanRenderTargets();
+	void cleanDepthStencils();
+	void cleanShaderResources();
 
 	void beginRender();
 	void renderShadowmap();
@@ -174,6 +173,7 @@ private:
 	ID3D12Resource* m_pDefaultDepthStencil = nullptr;
 	UINT m_MainRenderTargetOffset = 0xffffffff;
 	UINT m_FloatBufferRTVOffset = 0xffffffff;
+	UINT m_DefaultDepthStencilOffset = 0xffffffff;
 	UINT m_FloatBufferSRVOffset = 0xffffffff;
 	UINT m_PrevBufferSRVOffset = 0xffffffff;
 	UINT m_FrameIndex = 0;

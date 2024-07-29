@@ -28,9 +28,27 @@ void Renderer::Initizlie()
 	initDirect3D();
 	initPhysics();
 	initScene();
-	// initDescriptorHeap(pIntialData->pEnvTexture, pIntialData->pIrradianceTexture, pIntialData->pSpecularTexture, pIntialData->pBRDFTexture);
-	initRenderTarget();
-	initDepthStencil();
+	initRenderTargets();
+	initDepthStencils();
+	initShaderResources();
+
+	D3D12_CPU_DESCRIPTOR_HANDLE nullSrv;
+	if (m_pSRVUAVAllocator->AllocDescriptorHandle(&nullSrv) == -1)
+	{
+		__debugbreak();
+	}
+	
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.PlaneSlice = 0;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+	m_pResourceManager->m_NullSRVDescriptor = nullSrv;
+
 
 	PostProcessor::PostProcessingBuffers config =
 	{
@@ -102,8 +120,8 @@ void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int 
 		case RenderPass_Collider:
 		{
 			ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
-			CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(pManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
-			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+			CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pDSVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart());
 
 			pCommandList->RSSetViewports(1, &m_ScreenViewport);
 			pCommandList->RSSetScissorRects(1, &m_ScissorRect);
@@ -162,26 +180,36 @@ void Renderer::Cleanup()
 
 #endif
 
-	if (m_pEnvTextureHandle)
+	m_PostProcessor.Cleanup();
+
+	if (m_pRTVAllocator)
 	{
-		m_pTextureManager->DeleteTexture(m_pEnvTextureHandle);
-		m_pEnvTextureHandle = nullptr;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+		for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+		{
+			rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + i, m_pResourceManager->m_RTVDescriptorSize);
+			m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
+		}
+		rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+		m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
+
+		delete m_pRTVAllocator;
+		m_pRTVAllocator = nullptr;
 	}
-	if (m_pIrradianceTextureHandle)
+	if (m_pDSVAllocator)
 	{
-		m_pTextureManager->DeleteTexture(m_pIrradianceTextureHandle);
-		m_pIrradianceTextureHandle = nullptr;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pDSVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_DefaultDepthStencilOffset, m_pResourceManager->m_DSVDescriptorSize);
+		m_pDSVAllocator->FreeDescriptorHandle(dsvHandle);
+
+		delete m_pDSVAllocator;
+		m_pDSVAllocator = nullptr;
 	}
-	if (m_pSpecularTextureHandle)
+	if (m_pSRVUAVAllocator)
 	{
-		m_pTextureManager->DeleteTexture(m_pSpecularTextureHandle);
-		m_pSpecularTextureHandle = nullptr;
+		delete m_pSRVUAVAllocator;
+		m_pSRVUAVAllocator = nullptr;
 	}
-	if (m_pBRDFTextureHandle)
-	{
-		m_pTextureManager->DeleteTexture(m_pBRDFTextureHandle);
-		m_pBRDFTextureHandle = nullptr;
-	}
+
 	m_pRenderObjects = nullptr;
 	m_pLights = nullptr;
 	m_pLightSpheres = nullptr;
@@ -189,11 +217,12 @@ void Renderer::Cleanup()
 	m_pPickedModel = nullptr;
 	m_pPickedEndEffector = nullptr;
 	m_pMirrorPlane = nullptr;
-
-	if (m_pResourceManager)
+	SAFE_RELEASE(m_pDefaultDepthStencil);
+	SAFE_RELEASE(m_pFloatBuffer);
+	SAFE_RELEASE(m_pPrevBuffer);
+	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
-		delete m_pResourceManager;
-		m_pResourceManager = nullptr;
+		SAFE_RELEASE(m_pRenderTargets[i]);
 	}
 
 	if (m_hFenceEvent)
@@ -237,7 +266,6 @@ void Renderer::Cleanup()
 		}
 	}
 
-	m_PostProcessor.Cleanup();
 	m_DynamicDescriptorPool.Cleanup();
 	m_ConstantBufferManager.Cleanup();
 	if (m_pTextureManager)
@@ -245,29 +273,11 @@ void Renderer::Cleanup()
 		delete m_pTextureManager;
 		m_pTextureManager = nullptr;
 	}
-	if(m_pRTVAllocator)
-	{
-		delete m_pRTVAllocator;
-		m_pRTVAllocator = nullptr;
-	}
-	if (m_pDSVAllocator)
-	{
-		delete m_pDSVAllocator;
-		m_pDSVAllocator = nullptr;
-	}
-	if (m_pSRVUAVAllocator)
-	{
-		delete m_pSRVUAVAllocator;
-		m_pSRVUAVAllocator = nullptr;
-	}
 
-	SAFE_RELEASE(m_pDefaultDepthStencil);
-
-	SAFE_RELEASE(m_pFloatBuffer);
-	SAFE_RELEASE(m_pPrevBuffer);
-	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+	if (m_pResourceManager)
 	{
-		SAFE_RELEASE(m_pRenderTargets[i]);
+		delete m_pResourceManager;
+		m_pResourceManager = nullptr;
 	}
 
 	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
@@ -333,28 +343,34 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 
 #ifdef _DEBUG
-			char debugString[256] = { 0, };
-			OutputDebugStringA("Resize SwapChain to ");
-			sprintf(debugString, "%d", m_ScreenWidth);
-			OutputDebugStringA(debugString);
-			OutputDebugStringA(" ");
-			sprintf(debugString, "%d", m_ScreenHeight);
-			OutputDebugStringA(debugString);
-			OutputDebugStringA("\n");
+			char szDebugString[256] = { 0, };
+			sprintf_s(szDebugString, 256, "Resize SwapChain to %d %d\n", m_ScreenWidth, m_ScreenHeight);
+			OutputDebugStringA(szDebugString);
 #endif 
 
 			// 기존 버퍼 초기화.
+			/*CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, m_pResourceManager->m_RTVDescriptorSize);
 			for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 			{
 				m_pRenderTargets[i]->Release();
 				m_pRenderTargets[i] = nullptr;
+				m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
+				rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
 			}
+			m_MainRenderTargetOffset = -1;
 			m_pFloatBuffer->Release();
 			m_pFloatBuffer = nullptr;
+			m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
+			m_FloatBufferRTVOffset = -1;
+
 			m_pPrevBuffer->Release();
 			m_pPrevBuffer = nullptr;
 			m_pDefaultDepthStencil->Release();
-			m_pDefaultDepthStencil = nullptr;
+			m_pDefaultDepthStencil = nullptr;*/
+			cleanShaderResources();
+			cleanDepthStencils();
+			cleanRenderTargets();
+
 			m_PostProcessor.Cleanup();
 			m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 
@@ -364,56 +380,55 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 										m_ScreenHeight,
 										DXGI_FORMAT_UNKNOWN, // 현재 포맷 유지.
 										0);
+
+			initRenderTargets();
+			initDepthStencils();
+			initShaderResources();
 			// float buffer, prev buffer 재생성.
 			{
-				HRESULT hr = S_OK;
+				//HRESULT hr = S_OK;
 
-				D3D12_RESOURCE_DESC resourceDesc = {};
-				resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-				resourceDesc.Alignment = 0;
-				resourceDesc.Width = m_ScreenWidth;
-				resourceDesc.Height = m_ScreenHeight;
-				resourceDesc.DepthOrArraySize = 1;
-				resourceDesc.MipLevels = 1;
-				resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				resourceDesc.SampleDesc.Count = 1;
-				resourceDesc.SampleDesc.Quality = 0;
-				resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-				resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+				//D3D12_RESOURCE_DESC resourceDesc = {};
+				//resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+				//resourceDesc.Alignment = 0;
+				//resourceDesc.Width = m_ScreenWidth;
+				//resourceDesc.Height = m_ScreenHeight;
+				//resourceDesc.DepthOrArraySize = 1;
+				//resourceDesc.MipLevels = 1;
+				//resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				//resourceDesc.SampleDesc.Count = 1;
+				//resourceDesc.SampleDesc.Quality = 0;
+				//resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+				//resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-				D3D12_HEAP_PROPERTIES heapProps = {};
-				heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-				heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-				heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-				heapProps.CreationNodeMask = 1;
-				heapProps.VisibleNodeMask = 1;
+				//CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
-				hr = m_pDevice->CreateCommittedResource(&heapProps,
-														D3D12_HEAP_FLAG_NONE,
-														&resourceDesc,
-														D3D12_RESOURCE_STATE_COMMON,
-														nullptr,
-														IID_PPV_ARGS(&m_pFloatBuffer));
-				BREAK_IF_FAILED(hr);
-				m_pFloatBuffer->SetName(L"FloatBuffer");
+				//hr = m_pDevice->CreateCommittedResource(&heapProps,
+				//										D3D12_HEAP_FLAG_NONE,
+				//										&resourceDesc,
+				//										D3D12_RESOURCE_STATE_COMMON,
+				//										nullptr,
+				//										IID_PPV_ARGS(&m_pFloatBuffer));
+				//BREAK_IF_FAILED(hr);
+				//m_pFloatBuffer->SetName(L"FloatBuffer");
 
 
-				// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-				resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-				hr = m_pDevice->CreateCommittedResource(&heapProps,
-														D3D12_HEAP_FLAG_NONE,
-														&resourceDesc,
-														D3D12_RESOURCE_STATE_COMMON,
-														nullptr,
-														IID_PPV_ARGS(&m_pPrevBuffer));
-				BREAK_IF_FAILED(hr);
-				m_pPrevBuffer->SetName(L"PrevBuffer");
+				//// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				//resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+				//hr = m_pDevice->CreateCommittedResource(&heapProps,
+				//										D3D12_HEAP_FLAG_NONE,
+				//										&resourceDesc,
+				//										D3D12_RESOURCE_STATE_COMMON,
+				//										nullptr,
+				//										IID_PPV_ARGS(&m_pPrevBuffer));
+				//BREAK_IF_FAILED(hr);
+				//m_pPrevBuffer->SetName(L"PrevBuffer");
 			}
 
 			// 변경된 크기에 맞춰 rtv, dsv, srv 재생성.
 			{
-				const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-				CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, RTV_DESCRIPTOR_SIZE);
+				/*const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
+				CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, RTV_DESCRIPTOR_SIZE);
 				CD3DX12_CPU_DESCRIPTOR_HANDLE startRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart());
 				for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 				{
@@ -429,10 +444,10 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				rtvDesc.Texture2D.MipSlice = 0;
 				rtvDesc.Texture2D.PlaneSlice = 0;
 				rtvHandle.Offset(m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-				m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);
+				m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);*/
 			}
 			{
-				HRESULT hr = S_OK;
+				/*HRESULT hr = S_OK;
 
 				D3D12_RESOURCE_DESC dsvDesc;
 				dsvDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -474,30 +489,30 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				depthStencilViewDesc.Texture2D.MipSlice = 0;
 
 				CD3DX12_CPU_DESCRIPTOR_HANDLE depthHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-				m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, depthHandle);
+				m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, depthHandle);*/
 			}
 			{
-				const UINT SRV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
-				CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-				CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
+				//const UINT SRV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
+				//CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
+				//CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
 
-				D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-				srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-				srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-				srvDesc.Texture2D.MostDetailedMip = 0;
-				srvDesc.Texture2D.MipLevels = 1;
-				srvDesc.Texture2D.PlaneSlice = 0;
-				srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+				//D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+				//srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+				//srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+				//srvDesc.Texture2D.MostDetailedMip = 0;
+				//srvDesc.Texture2D.MipLevels = 1;
+				//srvDesc.Texture2D.PlaneSlice = 0;
+				//srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
-				// float buffer srv
-				m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
+				//// float buffer srv
+				//m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
 
-				// prev buffer srv
-				srvHandle = startSrvHandle;
-				srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-				// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-				m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
+				//// prev buffer srv
+				//srvHandle = startSrvHandle;
+				//srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
+				//// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				//m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
 			}
 
 			PostProcessor::PostProcessingBuffers config =
@@ -838,7 +853,7 @@ LB_EXIT:
 
 	// create float buffer and prev buffer
 	{
-		D3D12_RESOURCE_DESC resourceDesc = {};
+		/*D3D12_RESOURCE_DESC resourceDesc = {};
 		resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		resourceDesc.Alignment = 0;
 		resourceDesc.Width = m_ScreenWidth;
@@ -865,39 +880,36 @@ LB_EXIT:
 												nullptr,
 												IID_PPV_ARGS(&m_pFloatBuffer));
 		BREAK_IF_FAILED(hr);
-		m_pFloatBuffer->SetName(L"FloatBuffer");
+		m_pFloatBuffer->SetName(L"FloatBuffer");*/
 
 
-		// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		hr = m_pDevice->CreateCommittedResource(&heapProps,
-												D3D12_HEAP_FLAG_NONE,
-												&resourceDesc,
-												D3D12_RESOURCE_STATE_COMMON,
-												nullptr,
-												IID_PPV_ARGS(&m_pPrevBuffer));
-		BREAK_IF_FAILED(hr);
-		m_pPrevBuffer->SetName(L"PrevBuffer");
+		//// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+		//resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		//hr = m_pDevice->CreateCommittedResource(&heapProps,
+		//										D3D12_HEAP_FLAG_NONE,
+		//										&resourceDesc,
+		//										D3D12_RESOURCE_STATE_COMMON,
+		//										nullptr,
+		//										IID_PPV_ARGS(&m_pPrevBuffer));
+		//BREAK_IF_FAILED(hr);
+		//m_pPrevBuffer->SetName(L"PrevBuffer");
 	}
 
 	ResourceManager::InitialData initData = { m_pDevice, m_pCommandQueue, m_ppCommandAllocator, m_ppCommandList, &m_DynamicDescriptorPool, &m_ConstantBufferManager, m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues };
 	m_pResourceManager = new ResourceManager;
 	m_pResourceManager->Initialize(&initData);
-	m_pResourceManager->InitRTVDescriptorHeap(8);
-	m_pResourceManager->InitDSVDescriptorHeap(8);
-	m_pResourceManager->InitCBVSRVUAVDescriptorHeap(1024);
 
 	m_pTextureManager = new TextureManager;
 	m_pTextureManager->Initialize(this, 1024 / 16, 1024);
 
 	m_pRTVAllocator = new DescriptorAllocator;
-	m_pRTVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	m_pRTVAllocator->Initialize(m_pDevice, 8, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	m_pDSVAllocator = new DescriptorAllocator;
-	m_pDSVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	m_pDSVAllocator->Initialize(m_pDevice, 16, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
 	m_pSRVUAVAllocator = new DescriptorAllocator;
-	m_pSRVUAVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	m_pSRVUAVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	
 	m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
 	m_ConstantBufferManager.Initialize(m_pDevice, 4096);
@@ -938,215 +950,6 @@ void Renderer::initScene()
 	}*/
 }
 
-void Renderer::initDescriptorHeap(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture)
-{
-	_ASSERT(pEnvTexture);
-	_ASSERT(pIrradianceTexture);
-	_ASSERT(pSpecularTexture);
-	_ASSERT(pBRDFTexture);
-
-	HRESULT hr = S_OK;
-	Renderer* pRenderer = this;
-	const UINT RTV_DESCRITOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
-
-	// render target.
-	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_pResourceManager->m_RTVHeapSize, RTV_DESCRITOR_SIZE);
-
-		m_MainRenderTargetOffset = m_pResourceManager->m_RTVHeapSize;
-
-		for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-		{
-			m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&m_pRenderTargets[i]));
-			m_pRenderTargets[i]->SetName(L"RenderTarget");
-			m_pDevice->CreateRenderTargetView(m_pRenderTargets[i], nullptr, rtvHandle);
-			rtvHandle.Offset(1, RTV_DESCRITOR_SIZE);
-		}
-
-		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-		rtvDesc.Texture2D.MipSlice = 0;
-		rtvDesc.Texture2D.PlaneSlice = 0;
-		m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);
-		m_FloatBufferRTVOffset = 2;
-
-		// 2 backbuffer + 1 floatbuffer.
-		m_pResourceManager->m_RTVHeapSize += SWAP_CHAIN_FRAME_COUNT + 1;
-	}
-
-	// depth stencil.
-	{
-		D3D12_RESOURCE_DESC dsvDesc;
-		dsvDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		dsvDesc.Alignment = 0;
-		dsvDesc.Width = m_ScreenWidth;
-		dsvDesc.Height = m_ScreenHeight;
-		dsvDesc.DepthOrArraySize = 1;
-		dsvDesc.MipLevels = 1;
-		dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-		dsvDesc.SampleDesc.Count = 1;
-		dsvDesc.SampleDesc.Quality = 0;
-		dsvDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-		dsvDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-		D3D12_HEAP_PROPERTIES heapProps;
-		heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-		heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-		heapProps.CreationNodeMask = 1;
-		heapProps.VisibleNodeMask = 1;
-
-		D3D12_CLEAR_VALUE clearValue;
-		clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-		clearValue.DepthStencil.Depth = 1.0f;
-		clearValue.DepthStencil.Stencil = 0;
-
-		hr = m_pDevice->CreateCommittedResource(&heapProps,
-												D3D12_HEAP_FLAG_NONE,
-												&dsvDesc,
-												D3D12_RESOURCE_STATE_DEPTH_WRITE,
-												&clearValue,
-												IID_PPV_ARGS(&m_pDefaultDepthStencil));
-		BREAK_IF_FAILED(hr);
-		m_pDefaultDepthStencil->SetName(L"DefaultDepthStencil");
-
-		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-		depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-		depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-		depthStencilViewDesc.Texture2D.MipSlice = 0;
-
-		CD3DX12_CPU_DESCRIPTOR_HANDLE depthHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-		m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, depthHandle);
-
-		++(m_pResourceManager->m_DSVHeapSize);
-	}
-
-	// Model에서 쓰이는 descriptor 저장.
-	{
-		// UINT64 totalObject = m_RenderObjects.size();
-		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
-
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-		srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Texture2D.MipLevels = 1;
-		srvDesc.Texture2D.PlaneSlice = 0;
-		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-		// float buffer srv
-		m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, cbvSrvHandle);
-		m_FloatBufferSRVOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// prev buffer srv
-		// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-		m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, cbvSrvHandle);
-		m_PrevBufferSRVOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// t8, t9, t10
-		m_pResourceManager->m_GlobalShaderResourceViewStartOffset = m_pResourceManager->m_CBVSRVUAVHeapSize;
-
-		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		(*m_pLights)[1].LightShadowMap.SetDescriptorHeap(this);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-
-		m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// t11
-		(*m_pLights)[0].LightShadowMap.SetDescriptorHeap(this);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-
-		// t12
-		(*m_pLights)[2].LightShadowMap.SetDescriptorHeap(this);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-
-		// t13
-		D3D12_RESOURCE_DESC descInfo;
-		descInfo = pEnvTexture->GetResource()->GetDesc();
-		srvDesc.Format = descInfo.Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-		srvDesc.TextureCube.MostDetailedMip = 0;
-		srvDesc.TextureCube.MipLevels = 1;
-		srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-		m_pDevice->CreateShaderResourceView(pEnvTexture->GetResource(), &srvDesc, cbvSrvHandle);
-		pEnvTexture->SetSRVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// t14
-		descInfo = pIrradianceTexture->GetResource()->GetDesc();
-		srvDesc.Format = descInfo.Format;
-		m_pDevice->CreateShaderResourceView(pIrradianceTexture->GetResource(), &srvDesc, cbvSrvHandle);
-		pIrradianceTexture->SetSRVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// t15
-		descInfo = pSpecularTexture->GetResource()->GetDesc();
-		srvDesc.Format = descInfo.Format;
-		m_pDevice->CreateShaderResourceView(pSpecularTexture->GetResource(), &srvDesc, cbvSrvHandle);
-		pSpecularTexture->SetSRVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// t16
-		descInfo = pBRDFTexture->GetResource()->GetDesc();
-		srvDesc.Format = descInfo.Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Texture2D.MipLevels = 1;
-		srvDesc.Texture2D.PlaneSlice = 0;
-		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-		m_pDevice->CreateShaderResourceView(pBRDFTexture->GetResource(), &srvDesc, cbvSrvHandle);
-		pBRDFTexture->SetSRVHandle(cbvSrvHandle);
-		cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// null. 15번째.
-		m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, cbvSrvHandle);
-		// cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-		// Model 내 생성된 버퍼들 등록.
-		for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
-		{
-			Model* pModel = (*m_pRenderObjects)[i];
-
-			switch (pModel->ModelType)
-			{
-				case RenderObjectType_DefaultType: 
-				case RenderObjectType_SkyboxType:
-				case RenderObjectType_MirrorType:
-					pModel->SetDescriptorHeap(pRenderer);
-					break;
-
-				case RenderObjectType_SkinnedType:
-				{
-					SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pModel;
-					pCharacter->SetDescriptorHeap(pRenderer);
-				}
-				break;
-
-				default:
-					break;
-			}
-		}
-	}
-}
-
 void Renderer::initRenderThreadPool(UINT renderThreadCount)
 {
 	m_pThreadDescList = new RenderThreadDesc[renderThreadCount];
@@ -1167,11 +970,11 @@ void Renderer::initRenderThreadPool(UINT renderThreadCount)
 	}
 }
 
-void Renderer::initRenderTarget()
+void Renderer::initRenderTargets()
 {
 	_ASSERT(m_pRTVAllocator);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
 	UINT offset;
 
 	// Create two main render target view.
@@ -1190,6 +993,30 @@ void Renderer::initRenderTarget()
 
 
 	// Create float buffer.
+	D3D12_RESOURCE_DESC resourceDesc = {};
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.Alignment = 0;
+	resourceDesc.Width = m_ScreenWidth;
+	resourceDesc.Height = m_ScreenHeight;
+	resourceDesc.DepthOrArraySize = 1;
+	resourceDesc.MipLevels = 1;
+	resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	resourceDesc.SampleDesc.Count = 1;
+	resourceDesc.SampleDesc.Quality = 0;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+	HRESULT hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&resourceDesc,
+											D3D12_RESOURCE_STATE_COMMON,
+											nullptr,
+											IID_PPV_ARGS(&m_pFloatBuffer));
+	BREAK_IF_FAILED(hr);
+	m_pFloatBuffer->SetName(L"FloatBuffer");
+
 	offset = m_pRTVAllocator->AllocDescriptorHandle(&rtvHandle);
 	if (m_FloatBufferRTVOffset == -1)
 	{
@@ -1204,7 +1031,7 @@ void Renderer::initRenderTarget()
 	m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);
 }
 
-void Renderer::initDepthStencil()
+void Renderer::initDepthStencils()
 {
 	_ASSERT(m_pDSVAllocator);
 
@@ -1247,25 +1074,44 @@ void Renderer::initDepthStencil()
 	depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 	depthStencilViewDesc.Texture2D.MipSlice = 0;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle;
-	m_pDSVAllocator->AllocDescriptorHandle(&dsvHandle);
+	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = {};
+	m_DefaultDepthStencilOffset = m_pDSVAllocator->AllocDescriptorHandle(&dsvHandle);
 	m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, dsvHandle);
 }
 
-void Renderer::initShaderResources(Texture* pEnvTexture, Texture* pIrradianceTexture, Texture* pSpecularTexture, Texture* pBRDFTexture)
+void Renderer::initShaderResources()
 {
-	_ASSERT(pEnvTexture);
-	_ASSERT(pIrradianceTexture);
-	_ASSERT(pSpecularTexture);
-	_ASSERT(pBRDFTexture);
 	_ASSERT(m_pSRVUAVAllocator);
+	_ASSERT(m_pFloatBuffer);
 
-	// UINT64 totalObject = m_RenderObjects.size();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
-	const UINT SRV_DESCRIPTOR_SIZE = m_pSRVUAVAllocator->GetDescriptorSize();
-	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle;
+	D3D12_RESOURCE_DESC resourceDesc = {};
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.Alignment = 0;
+	resourceDesc.Width = m_ScreenWidth;
+	resourceDesc.Height = m_ScreenHeight;
+	resourceDesc.DepthOrArraySize = 1;
+	resourceDesc.MipLevels = 1;
+	resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	resourceDesc.SampleDesc.Count = 1;
+	resourceDesc.SampleDesc.Quality = 0;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+	HRESULT hr = m_pDevice->CreateCommittedResource(&heapProps,
+											D3D12_HEAP_FLAG_NONE,
+											&resourceDesc,
+											D3D12_RESOURCE_STATE_COMMON,
+											nullptr,
+											IID_PPV_ARGS(&m_pPrevBuffer));
+	BREAK_IF_FAILED(hr);
+	m_pPrevBuffer->SetName(L"PrevBuffer");
+
+
+	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = {};
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1276,102 +1122,71 @@ void Renderer::initShaderResources(Texture* pEnvTexture, Texture* pIrradianceTex
 
 	// Create float buffer srv.
 	m_FloatBufferSRVOffset = m_pSRVUAVAllocator->AllocDescriptorHandle(&srvHandle);
+	if(m_FloatBufferSRVOffset == -1)
+	{
+		__debugbreak();
+	}
 	m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
 
-	// prev buffer srv
-	// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+	// Create prev buffer srv.
 	m_PrevBufferSRVOffset = m_pSRVUAVAllocator->AllocDescriptorHandle(&srvHandle);
-	m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, cbvSrvHandle);
-
-	// t8, t9, t10
-	m_pResourceManager->m_GlobalShaderResourceViewStartOffset = m_pSRVUAVAllocator->AllocDescriptorHandle(&srvHandle);
-
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	(*m_pLights)[1].LightShadowMap.SetDescriptorHeap(this);
-
-	m_pSRVUAVAllocator->AllocDescriptorHandle(&srvHandle);
-	m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
-
-	m_pSRVUAVAllocator->AllocDescriptorHandle(&srvHandle);
-	m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
-
-	// t11
-	(*m_pLights)[0].LightShadowMap.SetDescriptorHeap(this);
-
-	// t12
-	(*m_pLights)[2].LightShadowMap.SetDescriptorHeap(this);
-
-	//// t13
-	//D3D12_RESOURCE_DESC descInfo;
-	//descInfo = pEnvTexture->GetResource()->GetDesc();
-	//srvDesc.Format = descInfo.Format;
-	//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-	//srvDesc.TextureCube.MostDetailedMip = 0;
-	//srvDesc.TextureCube.MipLevels = 1;
-	//srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-	//m_pDevice->CreateShaderResourceView(pEnvTexture->GetResource(), &srvDesc, cbvSrvHandle);
-	//pEnvTexture->SetSRVHandle(cbvSrvHandle);
-	//cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	//++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-	//// t14
-	//descInfo = pIrradianceTexture->GetResource()->GetDesc();
-	//srvDesc.Format = descInfo.Format;
-	//m_pDevice->CreateShaderResourceView(pIrradianceTexture->GetResource(), &srvDesc, cbvSrvHandle);
-	//pIrradianceTexture->SetSRVHandle(cbvSrvHandle);
-	//cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	//++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-	//// t15
-	//descInfo = pSpecularTexture->GetResource()->GetDesc();
-	//srvDesc.Format = descInfo.Format;
-	//m_pDevice->CreateShaderResourceView(pSpecularTexture->GetResource(), &srvDesc, cbvSrvHandle);
-	//pSpecularTexture->SetSRVHandle(cbvSrvHandle);
-	//cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	//++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-	//// t16
-	//descInfo = pBRDFTexture->GetResource()->GetDesc();
-	//srvDesc.Format = descInfo.Format;
-	//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	//srvDesc.Texture2D.MostDetailedMip = 0;
-	//srvDesc.Texture2D.MipLevels = 1;
-	//srvDesc.Texture2D.PlaneSlice = 0;
-	//srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	//m_pDevice->CreateShaderResourceView(pBRDFTexture->GetResource(), &srvDesc, cbvSrvHandle);
-	//pBRDFTexture->SetSRVHandle(cbvSrvHandle);
-	//cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	//++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-	//// null. 15번째.
-	//m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, cbvSrvHandle);
-	//// cbvSrvHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-	//++(m_pResourceManager->m_CBVSRVUAVHeapSize);
-
-	// Model 내 생성된 버퍼들 등록.
-	/*for (UINT64 i = 0, size = m_pRenderObjects->size(); i < size; ++i)
+	if(m_PrevBufferSRVOffset == -1)
 	{
-		Model* pModel = (*m_pRenderObjects)[i];
+		__debugbreak();
+	}
+	m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
+}
 
-		switch (pModel->ModelType)
-		{
-			case RenderObjectType_DefaultType:
-			case RenderObjectType_SkyboxType:
-			case RenderObjectType_MirrorType:
-				pModel->SetDescriptorHeap(pRenderer);
-				break;
+void Renderer::cleanRenderTargets()
+{
+	_ASSERT(m_pRTVAllocator);
+	_ASSERT(m_pFloatBuffer);
 
-			case RenderObjectType_SkinnedType:
-			{
-				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pModel;
-				pCharacter->SetDescriptorHeap(pRenderer);
-			}
-			break;
+	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, m_pResourceManager->m_RTVDescriptorSize);;
+	for(UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+	{
+		m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
+		SAFE_RELEASE(m_pRenderTargets[i]);
+		rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
+	}
+	m_MainRenderTargetOffset = 0xffffffff;
 
-			default:
-				break;
-		}
-	}*/
+	rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+	m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
+	m_FloatBufferRTVOffset = 0xffffffff;
+	SAFE_RELEASE(m_pFloatBuffer);
+}
+
+void Renderer::cleanDepthStencils()
+{
+	_ASSERT(m_pDSVAllocator);
+	_ASSERT(m_pDefaultDepthStencil);
+
+	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart(), m_DefaultDepthStencilOffset, m_pResourceManager->m_DSVDescriptorSize);
+
+	m_pDSVAllocator->FreeDescriptorHandle(dsvHandle);
+	m_DefaultDepthStencilOffset = 0xffffffff;
+	SAFE_RELEASE(m_pDefaultDepthStencil);
+}
+
+void Renderer::cleanShaderResources()
+{
+	_ASSERT(m_pSRVUAVAllocator);
+	_ASSERT(m_pFloatBuffer);
+	_ASSERT(m_pPrevBuffer);
+
+	ID3D12DescriptorHeap* pSRVUAVHeap = m_pSRVUAVAllocator->GetDescriptorHeap();
+	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, m_pResourceManager->m_CBVSRVUAVDescriptorSize);
+
+	m_pSRVUAVAllocator->FreeDescriptorHandle(srvHandle);
+	m_FloatBufferSRVOffset = 0xffffffff;
+
+	srvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_PrevBufferSRVOffset, m_pResourceManager->m_CBVSRVUAVDescriptorSize);
+	m_pSRVUAVAllocator->FreeDescriptorHandle(srvHandle);
+	m_PrevBufferSRVOffset = 0xffffffff;
+	SAFE_RELEASE(m_pPrevBuffer);
 }
 
 void Renderer::beginRender()
@@ -1553,11 +1368,13 @@ void Renderer::renderObject()
 #else
 
 	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_FrameIndex];
+	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
+	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
 
 	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart());
 
 	const CD3DX12_RESOURCE_BARRIER RTV_BEFORE_BARRIERS[2] =
 	{
@@ -1884,7 +1701,7 @@ void Renderer::postProcess()
 
 	const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
 	m_ppCommandList[m_FrameIndex]->ResourceBarrier(1, &BARRIER);
-	m_PostProcessor.Render(this, m_FrameIndex);
+	m_PostProcessor.Render( m_FrameIndex);
 
 #endif
 }

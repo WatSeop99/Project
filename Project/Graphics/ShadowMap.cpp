@@ -33,7 +33,6 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 		case LIGHT_DIRECTIONAL:
 			resourceDesc.DepthOrArraySize = 4;
 			resourceDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-			// m_DirectionalLightShadowBuffer.Initialize(pRenderer, resourceDesc);
 
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
@@ -53,7 +52,6 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 		case LIGHT_POINT:
 			resourceDesc.DepthOrArraySize = 6;
 			resourceDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-			// m_PointLightShadowBuffer.Initialize(pRenderer, resourceDesc);
 
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
@@ -73,7 +71,6 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 			resourceDesc.DepthOrArraySize = 1;
 			// dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			resourceDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-			// m_SpotLightShadowBuffer.Initialize(pRenderer, resourceDesc);
 
 			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
@@ -218,25 +215,19 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
 	{
 		case LIGHT_DIRECTIONAL:
-			// dsvHandle = m_DirectionalLightShadowBuffer.GetDSVHandle();
 			dsvHandle = m_pDirectionalLightShadowBuffer->DSVHandle;
-			// pDepthStencilResource = m_DirectionalLightShadowBuffer.GetResource();
 			pDepthStencilResource = m_pDirectionalLightShadowBuffer->pTextureResource;
 			pso = RenderPSOType_DepthOnlyCascadeDefault;
 			break;
 
 		case LIGHT_POINT:
-			// dsvHandle = m_PointLightShadowBuffer.GetDSVHandle();
 			dsvHandle = m_pPointLightShadowBuffer->DSVHandle;
-			// pDepthStencilResource = m_PointLightShadowBuffer.GetResource();
 			pDepthStencilResource = m_pPointLightShadowBuffer->pTextureResource;
 			pso = RenderPSOType_DepthOnlyCubeDefault;
 			break;
 
 		case LIGHT_SPOT:
-			// dsvHandle = m_SpotLightShadowBuffer.GetDSVHandle();
 			dsvHandle = m_pSpotLightShadowBuffer->DSVHandle;
-			// pDepthStencilResource = m_SpotLightShadowBuffer.GetResource();
 			pDepthStencilResource = m_pSpotLightShadowBuffer->pTextureResource;
 			pso = RenderPSOType_DepthOnlyDefault;
 			break;
@@ -321,22 +312,26 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 
 void ShadowMap::Cleanup()
 {
+	if (!m_pRenderer)
+	{
+		return;
+	}
+
 	TextureManager* pTextureManager = m_pRenderer->GetTextureManager();
+	DescriptorAllocator* pDSVAllocator = m_pRenderer->GetDSVAllocator();
+	DescriptorAllocator* pSRVAllocator = m_pRenderer->GetSRVUAVAllocator();
 
 	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
 	{
 		case LIGHT_DIRECTIONAL:
-			// m_DirectionalLightShadowBuffer.Cleanup();
 			pTextureManager->DeleteTexture(m_pDirectionalLightShadowBuffer);
 			break;
 
 		case LIGHT_POINT:
-			// m_PointLightShadowBuffer.Cleanup();
 			pTextureManager->DeleteTexture(m_pPointLightShadowBuffer);
 			break;
 
 		case LIGHT_SPOT:
-			// m_SpotLightShadowBuffer.Cleanup();
 			pTextureManager->DeleteTexture(m_pSpotLightShadowBuffer);
 			break;
 
@@ -367,100 +362,6 @@ void ShadowMap::SetShadowHeight(const UINT HEIGHT)
 		m_pViewPorts[i] = { 0, 0, (float)m_ShadowMapWidth, (float)m_ShadowMapHeight, 0.0f, 1.0f };
 		m_pScissorRects[i] = { 0, 0, (long)m_ShadowMapWidth, (long)m_ShadowMapHeight };
 	}
-}
-
-void ShadowMap::SetDescriptorHeap(Renderer* pRenderer)
-{
-	/*_ASSERT(pRenderer);
-
-	ResourceManager* pManager = pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	const UINT DSV_DESCRIPTOR_SIZE = pManager->m_DSVDescriptorSize;
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_DSVHeapSize, DSV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(pManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_CBVSRVUAVHeapSize, CBV_SRV_DESCRIPTOR_SIZE);
-	ID3D12Resource* pResource = nullptr;
-
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-	ZeroMemory(&dsvDesc, sizeof(dsvDesc));
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
-	{
-		case LIGHT_DIRECTIONAL:
-		{
-			pResource = m_DirectionalLightShadowBuffer.GetResource();
-
-			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
-			dsvDesc.Texture2DArray.FirstArraySlice = 0;
-			dsvDesc.Texture2DArray.MipSlice = 0;
-			dsvDesc.Texture2DArray.ArraySize = 4;
-			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
-			m_DirectionalLightShadowBuffer.SetDSVHandle(dsvHandle);
-
-			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-			srvDesc.Texture2DArray.MostDetailedMip = 0;
-			srvDesc.Texture2DArray.MipLevels = 1;
-			srvDesc.Texture2DArray.FirstArraySlice = 0;
-			srvDesc.Texture2DArray.ArraySize = 4;
-			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
-			m_DirectionalLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
-		}
-		break;
-
-		case LIGHT_POINT:
-		{
-			pResource = m_PointLightShadowBuffer.GetResource();
-
-			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
-			dsvDesc.Texture2DArray.FirstArraySlice = 0;
-			dsvDesc.Texture2DArray.MipSlice = 0;
-			dsvDesc.Texture2DArray.ArraySize = 6;
-			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
-			m_PointLightShadowBuffer.SetDSVHandle(dsvHandle);
-
-			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-			srvDesc.TextureCube.MostDetailedMip = 0;
-			srvDesc.TextureCube.MipLevels = 1;
-			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
-			m_PointLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
-		}
-		break;
-
-		case LIGHT_SPOT:
-		{
-			pResource = m_SpotLightShadowBuffer.GetResource();
-
-			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-			dsvDesc.Texture2D.MipSlice = 0;
-			pDevice->CreateDepthStencilView(pResource, &dsvDesc, dsvHandle);
-			m_SpotLightShadowBuffer.SetDSVHandle(dsvHandle);
-
-			srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			srvDesc.Texture2D.MostDetailedMip = 0;
-			srvDesc.Texture2D.MipLevels = 1;
-			pDevice->CreateShaderResourceView(pResource, &srvDesc, cbvSrvHandle);
-			m_SpotLightShadowBuffer.SetSRVHandle(cbvSrvHandle);
-		}
-		break;
-
-		default:
-			__debugbreak();
-			break;
-	}
-
-	++(pManager->m_DSVHeapSize);
-	++(pManager->m_CBVSRVUAVHeapSize);*/
 }
 
 void ShadowMap::SetViewportsAndScissorRect(ID3D12GraphicsCommandList* pCommandList)

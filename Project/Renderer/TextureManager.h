@@ -5,6 +5,7 @@
 #include "ResourceManager.h"
 
 class Renderer;
+class ResourceManager;
 
 struct TextureHandle
 {
@@ -31,7 +32,7 @@ public:
 	void Initialize(Renderer* pRenderer, UINT maxBucketNum, UINT maxFileNum);
 
 	TextureHandle* CreateTextureFromFile(const WCHAR* pszFileName, bool bUseSRGB);
-	TextureHandle* CreateTextureCubeFromFile(const WCHAR* pszFileName);
+	TextureHandle* CreateTexturFromDDSFile(const WCHAR* pszFileName, bool bIsCube);
 	TextureHandle* CreateDynamicTexture(UINT width, UINT height);
 	TextureHandle* CreateImmutableTexture(UINT widht, UINT height, DXGI_FORMAT format, const BYTE* pInitImage);
 	TextureHandle* CreateDepthStencilTexture(const D3D12_RESOURCE_DESC& desc, const D3D12_DEPTH_STENCIL_VIEW_DESC& dsvDesc, const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc);

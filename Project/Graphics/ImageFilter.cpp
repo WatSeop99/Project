@@ -250,10 +250,12 @@ void ImageFilter::SetSRVOffsets(Renderer* pRenderer, const std::vector<ImageReso
 {
 	_ASSERT(pRenderer);
 
-	ResourceManager* pManager = pRenderer->GetResourceManager();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
+	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
+	ID3D12DescriptorHeap* pSRVHeap = pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pSRVHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(srvHandle);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 	m_SRVHandles.clear();
 	m_SRVHandles.resize(SRVs.size());
@@ -268,10 +270,12 @@ void ImageFilter::SetRTVOffsets(Renderer* pRenderer, const std::vector<ImageReso
 {
 	_ASSERT(pRenderer);
 
-	ResourceManager* pManager = pRenderer->GetResourceManager();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart());
+	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
+	ID3D12DescriptorHeap* pRTVHeap = pRenderer->GetRTVAllocator()->GetDescriptorHeap();
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_CPU_DESCRIPTOR_HANDLE startRtvHandle(rtvHandle);
-	const UINT RTV_DESCRIPTOR_SIZE = pManager->m_RTVDescriptorSize;
+	const UINT RTV_DESCRIPTOR_SIZE = pResourceManager->m_RTVDescriptorSize;
 
 	m_RTVHandles.clear();
 	m_RTVHandles.resize(RTVs.size());

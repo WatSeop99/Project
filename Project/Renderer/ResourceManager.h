@@ -5,8 +5,11 @@
 #include "DynamicDescriptorPool.h"
 #include "RenderQueue.h"
 #include "../Graphics/Texture.h"
+#include "TextureManager.h"
 
+struct TextureHandle;
 class ConstantBuffer;
+class TextureManager;
 
 static const UINT SWAP_CHAIN_FRAME_COUNT = 2;
 static const UINT MAX_RENDER_THREAD_COUNT = 6;
@@ -30,15 +33,23 @@ public:
 		UINT64* pFenceValue;
 		UINT64* pLastFenceValues;
 	};
+	struct TextureHandles
+	{
+		TextureHandle* ppLightShadowMaps[MAX_LIGHTS];
+		TextureHandle* pEnvTexture;
+		TextureHandle* pIrradianceTexture;
+		TextureHandle* pSpecularTexture;
+		TextureHandle* pBRDFTetxure;
+	};
 
 public:
 	ResourceManager() = default;
 	~ResourceManager() { Cleanup(); }
 
 	void Initialize(InitialData* pInitialData);
-	void InitRTVDescriptorHeap(UINT maxDescriptorNum);
-	void InitDSVDescriptorHeap(UINT maxDescriptorNum);
-	void InitCBVSRVUAVDescriptorHeap(UINT maxDescriptorNum);
+	// void InitRTVDescriptorHeap(UINT maxDescriptorNum);
+	// void InitDSVDescriptorHeap(UINT maxDescriptorNum);
+	// void InitCBVSRVUAVDescriptorHeap(UINT maxDescriptorNum);
 
 	HRESULT CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, D3D12_VERTEX_BUFFER_VIEW* pOutVertexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData);
 	HRESULT CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D12_INDEX_BUFFER_VIEW* pOutIndexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData);
@@ -47,7 +58,7 @@ public:
 	HRESULT CreateTextureCubeFromFile(ID3D12Resource** ppOutResource, D3D12_RESOURCE_DESC* pOutDesc, const WCHAR* pszFileName);
 	HRESULT CreateTexturePair(ID3D12Resource** ppOutResource, ID3D12Resource** ppOutUploadBuffer, UINT width, UINT height, DXGI_FORMAT format);
 	HRESULT CreateTexture(ID3D12Resource** ppOutResource, UINT width, UINT height, DXGI_FORMAT format, const BYTE* pInitImage);
-	HRESULT CreateNonImageUploadTexture(ID3D12Resource** ppOutResource, ID3D12Resource** ppOutUploadBuffer, UINT numElement, UINT elementSize);
+	HRESULT CreateNonImageUploadTexture(ID3D12Resource** ppOutResource, UINT numElement, UINT elementSize);
 
 	HRESULT UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* pOriginalState);
 
@@ -56,6 +67,7 @@ public:
 	inline ID3D12GraphicsCommandList* GetCommandList() { return m_ppSingleCommandList[*m_pFrameIndex]; }
 
 	void SetGlobalConstants(GlobalConstant* pGlobal, LightConstant* pLight, GlobalConstant* pReflection);
+	void SetGlobalTextures(TextureHandles* pHandles);
 	void SetCommonState(eRenderPSOType psoState);
 	void SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, int psoState);
 
@@ -76,12 +88,14 @@ public:
 	ID3D12CommandAllocator** m_ppSingleCommandAllocator = nullptr;
 	ID3D12GraphicsCommandList** m_ppSingleCommandList = nullptr;
 
-	ID3D12DescriptorHeap* m_pRTVHeap = nullptr;
+	/*ID3D12DescriptorHeap* m_pRTVHeap = nullptr;
 	ID3D12DescriptorHeap* m_pDSVHeap = nullptr;
-	ID3D12DescriptorHeap* m_pCBVSRVUAVHeap = nullptr;
+	ID3D12DescriptorHeap* m_pCBVSRVUAVHeap = nullptr;*/
 	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
 	DynamicDescriptorPool* m_pDynamicDescriptorPool = nullptr;
 	ConstantBufferManager* m_pConstantBufferManager = nullptr;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE m_NullSRVDescriptor = { 0xffffffff, };
 
 	UINT* m_pFrameIndex = nullptr;
 
@@ -192,4 +206,11 @@ private:
 	GlobalConstant* m_pGlobalConstantData = nullptr;
 	LightConstant* m_pLightConstantData = nullptr;
 	GlobalConstant* m_pReflectionConstantData = nullptr;
+
+	// Global Textures.
+	TextureHandle* m_ppLightShadowMaps[MAX_LIGHTS] = { nullptr, };
+	TextureHandle* m_pEnvTexture = nullptr;
+	TextureHandle* m_pIrradianceTexture = nullptr;
+	TextureHandle* m_pSpecularTexture = nullptr;
+	TextureHandle* m_pBRDFTexture = nullptr;
 };

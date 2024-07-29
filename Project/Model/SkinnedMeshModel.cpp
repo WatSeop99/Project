@@ -118,15 +118,27 @@ void SkinnedMeshModel::InitAnimationData(Renderer* pRenderer, const AnimationDat
 	// 여기서는 AnimationClip이 SkinnedMesh라고 가정.
 	// ANIM_DATA.Clips[0].Keys.size() -> 뼈의 수.
 
-	BoneTransforms.Initialize(pRenderer, (UINT)ANIM_DATA.Clips[0].Keys.size(), sizeof(Matrix));
+	// BoneTransforms.Initialize(pRenderer, (UINT)ANIM_DATA.Clips[0].Keys.size(), sizeof(Matrix));
+	pBoneTransform = pRenderer->GetTextureManager()->CreateNonImageTexture((UINT)ANIM_DATA.Clips[0].Keys.size(), sizeof(Matrix));
 
 	// 단위행렬로 초기화.
-	Matrix* pBoneTransformConstData = (Matrix*)BoneTransforms.pData;
+	/*Matrix* pBoneTransformConstData = (Matrix*)BoneTransforms.pData;
 	for (UINT64 i = 0, size = ANIM_DATA.Clips[0].Keys.size(); i < size; ++i)
 	{
 		pBoneTransformConstData[i] = Matrix();
 	}
-	BoneTransforms.Upload();
+	BoneTransforms.Upload();*/
+	CD3DX12_RANGE writeRange(0, 0);
+	BYTE* pBoneTransformMem = nullptr;
+	pBoneTransform->pTextureResource->Map(0, &writeRange, (void**)&pBoneTransformMem);
+	
+	Matrix* pDest = (Matrix*)pBoneTransformMem;
+	for (UINT64 i = 0, size = ANIM_DATA.Clips[0].Keys.size(); i < size; ++i)
+	{
+		pDest[i] = Matrix();
+	}
+
+	pBoneTransform->pTextureResource->Unmap(0, nullptr);
 }
 
 void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)
@@ -150,12 +162,17 @@ void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_
 	}
 
 	// 버퍼 업데이트.
-	Matrix* pBoneTransformConstData = (Matrix*)BoneTransforms.pData;
-	for (UINT64 i = 0, size = BoneTransforms.ElementCount; i < size; ++i)
+	CD3DX12_RANGE writeRange(0, 0);
+	BYTE* pBoneTransformMem = nullptr;
+	pBoneTransform->pTextureResource->Map(0, &writeRange, (void**)&pBoneTransformMem);
+
+	Matrix* pDest = (Matrix*)pBoneTransformMem;
+	for (UINT64 i = 0, size = CharacterAnimationData.Clips[0].Keys.size(); i < size; ++i)
 	{
-		pBoneTransformConstData[i] = CharacterAnimationData.Get((int)i).Transpose();
+		pDest[i] = CharacterAnimationData.Get((int)i).Transpose();
 	}
-	BoneTransforms.Upload();
+
+	pBoneTransform->pTextureResource->Unmap(0, nullptr);
 
 	updateJointSpheres(clipID, frame);
 }
@@ -207,7 +224,7 @@ void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable;
@@ -216,6 +233,7 @@ void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 	{
 		Mesh* const pCurMesh = Meshes[i];
 
+		Material* pMeshMaterialTextures = &pCurMesh->Material;
 		MeshConstant* pMeshConstantData = &pCurMesh->MeshConstantData;
 		MaterialConstant* pMaterialConstantData = &pCurMesh->MaterialConstantData;
 		CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
@@ -235,24 +253,88 @@ void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 				hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 10);
 				BREAK_IF_FAILED(hr);
 
-				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t7
-				pDevice->CopyDescriptorsSimple(1, dstHandle, BoneTransforms.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				pDevice->CopyDescriptorsSimple(1, dstHandle, pBoneTransform->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t0 ~ t5
-				pDevice->CopyDescriptorsSimple(6, dstHandle, pCurMesh->Material.Albedo.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(6, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				if (pMeshMaterialTextures->pAlbedo)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pAlbedo->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pEmissive)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pEmissive->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pNormal)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pNormal->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pAmbientOcclusion)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pAmbientOcclusion->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pMetallic)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pMetallic->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pRoughness)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pRoughness->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t6
-				pDevice->CopyDescriptorsSimple(1, dstHandle, pCurMesh->Material.Height.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				if (pMeshMaterialTextures->pHeight)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pHeight->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
 
 				pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 
@@ -266,17 +348,17 @@ void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 				hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 3);
 				BREAK_IF_FAILED(hr);
 
-				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t7
-				pDevice->CopyDescriptorsSimple(1, dstHandle, BoneTransforms.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				pDevice->CopyDescriptorsSimple(1, dstHandle, pBoneTransform->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 			}
@@ -310,7 +392,7 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 	ID3D12Device5* pDevice = pManager->m_pDevice;
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable;
@@ -319,6 +401,7 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 	{
 		Mesh* pCurMesh = Meshes[i];
 
+		Material* pMeshMaterialTextures = &pCurMesh->Material;
 		MeshConstant* pMeshConstantData = &pCurMesh->MeshConstantData;
 		MaterialConstant* pMaterialConstantData = &pCurMesh->MaterialConstantData;
 		CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
@@ -339,24 +422,88 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 				hr = pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 10);
 				BREAK_IF_FAILED(hr);
 
-				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t7
-				pDevice->CopyDescriptorsSimple(1, dstHandle, BoneTransforms.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				pDevice->CopyDescriptorsSimple(1, dstHandle, pBoneTransform->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t0 ~ t5
-				pDevice->CopyDescriptorsSimple(6, dstHandle, pCurMesh->Material.Albedo.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(6, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				if (pMeshMaterialTextures->pAlbedo)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pAlbedo->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pEmissive)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pEmissive->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pNormal)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pNormal->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pAmbientOcclusion)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pAmbientOcclusion->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pMetallic)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pMetallic->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+				if (pMeshMaterialTextures->pRoughness)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pRoughness->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t6
-				pDevice->CopyDescriptorsSimple(1, dstHandle, pCurMesh->Material.Height.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				if (pMeshMaterialTextures->pHeight)
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pHeight->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
+				else
+				{
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				}
 
 				pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 
@@ -370,17 +517,17 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 				hr = pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 3);
 				BREAK_IF_FAILED(hr);
 
-				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t7
-				pDevice->CopyDescriptorsSimple(1, dstHandle, BoneTransforms.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				pDevice->CopyDescriptorsSimple(1, dstHandle, pBoneTransform->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// b2, b3
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 				pDevice->CopyDescriptorsSimple(1, dstHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
+				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 			}
@@ -406,7 +553,7 @@ void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 
 	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
 	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
-	ID3D12DescriptorHeap* pCBVSRVHeap = pResourceManager->m_pCBVSRVUAVHeap;
+	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
@@ -421,8 +568,7 @@ void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE nullHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), 14, CBV_SRV_DESCRIPTOR_SIZE);
-
+	
 	MeshConstant* pMeshConstantData = &m_pBoundingBoxMesh->MeshConstantData;
 	MaterialConstant* pMaterialConstantData = &m_pBoundingBoxMesh->MaterialConstantData;
 	CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
@@ -442,7 +588,7 @@ void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 	// t6(null)
-	pDevice->CopyDescriptorsSimple(1, dstHandle, nullHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 
@@ -456,20 +602,19 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = m_pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
-	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
-	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
+	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
+	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
+	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable[16];
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable[16];
-	CD3DX12_CPU_DESCRIPTOR_HANDLE nullHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), 14, CBV_SRV_DESCRIPTOR_SIZE);
-
+	
 	for (int i = 0; i < 16; ++i)
 	{
 		hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable[i], &gpuDescriptorTable[i], 3);
@@ -502,7 +647,7 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 			// t6(null)
-			pDevice->CopyDescriptorsSimple(1, descriptorHandle, nullHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable[descriptorTableIndex]);
 
@@ -534,7 +679,7 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 			// t6(null)
-			pDevice->CopyDescriptorsSimple(1, descriptorHandle, nullHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable[descriptorTableIndex]);
 
@@ -566,7 +711,7 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 			// t6(null)
-			pDevice->CopyDescriptorsSimple(1, descriptorHandle, nullHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable[descriptorTableIndex]);
 
@@ -598,7 +743,7 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 			// t6(null)
-			pDevice->CopyDescriptorsSimple(1, descriptorHandle, nullHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable[descriptorTableIndex]);
 
@@ -612,7 +757,17 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 
 void SkinnedMeshModel::Cleanup()
 {
-	BoneTransforms.Clear();
+	if (!m_pRenderer)
+	{
+		return;
+	}
+
+	if (pBoneTransform)
+	{
+		TextureManager* pTextureManager = m_pRenderer->GetTextureManager();
+		pTextureManager->DeleteTexture(pBoneTransform);
+		pBoneTransform = nullptr;
+	}
 
 	for (int i = 0; i < 4; ++i)
 	{
@@ -641,88 +796,6 @@ void SkinnedMeshModel::Cleanup()
 	{
 		delete m_pBoundingCapsuleMesh;
 		m_pBoundingCapsuleMesh = nullptr;
-	}
-}
-
-void SkinnedMeshModel::SetDescriptorHeap(Renderer* pRenderer)
-{
-	_ASSERT(pRenderer);
-
-	ResourceManager* pManager = pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12DescriptorHeap* pCBVSRVHeap = pManager->m_pCBVSRVUAVHeap;
-
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvLastHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pManager->m_CBVSRVUAVHeapSize, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.PlaneSlice = 0;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-	// BoneTransform buffer.
-	{
-		D3D12_SHADER_RESOURCE_VIEW_DESC structuredSRVDesc;
-		structuredSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-		structuredSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-		structuredSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		structuredSRVDesc.Buffer.FirstElement = 0;
-		structuredSRVDesc.Buffer.NumElements = (UINT)(BoneTransforms.ElementCount);
-		structuredSRVDesc.Buffer.StructureByteStride = (UINT)(BoneTransforms.ElementSize);
-		structuredSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-		pDevice->CreateShaderResourceView(BoneTransforms.GetResource(), &structuredSRVDesc, cbvSrvLastHandle);
-		BoneTransforms.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-	}
-
-	// meshes.
-	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
-	{
-		Mesh* pCurMesh = Meshes[i];
-		Material* pMaterialBuffer = &pCurMesh->Material;
-
-		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		pDevice->CreateShaderResourceView(pMaterialBuffer->Albedo.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->Albedo.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		pDevice->CreateShaderResourceView(pMaterialBuffer->Emissive.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->Emissive.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		pDevice->CreateShaderResourceView(pMaterialBuffer->Normal.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->Normal.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		pDevice->CreateShaderResourceView(pMaterialBuffer->Height.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->Height.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		pDevice->CreateShaderResourceView(pMaterialBuffer->AmbientOcclusion.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->AmbientOcclusion.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		pDevice->CreateShaderResourceView(pMaterialBuffer->Metallic.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->Metallic.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
-
-		pDevice->CreateShaderResourceView(pMaterialBuffer->Roughness.GetResource(), &srvDesc, cbvSrvLastHandle);
-		pMaterialBuffer->Roughness.SetSRVHandle(cbvSrvLastHandle);
-		cbvSrvLastHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
-		++(pManager->m_CBVSRVUAVHeapSize);
 	}
 }
 

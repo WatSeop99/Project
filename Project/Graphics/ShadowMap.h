@@ -25,9 +25,6 @@ public:
 	inline UINT GetShadowWidth() { return m_ShadowMapWidth; }
 	inline UINT GetShadowHeight() { return m_ShadowMapHeight; }
 
-	/*inline Texture* GetSpotLightShadowBufferPtr() { return &m_SpotLightShadowBuffer; }
-	inline Texture* GetPointLightShadowBufferPtr() { return &m_PointLightShadowBuffer; }
-	inline Texture* GetDirectionalLightShadowBufferPtr() { return &m_DirectionalLightShadowBuffer; }*/
 	inline TextureHandle* GetSpotLightShadowBufferPtr() { return m_pSpotLightShadowBuffer; }
 	inline TextureHandle* GetPointLightShadowBufferPtr() { return m_pPointLightShadowBuffer; }
 	inline TextureHandle* GetDirectionalLightShadowBufferPtr() { return m_pDirectionalLightShadowBuffer; }
@@ -38,7 +35,6 @@ public:
 	void SetShadowWidth(const UINT WIDTH);
 	void SetShadowHeight(const UINT HEIGHT);
 
-	void SetDescriptorHeap(Renderer* pRenderer);
 	void SetViewportsAndScissorRect(ID3D12GraphicsCommandList* pCommandList);
 
 protected:
@@ -58,12 +54,6 @@ private:
 	D3D12_VIEWPORT m_pViewPorts[6] = { 0.0f, };
 	D3D12_RECT m_pScissorRects[6] = { 0, };
 
-	/*union
-	{
-		Texture m_SpotLightShadowBuffer;
-		Texture m_PointLightShadowBuffer;
-		Texture m_DirectionalLightShadowBuffer;
-	};*/
 	union
 	{
 		TextureHandle* m_pSpotLightShadowBuffer;

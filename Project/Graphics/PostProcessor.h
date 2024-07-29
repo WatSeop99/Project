@@ -3,6 +3,8 @@
 #include "ImageFilter.h"
 #include "../Model/Mesh.h"
 
+class Renderer;
+
 class PostProcessor
 {
 public:
@@ -24,9 +26,9 @@ public:
 
 	void Initizlie(Renderer* pRenderer, const PostProcessingBuffers& CONFIG, const int WIDTH, const int HEIGHT, const int BLOOMLEVELS);
 
-	void Update(Renderer* pRenderer);
+	void Update();
 
-	void Render(Renderer* pRenderer, UINT frameIndex);
+	void Render(UINT frameIndex);
 	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, UINT frameIndex);
 
 	void Cleanup();
@@ -40,17 +42,19 @@ public:
 	void SetViewportsAndScissorRects(ID3D12GraphicsCommandList* pCommandList);
 
 protected:
-	void createPostBackBuffers(Renderer* pRenderer);
-	void createImageResources(Renderer* pRenderer, const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource);
+	void createPostBackBuffers();
+	void createImageResources(const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource);
 
-	void renderPostProcessing(Renderer* pRenderer, UINT frameIndex);
+	void renderPostProcessing(UINT frameIndex);
 	void renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager);
-	void renderImageFilter(Renderer* pRenderer, ImageFilter& imageFilter, eRenderPSOType psoSetting, UINT frameIndex);
+	void renderImageFilter(ImageFilter& imageFilter, eRenderPSOType psoSetting, UINT frameIndex);
 	void renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, ImageFilter& imageFilter, int psoSetting);
 
 	void setRenderConfig(const PostProcessingBuffers& CONFIG);
 
 private:
+	Renderer* m_pRenderer = nullptr;
+
 	Mesh* m_pScreenMesh = nullptr;
 	D3D12_VIEWPORT m_Viewport = { 0, };
 	D3D12_RECT m_ScissorRect = { 0, };

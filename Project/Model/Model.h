@@ -32,8 +32,6 @@ public:
 
 	virtual void Cleanup();
 
-	virtual void SetDescriptorHeap(Renderer* pRenderer);
-
 protected:
 	void initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS);
 	void initBoundingSphere(const std::vector<MeshInfo>& MESH_INFOS);

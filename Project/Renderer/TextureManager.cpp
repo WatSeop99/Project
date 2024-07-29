@@ -90,7 +90,7 @@ TextureHandle* TextureManager::CreateTextureFromFile(const WCHAR* pszFileName, b
 	return pTextureHandle;
 }
 
-TextureHandle* TextureManager::CreateTextureCubeFromFile(const WCHAR* pszFileName)
+TextureHandle* TextureManager::CreateTexturFromDDSFile(const WCHAR* pszFileName, bool bIsCube)
 {
 	_ASSERT(m_pRenderer);
 	_ASSERT(m_pResourceManager);
@@ -117,10 +117,20 @@ TextureHandle* TextureManager::CreateTextureCubeFromFile(const WCHAR* pszFileNam
 		{
 			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 			srvDesc.Format = desc.Format;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-			srvDesc.TextureCube.MostDetailedMip = 0;
-			srvDesc.TextureCube.MipLevels = desc.MipLevels;
+			if (bIsCube)
+			{
+				srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+				srvDesc.TextureCube.MostDetailedMip = 0;
+				srvDesc.TextureCube.MipLevels = desc.MipLevels;
+			}
+			else
+			{
+				srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+				srvDesc.Texture2D.MostDetailedMip = 0;
+				srvDesc.Texture2D.MipLevels = 1;
+				srvDesc.Texture2D.PlaneSlice = 0;
+			}
 
 			if (pSRVDescriptorAllocator->AllocDescriptorHandle(&srvHandle))
 			{
@@ -311,17 +321,19 @@ TextureHandle* TextureManager::CreateNonImageTexture(UINT numElement, UINT eleme
 	TextureHandle* pTextureHandle = nullptr;
 
 	ID3D12Resource* pTextureResource = nullptr;
-	ID3D12Resource* pUploadBuffer = nullptr;
 	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle;
 
-	HRESULT hr = m_pResourceManager->CreateNonImageUploadTexture(&pTextureResource, &pUploadBuffer, numElement, elementSize);
+	HRESULT hr = m_pResourceManager->CreateNonImageUploadTexture(&pTextureResource, numElement, elementSize);
 	if (SUCCEEDED(hr))
 	{
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Texture2D.MipLevels = 1;
+		srvDesc.Buffer.FirstElement = 0;
+		srvDesc.Buffer.NumElements = numElement;
+		srvDesc.Buffer.StructureByteStride = elementSize;
+		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
 		if (pSRVDescriptroAllocator->AllocDescriptorHandle(&srvHandle))
 		{
@@ -329,7 +341,6 @@ TextureHandle* TextureManager::CreateNonImageTexture(UINT numElement, UINT eleme
 
 			pTextureHandle = allocTextureHandle();
 			pTextureHandle->pTextureResource = pTextureResource;
-			pTextureHandle->pUploadBuffer = pUploadBuffer;
 			pTextureHandle->SRVHandle = srvHandle;
 			pTextureHandle->GPUHandle = pTextureResource->GetGPUVirtualAddress();
 		}
@@ -337,9 +348,6 @@ TextureHandle* TextureManager::CreateNonImageTexture(UINT numElement, UINT eleme
 		{
 			pTextureResource->Release();
 			pTextureResource = nullptr;
-
-			pUploadBuffer->Release();
-			pUploadBuffer = nullptr;
 		}
 	}
 	

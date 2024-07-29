@@ -9,18 +9,23 @@ void App::Initialize()
 	UINT64 totalRenderObjectCount = 0;
 	initExternalData(&totalRenderObjectCount);
 
-	/*Renderer::InitialData initData =
-	{
-		&m_RenderObjects,
-		&m_Lights,
-		&m_LightSpheres,
-		&m_EnvTexture, &m_IrradianceTexture, &m_SpecularTexture, &m_BRDFTexture,
-		m_pMirror, &m_MirrorPlane,
-	};*/
 	m_pRenderObjects = &m_RenderObjects;
 	m_pLights = &m_Lights;
 	m_pLightSpheres = &m_LightSpheres;
 	m_pMirrorPlane = &m_MirrorPlane;
+
+	ResourceManager::TextureHandles textureHandles =
+	{
+		{ m_Lights[0].LightShadowMap.GetSpotLightShadowBufferPtr(),
+		m_Lights[1].LightShadowMap.GetPointLightShadowBufferPtr(),
+		m_Lights[2].LightShadowMap.GetDirectionalLightShadowBufferPtr() },
+		m_pEnvTextureHandle,
+		m_pIrradianceTextureHandle,
+		m_pSpecularTextureHandle,
+		m_pBRDFTextureHandle,
+	};
+	ResourceManager* pResourceManager = GetResourceManager();
+	pResourceManager->SetGlobalTextures(&textureHandles);
 }
 
 int App::Run()
@@ -122,6 +127,33 @@ void App::Cleanup()
 	m_Lights.clear();
 	m_LightSpheres.clear();
 
+	TextureManager* pTextureManager = GetTextureManager();
+	DescriptorAllocator* pSRVAllocator = GetSRVUAVAllocator();
+	if (m_pEnvTextureHandle)
+	{
+		pSRVAllocator->FreeDescriptorHandle(m_pEnvTextureHandle->SRVHandle);
+		pTextureManager->DeleteTexture(m_pEnvTextureHandle);
+		m_pEnvTextureHandle = nullptr;
+	}
+	if (m_pIrradianceTextureHandle)
+	{
+		pSRVAllocator->FreeDescriptorHandle(m_pIrradianceTextureHandle->SRVHandle);
+		pTextureManager->DeleteTexture(m_pIrradianceTextureHandle);
+		m_pIrradianceTextureHandle = nullptr;
+	}
+	if (m_pSpecularTextureHandle)
+	{
+		pSRVAllocator->FreeDescriptorHandle(m_pSpecularTextureHandle->SRVHandle);
+		pTextureManager->DeleteTexture(m_pSpecularTextureHandle);
+		m_pSpecularTextureHandle = nullptr;
+	}
+	if (m_pBRDFTextureHandle)
+	{
+		pSRVAllocator->FreeDescriptorHandle(m_pBRDFTextureHandle->SRVHandle);
+		pTextureManager->DeleteTexture(m_pBRDFTextureHandle);
+		m_pBRDFTextureHandle = nullptr;
+	}
+
 	m_pCharacter = nullptr;
 	m_pMirror = nullptr;
 }
@@ -136,16 +168,11 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 	m_LightSpheres.resize(MAX_LIGHTS);
 
 	// 환경맵 텍스쳐 로드.
-	/*m_EnvTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_IrradianceTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_SpecularTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_BRDFTexture.InitializeWithDDS(this, L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");*/
-
 	TextureManager* pTextureManager = GetTextureManager();
-	m_pEnvTextureHandle = pTextureManager->CreateTextureCubeFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_pIrradianceTextureHandle = pTextureManager->CreateTextureCubeFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_pSpecularTextureHandle = pTextureManager->CreateTextureCubeFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds");
-	m_pBRDFTextureHandle = pTextureManager->CreateTextureFromFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds", true);
+	m_pEnvTextureHandle = pTextureManager->CreateTexturFromDDSFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyEnvHDR.dds", true);
+	m_pIrradianceTextureHandle = pTextureManager->CreateTexturFromDDSFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskySpecularHDR.dds", true);
+	m_pSpecularTextureHandle = pTextureManager->CreateTexturFromDDSFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyDiffuseHDR.dds", true);
+	m_pBRDFTextureHandle = pTextureManager->CreateTexturFromDDSFile(L"./Assets/Textures/Cubemaps/HDRI/clear_pureskyBrdf.dds", false);
 
 	// 환경 박스 초기화.
 	{

@@ -44,8 +44,6 @@ public:
 	inline Mesh** GetRightLegsMesh() { return m_ppRightLeg; }
 	inline Mesh** GetLeftLegsMesh() { return m_ppLeftLeg; }
 
-	void SetDescriptorHeap(Renderer* pRenderer) override;
-
 protected:
 	void initBoundingCapsule();
 	void initJointSpheres();
@@ -57,10 +55,8 @@ protected:
 	void solveCharacterIK(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 
 public:
-	NonImageTexture BoneTransforms;
 	TextureHandle* pBoneTransform = nullptr;
 	AnimationData CharacterAnimationData;
-	// CharacterMoveInfo MoveInfo;
 
 	DirectX::BoundingSphere RightHandMiddle;
 	DirectX::BoundingSphere LeftHandMiddle;
