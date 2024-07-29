@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../pch.h"
-#include "../Graphics/Texture.h"
 #include "../Renderer/TextureManager.h"
 
 // Vertex and Index Info
@@ -17,14 +16,6 @@ struct BufferInfo
 };
 struct Material
 {
-	Texture Albedo;
-	Texture Emissive;
-	Texture Normal;
-	Texture Height;
-	Texture AmbientOcclusion;
-	Texture Metallic;
-	Texture Roughness;
-
 	TextureHandle* pAlbedo;
 	TextureHandle* pEmissive;
 	TextureHandle* pNormal;

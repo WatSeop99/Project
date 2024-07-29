@@ -158,7 +158,10 @@
     <ClInclude Include="Graphics\Light.h" />
     <ClInclude Include="Graphics\PostProcessor.h" />
     <ClInclude Include="Graphics\ShadowMap.h" />
-    <ClInclude Include="Graphics\Texture.h" />
+    <ClInclude Include="Graphics\Texture.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="Model\AnimationData.h" />
     <ClInclude Include="Model\GeometryGenerator.h" />
     <ClInclude Include="Model\Mesh.h" />
@@ -202,7 +205,10 @@
     <ClCompile Include="Graphics\Light.cpp" />
     <ClCompile Include="Graphics\PostProcessor.cpp" />
     <ClCompile Include="Graphics\ShadowMap.cpp" />
-    <ClCompile Include="Graphics\Texture.cpp" />
+    <ClCompile Include="Graphics\Texture.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Model\AnimationData.cpp" />
     <ClCompile Include="Model\GeometryGenerator.cpp" />
     <ClCompile Include="Model\Model.cpp" />

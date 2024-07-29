@@ -58,7 +58,8 @@ void Renderer::Initizlie()
 		&m_GlobalConstantData,
 		m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
 	};
-	m_PostProcessor.Initizlie(this, config, m_ScreenWidth, m_ScreenHeight, 2);
+	m_pPostProcessor = new PostProcessor;
+	m_pPostProcessor->Initizlie(this, config, m_ScreenWidth, m_ScreenHeight, 2);
 
 	m_ScreenViewport.TopLeftX = 0;
 	m_ScreenViewport.TopLeftY = 0;
@@ -78,7 +79,7 @@ void Renderer::Update(const float DELTA_TIME)
 	m_Camera.UpdateKeyboard(DELTA_TIME, &m_Keyboard);
 	processMouseControl(DELTA_TIME);
 
-	m_PhysicsManager.Update(DELTA_TIME);
+	m_pPhysicsManager->Update(DELTA_TIME);
 
 	updateGlobalConstants(DELTA_TIME);
 	updateLightConstants(DELTA_TIME);
@@ -142,12 +143,30 @@ void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int 
 	}
 }
 
+UINT64 Renderer::Fence()
+{
+	++m_FenceValue;
+	m_pCommandQueue->Signal(m_pFence, m_FenceValue);
+	m_LastFenceValues[m_FrameIndex] = m_FenceValue;
+	return m_FenceValue;
+}
+
+void Renderer::WaitForFenceValue(UINT64 expectedFenceValue)
+{
+	// Wait until the previous frame is finished.
+	if (m_pFence->GetCompletedValue() < expectedFenceValue)
+	{
+		m_pFence->SetEventOnCompletion(expectedFenceValue, m_hFenceEvent);
+		WaitForSingleObject(m_hFenceEvent, INFINITE);
+	}
+}
+
 void Renderer::Cleanup()
 {
-	fence();
+	Fence();
 	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
-		waitForFenceValue(m_LastFenceValues[i]);
+		WaitForFenceValue(m_LastFenceValues[i]);
 	}
 
 #ifdef USE_MULTI_THREAD
@@ -180,34 +199,23 @@ void Renderer::Cleanup()
 
 #endif
 
-	m_PostProcessor.Cleanup();
-
-	if (m_pRTVAllocator)
+	if (m_pPhysicsManager)
 	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
-		for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-		{
-			rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + i, m_pResourceManager->m_RTVDescriptorSize);
-			m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
-		}
-		rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
-		m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
-
-		delete m_pRTVAllocator;
-		m_pRTVAllocator = nullptr;
+		delete m_pPhysicsManager;
+		m_pPhysicsManager = nullptr;
 	}
-	if (m_pDSVAllocator)
+	if (m_pPostProcessor)
 	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pDSVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_DefaultDepthStencilOffset, m_pResourceManager->m_DSVDescriptorSize);
-		m_pDSVAllocator->FreeDescriptorHandle(dsvHandle);
-
-		delete m_pDSVAllocator;
-		m_pDSVAllocator = nullptr;
+		delete m_pPostProcessor;
+		m_pPostProcessor = nullptr;
 	}
-	if (m_pSRVUAVAllocator)
+
+	cleanShaderResources();
+	cleanDepthStencils();
+	cleanRenderTargets();
 	{
-		delete m_pSRVUAVAllocator;
-		m_pSRVUAVAllocator = nullptr;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE nullSRV(m_pResourceManager->m_NullSRVDescriptor);
+		m_pSRVUAVAllocator->FreeDescriptorHandle(nullSRV);
 	}
 
 	m_pRenderObjects = nullptr;
@@ -217,13 +225,6 @@ void Renderer::Cleanup()
 	m_pPickedModel = nullptr;
 	m_pPickedEndEffector = nullptr;
 	m_pMirrorPlane = nullptr;
-	SAFE_RELEASE(m_pDefaultDepthStencil);
-	SAFE_RELEASE(m_pFloatBuffer);
-	SAFE_RELEASE(m_pPrevBuffer);
-	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-	{
-		SAFE_RELEASE(m_pRenderTargets[i]);
-	}
 
 	if (m_hFenceEvent)
 	{
@@ -232,6 +233,30 @@ void Renderer::Cleanup()
 	}
 	m_FenceValue = 0;
 	SAFE_RELEASE(m_pFence);
+
+	if (m_pDSVAllocator)
+	{
+		delete m_pDSVAllocator;
+		m_pDSVAllocator = nullptr;
+	}
+	if (m_pSRVUAVAllocator)
+	{
+		delete m_pSRVUAVAllocator;
+		m_pSRVUAVAllocator = nullptr;
+	}
+	if (m_pRTVAllocator)
+	{
+		delete m_pRTVAllocator;
+		m_pRTVAllocator = nullptr;
+	}
+	m_DynamicDescriptorPool.Cleanup();
+	m_ConstantBufferManager.Cleanup();
+
+	if (m_pResourceManager)
+	{
+		delete m_pResourceManager;
+		m_pResourceManager = nullptr;
+	}
 
 	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
@@ -266,18 +291,10 @@ void Renderer::Cleanup()
 		}
 	}
 
-	m_DynamicDescriptorPool.Cleanup();
-	m_ConstantBufferManager.Cleanup();
 	if (m_pTextureManager)
 	{
 		delete m_pTextureManager;
 		m_pTextureManager = nullptr;
-	}
-
-	if (m_pResourceManager)
-	{
-		delete m_pResourceManager;
-		m_pResourceManager = nullptr;
 	}
 
 	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
@@ -322,10 +339,10 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 			
 			// 화면 해상도가 바뀌면 SwapChain을 다시 생성.
-			fence();
+			Fence();
 			for (int i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 			{
-				waitForFenceValue(m_LastFenceValues[i]);
+				WaitForFenceValue(m_LastFenceValues[i]);
 			}
 
 			m_ScreenWidth = (UINT)LOWORD(lParam);
@@ -349,29 +366,11 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 #endif 
 
 			// 기존 버퍼 초기화.
-			/*CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, m_pResourceManager->m_RTVDescriptorSize);
-			for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-			{
-				m_pRenderTargets[i]->Release();
-				m_pRenderTargets[i] = nullptr;
-				m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
-				rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
-			}
-			m_MainRenderTargetOffset = -1;
-			m_pFloatBuffer->Release();
-			m_pFloatBuffer = nullptr;
-			m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
-			m_FloatBufferRTVOffset = -1;
-
-			m_pPrevBuffer->Release();
-			m_pPrevBuffer = nullptr;
-			m_pDefaultDepthStencil->Release();
-			m_pDefaultDepthStencil = nullptr;*/
 			cleanShaderResources();
 			cleanDepthStencils();
 			cleanRenderTargets();
 
-			m_PostProcessor.Cleanup();
+			m_pPostProcessor->Cleanup();
 			m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 
 			// swap chain resize.
@@ -380,140 +379,10 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 										m_ScreenHeight,
 										DXGI_FORMAT_UNKNOWN, // 현재 포맷 유지.
 										0);
-
+			// 버퍼 재생성.
 			initRenderTargets();
 			initDepthStencils();
 			initShaderResources();
-			// float buffer, prev buffer 재생성.
-			{
-				//HRESULT hr = S_OK;
-
-				//D3D12_RESOURCE_DESC resourceDesc = {};
-				//resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-				//resourceDesc.Alignment = 0;
-				//resourceDesc.Width = m_ScreenWidth;
-				//resourceDesc.Height = m_ScreenHeight;
-				//resourceDesc.DepthOrArraySize = 1;
-				//resourceDesc.MipLevels = 1;
-				//resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				//resourceDesc.SampleDesc.Count = 1;
-				//resourceDesc.SampleDesc.Quality = 0;
-				//resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-				//resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-
-				//CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
-
-				//hr = m_pDevice->CreateCommittedResource(&heapProps,
-				//										D3D12_HEAP_FLAG_NONE,
-				//										&resourceDesc,
-				//										D3D12_RESOURCE_STATE_COMMON,
-				//										nullptr,
-				//										IID_PPV_ARGS(&m_pFloatBuffer));
-				//BREAK_IF_FAILED(hr);
-				//m_pFloatBuffer->SetName(L"FloatBuffer");
-
-
-				//// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-				//resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-				//hr = m_pDevice->CreateCommittedResource(&heapProps,
-				//										D3D12_HEAP_FLAG_NONE,
-				//										&resourceDesc,
-				//										D3D12_RESOURCE_STATE_COMMON,
-				//										nullptr,
-				//										IID_PPV_ARGS(&m_pPrevBuffer));
-				//BREAK_IF_FAILED(hr);
-				//m_pPrevBuffer->SetName(L"PrevBuffer");
-			}
-
-			// 변경된 크기에 맞춰 rtv, dsv, srv 재생성.
-			{
-				/*const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-				CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, RTV_DESCRIPTOR_SIZE);
-				CD3DX12_CPU_DESCRIPTOR_HANDLE startRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart());
-				for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-				{
-					m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&m_pRenderTargets[i]));
-					m_pDevice->CreateRenderTargetView(m_pRenderTargets[i], nullptr, rtvHandle);
-					rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
-				}
-				rtvHandle = startRtvHandle;
-
-				D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-				rtvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-				rtvDesc.Texture2D.MipSlice = 0;
-				rtvDesc.Texture2D.PlaneSlice = 0;
-				rtvHandle.Offset(m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-				m_pDevice->CreateRenderTargetView(m_pFloatBuffer, &rtvDesc, rtvHandle);*/
-			}
-			{
-				/*HRESULT hr = S_OK;
-
-				D3D12_RESOURCE_DESC dsvDesc;
-				dsvDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-				dsvDesc.Alignment = 0;
-				dsvDesc.Width = m_ScreenWidth;
-				dsvDesc.Height = m_ScreenHeight;
-				dsvDesc.DepthOrArraySize = 1;
-				dsvDesc.MipLevels = 1;
-				dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-				dsvDesc.SampleDesc.Count = 1;
-				dsvDesc.SampleDesc.Quality = 0;
-				dsvDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-				dsvDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-
-				D3D12_HEAP_PROPERTIES heapProps;
-				heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-				heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-				heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-				heapProps.CreationNodeMask = 1;
-				heapProps.VisibleNodeMask = 1;
-
-				D3D12_CLEAR_VALUE clearValue;
-				clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-				clearValue.DepthStencil.Depth = 1.0f;
-				clearValue.DepthStencil.Stencil = 0;
-
-				hr = m_pDevice->CreateCommittedResource(&heapProps,
-														D3D12_HEAP_FLAG_NONE,
-														&dsvDesc,
-														D3D12_RESOURCE_STATE_DEPTH_WRITE,
-														&clearValue,
-														IID_PPV_ARGS(&m_pDefaultDepthStencil));
-				BREAK_IF_FAILED(hr);
-				m_pDefaultDepthStencil->SetName(L"DefaultDepthStencil");
-
-				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-				depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-				depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-				depthStencilViewDesc.Texture2D.MipSlice = 0;
-
-				CD3DX12_CPU_DESCRIPTOR_HANDLE depthHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
-				m_pDevice->CreateDepthStencilView(m_pDefaultDepthStencil, &depthStencilViewDesc, depthHandle);*/
-			}
-			{
-				//const UINT SRV_DESCRIPTOR_SIZE = m_pResourceManager->m_CBVSRVUAVDescriptorSize;
-				//CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-				//CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(m_pResourceManager->m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart());
-
-				//D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-				//srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-				//srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-				//srvDesc.Texture2D.MostDetailedMip = 0;
-				//srvDesc.Texture2D.MipLevels = 1;
-				//srvDesc.Texture2D.PlaneSlice = 0;
-				//srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-				//// float buffer srv
-				//m_pDevice->CreateShaderResourceView(m_pFloatBuffer, &srvDesc, srvHandle);
-
-				//// prev buffer srv
-				//srvHandle = startSrvHandle;
-				//srvHandle.Offset(m_PrevBufferSRVOffset, SRV_DESCRIPTOR_SIZE);
-				//// srvDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-				//m_pDevice->CreateShaderResourceView(m_pPrevBuffer, &srvDesc, srvHandle);
-			}
 
 			PostProcessor::PostProcessingBuffers config =
 			{
@@ -523,8 +392,7 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				&m_GlobalConstantData,
 				m_MainRenderTargetOffset, m_MainRenderTargetOffset + 1, m_FloatBufferSRVOffset, m_PrevBufferSRVOffset
 			};
-			Renderer* pRenderer = this;
-			m_PostProcessor.Initizlie(pRenderer, config, m_ScreenWidth, m_ScreenHeight, 4);
+			m_pPostProcessor->Initizlie(this, config, m_ScreenWidth, m_ScreenHeight, 4);
 			m_Camera.SetAspectRatio((float)m_ScreenWidth / (float)m_ScreenHeight);
 		}
 		break;
@@ -851,53 +719,30 @@ LB_EXIT:
 		m_hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	}
 
-	// create float buffer and prev buffer
-	{
-		/*D3D12_RESOURCE_DESC resourceDesc = {};
-		resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		resourceDesc.Alignment = 0;
-		resourceDesc.Width = m_ScreenWidth;
-		resourceDesc.Height = m_ScreenHeight;
-		resourceDesc.DepthOrArraySize = 1;
-		resourceDesc.MipLevels = 1;
-		resourceDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		resourceDesc.SampleDesc.Count = 1;
-		resourceDesc.SampleDesc.Quality = 0;
-		resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-		resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-		D3D12_HEAP_PROPERTIES heapProps = {};
-		heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-		heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-		heapProps.CreationNodeMask = 1;
-		heapProps.VisibleNodeMask = 1;
-
-		hr = m_pDevice->CreateCommittedResource(&heapProps,
-												D3D12_HEAP_FLAG_NONE,
-												&resourceDesc,
-												D3D12_RESOURCE_STATE_COMMON,
-												nullptr,
-												IID_PPV_ARGS(&m_pFloatBuffer));
-		BREAK_IF_FAILED(hr);
-		m_pFloatBuffer->SetName(L"FloatBuffer");*/
-
-
-		//// resourceDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
-		//resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		//hr = m_pDevice->CreateCommittedResource(&heapProps,
-		//										D3D12_HEAP_FLAG_NONE,
-		//										&resourceDesc,
-		//										D3D12_RESOURCE_STATE_COMMON,
-		//										nullptr,
-		//										IID_PPV_ARGS(&m_pPrevBuffer));
-		//BREAK_IF_FAILED(hr);
-		//m_pPrevBuffer->SetName(L"PrevBuffer");
-	}
-
-	ResourceManager::InitialData initData = { m_pDevice, m_pCommandQueue, m_ppCommandAllocator, m_ppCommandList, &m_DynamicDescriptorPool, &m_ConstantBufferManager, m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues };
+	//CommandListPool* pCurCommandListPool1 = m_pppCommandListPool[m_FrameIndex][0];
+	//CommandListPool* pCurCommandListPool2 = m_pppCommandListPool[(m_FrameIndex + 1) % SWAP_CHAIN_FRAME_COUNT][0];
+	//ID3D12CommandAllocator* ppAllocators[SWAP_CHAIN_FRAME_COUNT] =
+	//{
+	//	pCurCommandListPool1->GetCurrentCommandAllocator(), 
+	//	pCurCommandListPool2->GetCurrentCommandAllocator()
+	//};
+	//ID3D12GraphicsCommandList* ppCommandList[SWAP_CHAIN_FRAME_COUNT] =
+	//{
+	//	pCurCommandListPool1->GetCurrentCommandList(), 
+	//	pCurCommandListPool2->GetCurrentCommandList()
+	//};
+	//ResourceManager::InitialData initData = 
+	//{ 
+	//	m_pDevice, m_pCommandQueue, 
+	//	ppAllocators,
+	//	ppCommandList,
+	//	&m_DynamicDescriptorPool, 
+	//	&m_ConstantBufferManager, 
+	//	m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues 
+	//};
 	m_pResourceManager = new ResourceManager;
-	m_pResourceManager->Initialize(&initData);
+	m_pResourceManager->Initialize(this);
 
 	m_pTextureManager = new TextureManager;
 	m_pTextureManager->Initialize(this, 1024 / 16, 1024);
@@ -932,7 +777,8 @@ LB_EXIT:
 
 void Renderer::initPhysics()
 {
-	m_PhysicsManager.Initialize(m_RenderThreadCount);
+	m_pPhysicsManager = new PhysicsManager;
+	m_pPhysicsManager->Initialize(m_RenderThreadCount);
 }
 
 void Renderer::initScene()
@@ -1100,17 +946,16 @@ void Renderer::initShaderResources()
 	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
 	HRESULT hr = m_pDevice->CreateCommittedResource(&heapProps,
-											D3D12_HEAP_FLAG_NONE,
-											&resourceDesc,
-											D3D12_RESOURCE_STATE_COMMON,
-											nullptr,
-											IID_PPV_ARGS(&m_pPrevBuffer));
+													D3D12_HEAP_FLAG_NONE,
+													&resourceDesc,
+													D3D12_RESOURCE_STATE_COMMON,
+													nullptr,
+													IID_PPV_ARGS(&m_pPrevBuffer));
 	BREAK_IF_FAILED(hr);
 	m_pPrevBuffer->SetName(L"PrevBuffer");
 
 
 	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = {};
-
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -1227,7 +1072,7 @@ void Renderer::beginRender()
 
 	ID3D12DescriptorHeap* ppDescriptorHeaps[] =
 	{
-		m_DynamicDescriptorPool.GetDescriptorHeap(),
+		m_pppDescriptorPool[m_FrameIndex][0]->GetDescriptorHeap(),
 		m_pResourceManager->m_pSamplerHeap
 	};
 	m_ppCommandList[m_FrameIndex]->SetDescriptorHeaps(2, ppDescriptorHeaps);
@@ -1701,7 +1546,7 @@ void Renderer::postProcess()
 
 	const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
 	m_ppCommandList[m_FrameIndex]->ResourceBarrier(1, &BARRIER);
-	m_PostProcessor.Render( m_FrameIndex);
+	m_pPostProcessor->Render(m_FrameIndex);
 
 #endif
 }
@@ -1859,7 +1704,7 @@ void Renderer::endRender()
 
 void Renderer::present()
 {
-	fence();
+	Fence();
 
 	UINT syncInterval = 1;	  // VSync On
 	// UINT syncInterval = 0;  // VSync Off
@@ -1878,7 +1723,7 @@ void Renderer::present()
 
 	// for next frame
 	UINT nextFrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
-	waitForFenceValue(m_LastFenceValues[m_FrameIndex]);
+	WaitForFenceValue(m_LastFenceValues[m_FrameIndex]);
 
 #ifdef USE_MULTI_THREAD
 
@@ -2329,22 +2174,4 @@ Model* Renderer::pickClosest(const DirectX::SimpleMath::Ray& PICKING_RAY, float*
 	}
 
 	return pMinModel;
-}
-
-UINT64 Renderer::fence()
-{
-	++m_FenceValue;
-	m_pCommandQueue->Signal(m_pFence, m_FenceValue);
-	m_LastFenceValues[m_FrameIndex] = m_FenceValue;
-	return m_FenceValue;
-}
-
-void Renderer::waitForFenceValue(UINT64 expectedFenceValue)
-{
-	// Wait until the previous frame is finished.
-	if (m_pFence->GetCompletedValue() < expectedFenceValue)
-	{
-		m_pFence->SetEventOnCompletion(expectedFenceValue, m_hFenceEvent);
-		WaitForSingleObject(m_hFenceEvent, INFINITE);
-	}
 }

@@ -219,8 +219,8 @@ void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
@@ -389,7 +389,7 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 
 	HRESULT hr = S_OK;
 
-	ID3D12Device5* pDevice = pManager->m_pDevice;
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
@@ -551,8 +551,8 @@ void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
@@ -604,8 +604,8 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
@@ -1233,27 +1233,6 @@ void SkinnedMeshModel::updateJointSpheres(int clipID, int frame)
 			const Matrix BONE_TRANSFORM = CharacterAnimationData.Get(BONE_ID);
 
 			ppMeshConstantDatas[i]->World = (BONE_CORRECTION_TRANSFORM[i] * BONE_TRANSFORM * World).Transpose();
-
-			/*if (i >= 0 && i < 4)
-			{
-				Joint* pJoint = &RightArm.BodyChain[i % 4];
-				pJoint->Position = ppMeshConstantDatas[i]->World.Transpose().Translation();
-			}
-			else if (i >= 4 && i < 8)
-			{
-				Joint* pJoint = &LeftArm.BodyChain[i % 4];
-				pJoint->Position = ppMeshConstantDatas[i]->World.Transpose().Translation();
-			}
-			else if (i >= 8 && i < 12)
-			{
-				Joint* pJoint = &RightLeg.BodyChain[i % 4];
-				pJoint->Position = ppMeshConstantDatas[i]->World.Transpose().Translation();
-			}
-			else if (i >= 12 && i < 16)
-			{
-				Joint* pJoint = &LeftLeg.BodyChain[i % 4];
-				pJoint->Position = ppMeshConstantDatas[i]->World.Transpose().Translation();
-			}*/
 		}
 
 		RightHandMiddle.Center = ppMeshConstantDatas[3]->World.Transpose().Translation();

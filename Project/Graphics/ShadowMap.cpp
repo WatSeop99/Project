@@ -197,9 +197,10 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 	_ASSERT(m_pRenderer);
 
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
-	ConstantBufferPool* pShadowConstantBufferGSPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ShadowConstant);
-	ConstantBufferPool* pShadowConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
+	ConstantBufferPool* pShadowConstantBufferGSPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ShadowConstant);
+	ConstantBufferPool* pShadowConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
 	const UINT DSV_DESCRIPTOR_SIZE = pResourceManager->m_DSVDescriptorSize;
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
@@ -312,11 +313,6 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 
 void ShadowMap::Cleanup()
 {
-	if (!m_pRenderer)
-	{
-		return;
-	}
-
 	TextureManager* pTextureManager = m_pRenderer->GetTextureManager();
 	DescriptorAllocator* pDSVAllocator = m_pRenderer->GetDSVAllocator();
 	DescriptorAllocator* pSRVAllocator = m_pRenderer->GetSRVUAVAllocator();
@@ -338,8 +334,6 @@ void ShadowMap::Cleanup()
 		default:
 			break;
 	}
-
-	m_pRenderer = nullptr;
 }
 
 void ShadowMap::SetShadowWidth(const UINT WIDTH)

@@ -44,17 +44,25 @@ public:
 	void Render();
 	void ProcessByThread(UINT threadIndex, ResourceManager* pManager, int renderPass);
 
+	UINT64 Fence();
+	void WaitForFenceValue(UINT64 expectedFenceValue);
+
 	void Cleanup();
 
 	LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	inline ID3D12Device5* GetD3DDevice() { return m_pDevice; }
+	inline ID3D12CommandQueue* GetCommandQueue() { return m_pCommandQueue; }
+	inline ID3D12CommandAllocator* GetCommandAllocator() { return m_pppCommandListPool[m_FrameIndex][0]->GetCurrentCommandAllocator(); }
+	inline ID3D12GraphicsCommandList* GetCommandList() { return m_pppCommandListPool[m_FrameIndex][0]->GetCurrentCommandList(); }
+
 	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
-	inline PhysicsManager* GetPhysicsManager() { return &m_PhysicsManager; }
+	inline PhysicsManager* GetPhysicsManager() { return m_pPhysicsManager; }
 	inline DescriptorAllocator* GetRTVAllocator() { return m_pRTVAllocator; }
 	inline DescriptorAllocator* GetDSVAllocator() { return m_pDSVAllocator; }
 	inline DescriptorAllocator* GetSRVUAVAllocator() { return m_pSRVUAVAllocator; }
 	inline TextureManager* GetTextureManager() { return m_pTextureManager; }
+	inline ConstantBufferManager* GetConstantBufferPool(UINT threadIndex = 0) { return m_pppConstantBufferManager[m_FrameIndex][threadIndex]; }
 	inline HWND GetWindow() { return m_hMainWindow; }
 	ConstantBufferManager* GetConstantBufferManager(UINT threadIndex = 0);
 	DynamicDescriptorPool* GetDynamicDescriptorPool(UINT threadIndex = 0);
@@ -92,9 +100,6 @@ protected:
 	void processMouseControl(const float DELTA_TIME);
 	Model* pickClosest(const DirectX::SimpleMath::Ray& PICKING_RAY, float* pMinDist, Mesh** ppEndEffector, int* pEndEffectorType);
 
-	UINT64 fence();
-	void waitForFenceValue(UINT64 expectedFenceValue);
-
 protected:
 	HWND m_hMainWindow = nullptr;
 
@@ -103,8 +108,8 @@ protected:
 	UINT64 m_LastFenceValues[SWAP_CHAIN_FRAME_COUNT] = { 0, };
 	UINT64 m_FenceValue = 0;
 
-	PhysicsManager m_PhysicsManager;
-	PostProcessor m_PostProcessor;
+	PhysicsManager* m_pPhysicsManager = nullptr;
+	PostProcessor* m_pPostProcessor = nullptr;
 
 	Keyboard m_Keyboard;
 	Mouse m_Mouse;

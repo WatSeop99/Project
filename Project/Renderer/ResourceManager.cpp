@@ -3,26 +3,37 @@
 #include "../Util/Utility.h"
 #include "ResourceManager.h"
 
-void ResourceManager::Initialize(InitialData* pInitialData)
+void ResourceManager::Initialize(Renderer* pRenderer)
 {
-	_ASSERT(pInitialData);
+	_ASSERT(pRenderer);
 
-	m_pDevice = pInitialData->pDevice;
-	m_pCommandQueue = pInitialData->pCommandQueue;
-	m_ppSingleCommandAllocator = pInitialData->ppCommandAllocator;
-	m_ppSingleCommandList = pInitialData->ppCommandList;
-	m_pDynamicDescriptorPool = pInitialData->pDynamicDescriptorPool;
-	m_pConstantBufferManager = pInitialData->pConstantBufferManager;
-	m_hFenceEvent = pInitialData->hFenceEvent;
-	m_pFence = pInitialData->pFence;
-	m_pFrameIndex = pInitialData->pFrameIndex;
-	m_pFenceValue = pInitialData->pFenceValue;
-	m_pFenceValues = pInitialData->pLastFenceValues;
+	m_pRenderer = pRenderer;
+	m_pDevice = pRenderer->GetD3DDevice();
+	m_pCommandQueue = pRenderer->GetCommandQueue();
 
 	m_RTVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	m_DSVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	m_CBVSRVUAVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	m_SamplerDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+	{
+		HRESULT hr = S_OK;
+		WCHAR szDebugName[256] = { 0, };
+
+		hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_pCommandAllocator));
+		BREAK_IF_FAILED(hr);
+		swprintf_s(szDebugName, 256, L"CommandAllocatorInResourceManager");
+		m_pCommandAllocator->SetName(szDebugName);
+
+		hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_pCommandAllocator, nullptr, IID_PPV_ARGS(&m_pCommandList));
+		BREAK_IF_FAILED(hr);
+		swprintf_s(szDebugName, 256, L"CommandListInResourceManager");
+		m_pCommandList->SetName(szDebugName);
+
+		// Command lists are created in the recording state, but there is nothing
+		// to record yet. The main loop expects it to be closed, so close it now.
+		m_pCommandList->Close();
+	}
 
 	initSamplers();
 	initRasterizerStateDescs();
@@ -32,72 +43,11 @@ void ResourceManager::Initialize(InitialData* pInitialData)
 	initPipelineStates();
 }
 
-//void ResourceManager::InitRTVDescriptorHeap(UINT maxDescriptorNum)
-//{
-//	_ASSERT(m_pDevice);
-//
-//	HRESULT hr = S_OK;
-//
-//	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-//	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-//	heapDesc.NumDescriptors = MAX_DESCRIPTOR_NUM;
-//	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-//	if (maxDescriptorNum <= MAX_DESCRIPTOR_NUM)
-//	{
-//		heapDesc.NumDescriptors = maxDescriptorNum;
-//	}
-//
-//	hr = m_pDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_pRTVHeap));
-//	BREAK_IF_FAILED(hr);
-//	m_pRTVHeap->SetName(L"RenderTargetViewDescriptorHeap");
-//}
-//
-//void ResourceManager::InitDSVDescriptorHeap(UINT maxDescriptorNum)
-//{
-//	_ASSERT(m_pDevice);
-//
-//	HRESULT hr = S_OK;
-//
-//	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-//	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-//	heapDesc.NumDescriptors = MAX_DESCRIPTOR_NUM;
-//	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-//	if (maxDescriptorNum <= MAX_DESCRIPTOR_NUM)
-//	{
-//		heapDesc.NumDescriptors = maxDescriptorNum;
-//	}
-//
-//	hr = m_pDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_pDSVHeap));
-//	BREAK_IF_FAILED(hr);
-//	m_pDSVHeap->SetName(L"DepthStencilViewDescriptorHeap");
-//}
-//
-//void ResourceManager::InitCBVSRVUAVDescriptorHeap(UINT maxDescriptorNum)
-//{
-//	_ASSERT(m_pDevice);
-//
-//	HRESULT hr = S_OK;
-//
-//	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-//	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-//	heapDesc.NumDescriptors = MAX_DESCRIPTOR_NUM;
-//	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-//	if (maxDescriptorNum <= MAX_DESCRIPTOR_NUM)
-//	{
-//		heapDesc.NumDescriptors = maxDescriptorNum;
-//	}
-//
-//	hr = m_pDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_pCBVSRVUAVHeap));
-//	BREAK_IF_FAILED(hr);
-//	m_pCBVSRVUAVHeap->SetName(L"ConstantShaderUnorderedResourceViewDescriptorHeap");
-//}
-
 HRESULT ResourceManager::CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, D3D12_VERTEX_BUFFER_VIEW* pOutVertexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData)
 {
+	_ASSERT(m_pRenderer);
 	_ASSERT(m_pDevice);
 	_ASSERT(m_pCommandQueue);
-	_ASSERT(m_ppSingleCommandAllocator);
-	_ASSERT(m_ppSingleCommandList);
 
 	HRESULT hr = S_OK;
 
@@ -119,10 +69,10 @@ HRESULT ResourceManager::CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, 
 	
 	if (pInitData)
 	{
-		hr = m_ppSingleCommandAllocator[*m_pFrameIndex]->Reset();
+		hr = m_pCommandAllocator->Reset();
 		BREAK_IF_FAILED(hr);
 
-		hr = m_ppSingleCommandList[*m_pFrameIndex]->Reset(m_ppSingleCommandAllocator[*m_pFrameIndex], nullptr);
+		hr = m_pCommandList->Reset(m_pCommandAllocator, nullptr);
 		BREAK_IF_FAILED(hr);
 
 		heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -147,17 +97,17 @@ HRESULT ResourceManager::CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, 
 
 		const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pVertexBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
 		const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pVertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-		m_ppSingleCommandList[*m_pFrameIndex]->ResourceBarrier(1, &BEFORE_BARRIER);
-		m_ppSingleCommandList[*m_pFrameIndex]->CopyBufferRegion(pVertexBuffer, 0, pUploadBuffer, 0, vertexBufferSize);
-		m_ppSingleCommandList[*m_pFrameIndex]->ResourceBarrier(1, &AFTER_BARRIER);
+		m_pCommandList->ResourceBarrier(1, &BEFORE_BARRIER);
+		m_pCommandList->CopyBufferRegion(pVertexBuffer, 0, pUploadBuffer, 0, vertexBufferSize);
+		m_pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 
-		m_ppSingleCommandList[*m_pFrameIndex]->Close();
+		m_pCommandList->Close();
 
-		ID3D12CommandList* ppCommandLists[] = { m_ppSingleCommandList[*m_pFrameIndex] };
+		ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
 		m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-		fence();
-		waitForGPU(m_pFenceValues[*m_pFrameIndex]);
+		UINT64 lastFenceValue = m_pRenderer->Fence();
+		m_pRenderer->WaitForFenceValue(lastFenceValue);
 
 		SAFE_RELEASE(pUploadBuffer);
 	}
@@ -178,8 +128,6 @@ HRESULT ResourceManager::CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D
 {
 	_ASSERT(m_pDevice);
 	_ASSERT(m_pCommandQueue);
-	_ASSERT(m_ppSingleCommandAllocator);
-	_ASSERT(m_ppSingleCommandList);
 
 	HRESULT hr = S_OK;
 
@@ -201,10 +149,10 @@ HRESULT ResourceManager::CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D
 
 	if (pInitData)
 	{
-		hr = m_ppSingleCommandAllocator[*m_pFrameIndex]->Reset();
+		hr = m_pCommandAllocator->Reset();
 		BREAK_IF_FAILED(hr);
 
-		hr = m_ppSingleCommandList[*m_pFrameIndex]->Reset(m_ppSingleCommandAllocator[*m_pFrameIndex], nullptr);
+		hr = m_pCommandList->Reset(m_pCommandAllocator, nullptr);
 		BREAK_IF_FAILED(hr);
 
 		heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -229,17 +177,17 @@ HRESULT ResourceManager::CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D
 
 		const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pIndexBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
 		const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pIndexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-		m_ppSingleCommandList[*m_pFrameIndex]->ResourceBarrier(1, &BEFORE_BARRIER);
-		m_ppSingleCommandList[*m_pFrameIndex]->CopyBufferRegion(pIndexBuffer, 0, pUploadBuffer, 0, indexBufferSize);
-		m_ppSingleCommandList[*m_pFrameIndex]->ResourceBarrier(1, &AFTER_BARRIER);
+		m_pCommandList->ResourceBarrier(1, &BEFORE_BARRIER);
+		m_pCommandList->CopyBufferRegion(pIndexBuffer, 0, pUploadBuffer, 0, indexBufferSize);
+		m_pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 
-		m_ppSingleCommandList[*m_pFrameIndex]->Close();
+		m_pCommandList->Close();
 
-		ID3D12CommandList* ppCommandLists[] = { m_ppSingleCommandList[*m_pFrameIndex] };
+		ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
 		m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-		fence();
-		waitForGPU(m_pFenceValues[*m_pFrameIndex]);
+		UINT64 lastFenceValue = m_pRenderer->Fence();
+		m_pRenderer->WaitForFenceValue(lastFenceValue);
 
 		SAFE_RELEASE(pUploadBuffer);
 	}
@@ -362,6 +310,9 @@ HRESULT ResourceManager::CreateTextureCubeFromFile(ID3D12Resource** ppOutResourc
 	(*ppOutResource)->SetName(L"TextureResource");
 
 	*pOutDesc = (*ppOutResource)->GetDesc();
+
+	UINT64 lastFenceValue = m_pRenderer->Fence();
+	m_pRenderer->WaitForFenceValue(lastFenceValue);
 
 	return hr;
 }
@@ -541,14 +492,11 @@ HRESULT ResourceManager::CreateNonImageUploadTexture(ID3D12Resource** ppOutResou
 
 HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Resource* pSrcResource, D3D12_RESOURCE_STATES* pOriginalState)
 {
+	_ASSERT(m_pRenderer);
 	_ASSERT(m_pDevice);
-	_ASSERT(m_ppSingleCommandAllocator);
-	_ASSERT(m_ppSingleCommandList);
 
 	HRESULT hr = S_OK;
 
-	ID3D12CommandAllocator* pCommandAllocator = m_ppSingleCommandAllocator[*m_pFrameIndex];
-	ID3D12GraphicsCommandList* pCommandList = m_ppSingleCommandList[*m_pFrameIndex];
 	const UINT MAX_SUB_RESOURCE_NUM = 32;
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint[MAX_SUB_RESOURCE_NUM] = {};
 	UINT rows[MAX_SUB_RESOURCE_NUM] = {};
@@ -563,16 +511,16 @@ HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Reso
 
 	m_pDevice->GetCopyableFootprints(&Desc, 0, Desc.MipLevels, 0, footprint, rows, rowSize, &totalBytes);
 
-	hr = pCommandAllocator->Reset();
+	hr = m_pCommandAllocator->Reset();
 	BREAK_IF_FAILED(hr);
 
-	hr = pCommandList->Reset(pCommandAllocator, nullptr);
+	hr = m_pCommandList->Reset(m_pCommandAllocator, nullptr);
 	BREAK_IF_FAILED(hr);
 
 	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pDestResource, *pOriginalState, D3D12_RESOURCE_STATE_COPY_DEST);
 	const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(pDestResource, D3D12_RESOURCE_STATE_COPY_DEST, *pOriginalState);
 	
-	pCommandList->ResourceBarrier(1, &BEFORE_BARRIER);
+	m_pCommandList->ResourceBarrier(1, &BEFORE_BARRIER);
 	for (UINT i = 0; i < Desc.MipLevels; ++i)
 	{
 		D3D12_TEXTURE_COPY_LOCATION	destLocation;
@@ -586,27 +534,24 @@ HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Reso
 		srcLocation.pResource = pSrcResource;
 		srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 
-		pCommandList->CopyTextureRegion(&destLocation, 0, 0, 0, &srcLocation, nullptr);
+		m_pCommandList->CopyTextureRegion(&destLocation, 0, 0, 0, &srcLocation, nullptr);
 	}
-	pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
-	pCommandList->Close();
+	m_pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
+	m_pCommandList->Close();
 
-	ID3D12CommandList* ppCommandLists[] = { pCommandList };
+	ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
 	m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-	fence();
-	waitForGPU(m_pFenceValues[*m_pFrameIndex]);
+	UINT64 lastFenceValue = m_pRenderer->Fence();
+	m_pRenderer->WaitForFenceValue(lastFenceValue);
 
 	return hr;
 }
 
 void ResourceManager::Cleanup()
 {
-	fence();
-	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-	{
-		waitForGPU(m_pFenceValues[*m_pFrameIndex]);
-	}
+	SAFE_RELEASE(m_pCommandAllocator);
+	SAFE_RELEASE(m_pCommandList);
 
 	m_pGlobalConstantData = nullptr;
 	m_pLightConstantData = nullptr;
@@ -686,14 +631,9 @@ void ResourceManager::Cleanup()
 	SAFE_RELEASE(m_pBasicVS);
 
 	SAFE_RELEASE(m_pSamplerHeap);
-	/*SAFE_RELEASE(m_pCBVSRVUAVHeap);
-	SAFE_RELEASE(m_pDSVHeap);
-	SAFE_RELEASE(m_pRTVHeap)*/;
 
 	m_pConstantBufferManager = nullptr;
 	m_pDynamicDescriptorPool = nullptr;
-	m_ppSingleCommandList = nullptr;
-	m_ppSingleCommandAllocator = nullptr;
 	m_pCommandQueue = nullptr;
 	m_pDevice = nullptr;
 }
@@ -719,17 +659,17 @@ void ResourceManager::SetGlobalTextures(TextureHandles* pHandles)
 
 void ResourceManager::SetCommonState(eRenderPSOType psoState)
 {
+	_ASSERT(m_pRenderer);
 	_ASSERT(m_pDevice);
-	_ASSERT(m_ppSingleCommandList);
-	// _ASSERT(m_pCBVSRVUAVHeap);
 	_ASSERT(m_pSamplerHeap);
-	_ASSERT(m_pConstantBufferManager);
 
 	HRESULT hr = S_OK;
 	const float BLEND_FECTOR[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
-	ID3D12GraphicsCommandList* pCommandList = m_ppSingleCommandList[*m_pFrameIndex];
-	ConstantBufferPool* pGlobalConstantBufferPool = m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
-	ConstantBufferPool* pLightConstantBufferPool = m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_LightConstant);
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
+	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
+	ConstantBufferPool* pGlobalConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
+	ConstantBufferPool* pLightConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_LightConstant);
 	const UINT TOTAL_COMMON_SRV_COUNT = 9;
 
 	// set dynamic descriptor heap. (for commont resource)
@@ -752,7 +692,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 		case RenderPSOType_Combine:
 		case RenderPSOType_Wire:
 		{
-			hr = m_pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 11);
+			hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 11);
 			BREAK_IF_FAILED(hr);
 
 
@@ -812,7 +752,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 		case RenderPSOType_ReflectionSkinned:
 		case RenderPSOType_ReflectionSkybox:
 		{
-			hr = m_pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 11);
+			hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 11);
 			BREAK_IF_FAILED(hr);
 
 
@@ -872,7 +812,7 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 		case RenderPSOType_DepthOnlyDefault:
 		case RenderPSOType_DepthOnlySkinned:
 		{
-			hr = m_pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 10);
+			hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 10);
 			BREAK_IF_FAILED(hr);
 
 
@@ -1105,7 +1045,6 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 		pCommandList->OMSetStencilRef(0);
 		pCommandList->SetGraphicsRootDescriptorTable(1, gpuDescriptorTable);
 		pCommandList->SetGraphicsRootDescriptorTable(2, m_pSamplerHeap->GetGPUDescriptorHandleForHeapStart());
-		break;
 		break;
 
 	default:
@@ -2572,20 +2511,20 @@ void ResourceManager::initShaders()
 	BREAK_IF_FAILED(hr);
 }
 
-UINT64 ResourceManager::fence()
-{
-	++(*m_pFenceValue);
-	m_pCommandQueue->Signal(m_pFence, *m_pFenceValue);
-	m_pFenceValues[*m_pFrameIndex] = *m_pFenceValue;
-	return *m_pFenceValue;
-}
-
-void ResourceManager::waitForGPU(UINT64 expectedFenceValue)
-{
-	// Wait until the previous frame is finished.
-	if (m_pFence->GetCompletedValue() < expectedFenceValue)
-	{
-		m_pFence->SetEventOnCompletion(expectedFenceValue, m_hFenceEvent);
-		WaitForSingleObject(m_hFenceEvent, INFINITE);
-	}
-}
+//UINT64 ResourceManager::fence()
+//{
+//	++(*m_pFenceValue);
+//	m_pCommandQueue->Signal(m_pFence, *m_pFenceValue);
+//	m_pFenceValues[*m_pFrameIndex] = *m_pFenceValue;
+//	return *m_pFenceValue;
+//}
+//
+//void ResourceManager::waitForGPU(UINT64 expectedFenceValue)
+//{
+//	// Wait until the previous frame is finished.
+//	if (m_pFence->GetCompletedValue() < expectedFenceValue)
+//	{
+//		m_pFence->SetEventOnCompletion(expectedFenceValue, m_hFenceEvent);
+//		WaitForSingleObject(m_hFenceEvent, INFINITE);
+//	}
+//}

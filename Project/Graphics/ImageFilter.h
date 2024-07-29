@@ -1,5 +1,7 @@
 #pragma once
 
+class Renderer;
+
 class ImageFilter
 {
 public:
@@ -36,6 +38,8 @@ public:
 	void SetRTVOffsets(Renderer* pRenderer, const std::vector<ImageResource>& RTVs);
 
 private:
+	Renderer* m_pRenderer = nullptr;
+
 	ImageFilterConstant m_ConstantBufferData;
 
 	std::vector<Handle> m_SRVHandles;

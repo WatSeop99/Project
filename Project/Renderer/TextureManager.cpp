@@ -389,7 +389,9 @@ TextureHandle* TextureManager::allocTextureHandle()
 UINT TextureManager::freeTextureHandle(TextureHandle* pHandle)
 {
 	ID3D12Device* pDevice = m_pRenderer->GetD3DDevice();
-	DescriptorAllocator* pSRVDescriptorAllocator = m_pRenderer->GetSRVUAVAllocator();
+	DescriptorAllocator* pRTVAllocator = m_pRenderer->GetRTVAllocator();
+	DescriptorAllocator* pDSVAllocator = m_pRenderer->GetDSVAllocator();
+	DescriptorAllocator* pSRVAllocator = m_pRenderer->GetSRVUAVAllocator();
 
 	if (pHandle->RefCount == 0)
 	{
@@ -409,12 +411,25 @@ UINT TextureManager::freeTextureHandle(TextureHandle* pHandle)
 			pHandle->pUploadBuffer->Release();
 			pHandle->pUploadBuffer = nullptr;
 		}
+		if (pHandle->RTVHandle.ptr)
+		{
+			pRTVAllocator->FreeDescriptorHandle(pHandle->RTVHandle);
+			pHandle->RTVHandle = {};
+		}
+		if (pHandle->DSVHandle.ptr)
+		{
+			pDSVAllocator->FreeDescriptorHandle(pHandle->DSVHandle);
+			pHandle->DSVHandle = {};
+		}
 		if (pHandle->SRVHandle.ptr)
 		{
-			pSRVDescriptorAllocator->FreeDescriptorHandle(pHandle->SRVHandle);
+			pSRVAllocator->FreeDescriptorHandle(pHandle->SRVHandle);
 			pHandle->SRVHandle = {};
 		}
-
+		if (pHandle->GPUHandle)
+		{
+			pHandle->GPUHandle = {};
+		}
 		if (pHandle->pSearchHandle)
 		{
 			m_pHashTable->Delete(pHandle->pSearchHandle);

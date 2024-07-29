@@ -115,9 +115,22 @@ void CommandListPool::Reset()
 	}
 }
 
+ID3D12CommandAllocator* CommandListPool::GetCurrentCommandAllocator()
+{
+	if (!m_pCurCmdList)
+	{
+		m_pCurCmdList = allocCmdList();
+		if (!m_pCurCmdList)
+		{
+			__debugbreak();
+		}
+	}
+
+	return m_pCurCmdList->pCommandAllocator;
+}
+
 ID3D12GraphicsCommandList* CommandListPool::GetCurrentCommandList()
 {
-	ID3D12GraphicsCommandList* pCommandList = nullptr;
 	if (!m_pCurCmdList)
 	{
 		m_pCurCmdList = allocCmdList();

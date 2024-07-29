@@ -25,6 +25,7 @@ public:
 
 	void Reset();
 
+	ID3D12CommandAllocator*  GetCurrentCommandAllocator();
 	ID3D12GraphicsCommandList* GetCurrentCommandList();
 	inline UINT GetTotalCmdListNum() { return m_TotalCmdNum; }
 	inline UINT GetAllocatedCmdListNum() { return m_AllocatedCmdNum; }

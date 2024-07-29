@@ -112,10 +112,10 @@ void App::Update(const float DELTA_TIME)
 
 void App::Cleanup()
 {
-	fence();
+	Fence();
 	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
-		waitForFenceValue(m_LastFenceValues[i]);
+		WaitForFenceValue(m_LastFenceValues[i]);
 	}
 
 	for (UINT64 i = 0, size = m_RenderObjects.size(); i < size; ++i)
@@ -128,28 +128,23 @@ void App::Cleanup()
 	m_LightSpheres.clear();
 
 	TextureManager* pTextureManager = GetTextureManager();
-	DescriptorAllocator* pSRVAllocator = GetSRVUAVAllocator();
 	if (m_pEnvTextureHandle)
 	{
-		pSRVAllocator->FreeDescriptorHandle(m_pEnvTextureHandle->SRVHandle);
 		pTextureManager->DeleteTexture(m_pEnvTextureHandle);
 		m_pEnvTextureHandle = nullptr;
 	}
 	if (m_pIrradianceTextureHandle)
 	{
-		pSRVAllocator->FreeDescriptorHandle(m_pIrradianceTextureHandle->SRVHandle);
 		pTextureManager->DeleteTexture(m_pIrradianceTextureHandle);
 		m_pIrradianceTextureHandle = nullptr;
 	}
 	if (m_pSpecularTextureHandle)
 	{
-		pSRVAllocator->FreeDescriptorHandle(m_pSpecularTextureHandle->SRVHandle);
 		pTextureManager->DeleteTexture(m_pSpecularTextureHandle);
 		m_pSpecularTextureHandle = nullptr;
 	}
 	if (m_pBRDFTextureHandle)
 	{
-		pSRVAllocator->FreeDescriptorHandle(m_pBRDFTextureHandle->SRVHandle);
 		pTextureManager->DeleteTexture(m_pBRDFTextureHandle);
 		m_pBRDFTextureHandle = nullptr;
 	}
@@ -161,8 +156,9 @@ void App::Cleanup()
 void App::initExternalData(UINT64* pTotalRenderObjectCount)
 {
 	_ASSERT(pTotalRenderObjectCount);
+	_ASSERT(m_pPhysicsManager);
 
-	physx::PxPhysics* pPhysics = m_PhysicsManager.GetPhysics();
+	physx::PxPhysics* pPhysics = m_pPhysicsManager->GetPhysics();
 
 	m_Lights.resize(MAX_LIGHTS);
 	m_LightSpheres.resize(MAX_LIGHTS);
@@ -291,8 +287,8 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		m_RenderObjects.push_back(pGround);
 
 
-		physx::PxRigidStatic* pGroundPlane = physx::PxCreatePlane(*pPhysics, physx::PxPlane(0.0f, 1.0f, 0.0f, 0.0f), *(m_PhysicsManager.pCommonMaterial));
-		m_PhysicsManager.AddActor(pGroundPlane);
+		physx::PxRigidStatic* pGroundPlane = physx::PxCreatePlane(*pPhysics, physx::PxPlane(0.0f, 1.0f, 0.0f, 0.0f), *(m_pPhysicsManager->pCommonMaterial));
+		m_pPhysicsManager->AddActor(pGroundPlane);
 	}
 
 	// Main Object.
@@ -355,7 +351,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		m_RenderObjects.push_back((Model*)m_pCharacter);
 
 
-		physx::PxControllerManager* pControlManager = m_PhysicsManager.GetControllerManager();
+		physx::PxControllerManager* pControlManager = m_pPhysicsManager->GetControllerManager();
 		physx::PxCapsuleControllerDesc capsuleDesc;
 		physx::PxController* pController = nullptr;
 
@@ -365,7 +361,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		capsuleDesc.upDirection = physx::PxVec3(0.0f, 1.0f, 0.0f);
 		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, m_pCharacter->CharacterAnimationData.Position.y, m_pCharacter->CharacterAnimationData.Position.z);
 		capsuleDesc.contactOffset = 0.05f;
-		capsuleDesc.material = m_PhysicsManager.pCommonMaterial;
+		capsuleDesc.material = m_pPhysicsManager->pCommonMaterial;
 		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.3f;
 		capsuleDesc.climbingMode = physx::PxCapsuleClimbingMode::eCONSTRAINED;
 		pController = pControlManager->createController(capsuleDesc);
@@ -415,7 +411,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 			14, 16, 17, 15, 14, 17, // µÞ¸é
 		};
 
-		m_PhysicsManager.CookingStaticTriangleMesh(&mesh.Vertices, &mesh.Indices, pSlope->World);
+		m_pPhysicsManager->CookingStaticTriangleMesh(&mesh.Vertices, &mesh.Indices, pSlope->World);
 	}
 }
 

@@ -7,9 +7,7 @@ void ImageFilter::Initialize(Renderer* pRenderer, const int WIDTH, const int HEI
 {
 	_ASSERT(pRenderer);
 
-	HRESULT hr = S_OK;
-
-	Cleanup();
+	m_pRenderer = pRenderer;
 
 	m_ConstantBufferData.DX = 1.0f / WIDTH;
 	m_ConstantBufferData.DY = 1.0f / HEIGHT;
@@ -28,8 +26,8 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 
 	HRESULT hr = S_OK;
 	ResourceManager* pManager = pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
+	ID3D12Device5* pDevice = pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pImageFilterConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
@@ -114,7 +112,7 @@ void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCom
 
 	HRESULT hr = S_OK;
 
-	ID3D12Device5* pDevice = pManager->m_pDevice;
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ConstantBufferPool* pImageFilterConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
@@ -192,7 +190,7 @@ void ImageFilter::AfterRender(Renderer* pRenderer, eRenderPSOType psoSetting, UI
 	_ASSERT(m_SRVHandles.size() > 0);
 
 	ResourceManager* pManager = pRenderer->GetResourceManager();
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
+	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
 
 	switch (psoSetting)
 	{
@@ -244,6 +242,8 @@ void ImageFilter::Cleanup()
 {
 	m_SRVHandles.clear();
 	m_RTVHandles.clear();
+
+	m_pRenderer = nullptr;
 }
 
 void ImageFilter::SetSRVOffsets(Renderer* pRenderer, const std::vector<ImageResource>& SRVs)

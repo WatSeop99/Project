@@ -33,8 +33,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
 	TextureManager* pTextureManager = pRenderer->GetTextureManager();
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
 
 	Meshes.reserve(MESH_INFOS.size());
 
@@ -242,8 +242,8 @@ void Model::Render(eRenderPSOType psoSetting)
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
@@ -404,7 +404,7 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 	_ASSERT(pConstantBufferManager);
 
 	HRESULT hr = S_OK;
-	ID3D12Device5* pDevice = pManager->m_pDevice;
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
@@ -563,8 +563,8 @@ void Model::RenderBoundingBox(eRenderPSOType psoSetting)
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
@@ -615,8 +615,8 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pResourceManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
 	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
@@ -662,11 +662,6 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 
 void Model::Cleanup()
 {
-	if (!m_pRenderer)
-	{
-		return;
-	}
-
 	if (m_pBoundingSphereMesh)
 	{
 		delete m_pBoundingSphereMesh;
@@ -687,38 +682,43 @@ void Model::Cleanup()
 		if (pMaterial->pAlbedo)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pAlbedo);
+			pMaterial->pAlbedo = nullptr;
 		}
 		if (pMaterial->pEmissive)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pEmissive);
+			pMaterial->pEmissive = nullptr;
 		}
 		if (pMaterial->pNormal)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pNormal);
+			pMaterial->pNormal = nullptr;
 		}
 		if (pMaterial->pHeight)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pHeight);
+			pMaterial->pHeight = nullptr;
 		}
 		if (pMaterial->pAmbientOcclusion)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pAmbientOcclusion);
+			pMaterial->pAmbientOcclusion = nullptr;
 		}
 		if (pMaterial->pMetallic)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pMetallic);
+			pMaterial->pMetallic = nullptr;
 		}
 		if (pMaterial->pRoughness)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pRoughness);
+			pMaterial->pRoughness = nullptr;
 		}
 
 		delete (*pMesh);
 		*pMesh = nullptr;
 	}
 	Meshes.clear();
-
-	m_pRenderer = nullptr;
 }
 
 void Model::initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS)

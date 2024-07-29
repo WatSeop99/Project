@@ -10,6 +10,7 @@
 struct TextureHandle;
 class ConstantBuffer;
 class TextureManager;
+class Renderer;
 
 static const UINT SWAP_CHAIN_FRAME_COUNT = 2;
 static const UINT MAX_RENDER_THREAD_COUNT = 6;
@@ -46,10 +47,7 @@ public:
 	ResourceManager() = default;
 	~ResourceManager() { Cleanup(); }
 
-	void Initialize(InitialData* pInitialData);
-	// void InitRTVDescriptorHeap(UINT maxDescriptorNum);
-	// void InitDSVDescriptorHeap(UINT maxDescriptorNum);
-	// void InitCBVSRVUAVDescriptorHeap(UINT maxDescriptorNum);
+	void Initialize(Renderer* pRenderer);
 
 	HRESULT CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, D3D12_VERTEX_BUFFER_VIEW* pOutVertexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData);
 	HRESULT CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D12_INDEX_BUFFER_VIEW* pOutIndexBufferView, ID3D12Resource** ppOutBuffer, void* pInitData);
@@ -64,8 +62,6 @@ public:
 
 	void Cleanup();
 
-	inline ID3D12GraphicsCommandList* GetCommandList() { return m_ppSingleCommandList[*m_pFrameIndex]; }
-
 	void SetGlobalConstants(GlobalConstant* pGlobal, LightConstant* pLight, GlobalConstant* pReflection);
 	void SetGlobalTextures(TextureHandles* pHandles);
 	void SetCommonState(eRenderPSOType psoState);
@@ -79,18 +75,10 @@ protected:
 	void initPipelineStates();
 	void initShaders();
 
-	UINT64 fence();
-	void waitForGPU(UINT64 expectedFenceValue);
+	/*UINT64 fence();
+	void waitForGPU(UINT64 expectedFenceValue);*/
 
 public:
-	ID3D12Device5* m_pDevice = nullptr;
-	ID3D12CommandQueue* m_pCommandQueue = nullptr;
-	ID3D12CommandAllocator** m_ppSingleCommandAllocator = nullptr;
-	ID3D12GraphicsCommandList** m_ppSingleCommandList = nullptr;
-
-	/*ID3D12DescriptorHeap* m_pRTVHeap = nullptr;
-	ID3D12DescriptorHeap* m_pDSVHeap = nullptr;
-	ID3D12DescriptorHeap* m_pCBVSRVUAVHeap = nullptr;*/
 	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
 	DynamicDescriptorPool* m_pDynamicDescriptorPool = nullptr;
 	ConstantBufferManager* m_pConstantBufferManager = nullptr;
@@ -113,10 +101,17 @@ public:
 	UINT m_GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
 
 private:
-	HANDLE m_hFenceEvent = nullptr;
+	Renderer* m_pRenderer = nullptr;
+
+	ID3D12Device5* m_pDevice = nullptr;
+	ID3D12CommandQueue* m_pCommandQueue = nullptr;
+	ID3D12CommandAllocator* m_pCommandAllocator = nullptr;
+	ID3D12GraphicsCommandList* m_pCommandList = nullptr;
+
+	/*HANDLE m_hFenceEvent = nullptr;
 	ID3D12Fence* m_pFence = nullptr;
 	UINT64* m_pFenceValue = nullptr;
-	UINT64* m_pFenceValues = nullptr;
+	UINT64* m_pFenceValues = nullptr;*/
 
 	// root signature.
 	ID3D12RootSignature* m_pDefaultRootSignature = nullptr;

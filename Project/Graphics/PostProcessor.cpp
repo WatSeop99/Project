@@ -11,7 +11,7 @@ void PostProcessor::Initizlie(Renderer* pRenderer, const PostProcessingBuffers& 
 	m_pRenderer = pRenderer;
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
 
 	// 후처리용 리소스 설정.
 	setRenderConfig(CONFIG);
@@ -38,19 +38,19 @@ void PostProcessor::Initizlie(Renderer* pRenderer, const PostProcessingBuffers& 
 
 		m_pScreenMesh = new Mesh;
 
-		hr = pManager->CreateVertexBuffer(sizeof(Vertex),
-										  (UINT)meshInfo.Vertices.size(),
-										  &m_pScreenMesh->Vertex.VertexBufferView,
-										  &m_pScreenMesh->Vertex.pBuffer,
-										  (void*)meshInfo.Vertices.data());
+		hr = pResourceManager->CreateVertexBuffer(sizeof(Vertex),
+												  (UINT)meshInfo.Vertices.size(),
+												  &m_pScreenMesh->Vertex.VertexBufferView,
+												  &m_pScreenMesh->Vertex.pBuffer,
+												  (void*)meshInfo.Vertices.data());
 		BREAK_IF_FAILED(hr);
 		m_pScreenMesh->Vertex.Count = (UINT)meshInfo.Vertices.size();
 
-		hr = pManager->CreateIndexBuffer(sizeof(UINT),
-										 (UINT)meshInfo.Indices.size(),
-										 &m_pScreenMesh->Index.IndexBufferView,
-										 &m_pScreenMesh->Index.pBuffer,
-										 (void*)meshInfo.Indices.data());
+		hr = pResourceManager->CreateIndexBuffer(sizeof(UINT),
+												 (UINT)meshInfo.Indices.size(),
+												 &m_pScreenMesh->Index.IndexBufferView,
+												 &m_pScreenMesh->Index.pBuffer,
+												 (void*)meshInfo.Indices.data());
 		BREAK_IF_FAILED(hr);
 		m_pScreenMesh->Index.Count = (UINT)meshInfo.Indices.size();
 	}
@@ -93,7 +93,7 @@ void PostProcessor::Initizlie(Renderer* pRenderer, const PostProcessingBuffers& 
 			resource.SRVOffset = m_BloomResources[i].SRVOffset;
 		}
 		m_BloomDownFilters[i].SetSRVOffsets(pRenderer, { resource });
-		
+
 		resource.pResource = m_BloomResources[i + 1].pResource;
 		resource.RTVOffset = m_BloomResources[i + 1].RTVOffset;
 		resource.SRVOffset = 0xffffffff;
@@ -143,8 +143,8 @@ void PostProcessor::Render(UINT frameIndex)
 	_ASSERT(m_pRenderer);
 
 	ResourceManager* pManager = m_pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pManager->m_pDevice;
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 
 	pCommandList->RSSetViewports(1, &m_Viewport);
 	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
@@ -168,7 +168,7 @@ void PostProcessor::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommand
 	_ASSERT(pConstantBufferManager);
 	_ASSERT(pManager);
 
-	ID3D12Device5* pDevice = pManager->m_pDevice;
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 
 	pCommandList->RSSetViewports(1, &m_Viewport);
 	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
@@ -278,10 +278,11 @@ void PostProcessor::createPostBackBuffers()
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12DescriptorHeap* pRTVHeap = m_pRenderer->GetRTVAllocator()->GetDescriptorHeap();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
 	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pResourceManager->m_CBVSRVUAVHeapSize, pResourceManager->m_CBVSRVUAVDescriptorSize);
 
 	D3D12_RESOURCE_DESC resourceDesc = {};
@@ -315,12 +316,6 @@ void PostProcessor::createPostBackBuffers()
 	rtvDesc.Texture2D.MipSlice = 0;
 	rtvDesc.Texture2D.PlaneSlice = 0;
 
-	if (m_ResolvedRTVOffset != 0xffffffff)
-	{
-		rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_ResolvedRTVOffset, pResourceManager->m_RTVDescriptorSize);
-		m_pRenderer->GetRTVAllocator()->FreeDescriptorHandle(rtvHandle);
-		m_ResolvedRTVOffset = 0xffffffff;
-	}
 	m_ResolvedRTVOffset = m_pRenderer->GetRTVAllocator()->AllocDescriptorHandle(&rtvHandle);
 	pDevice->CreateRenderTargetView(m_pResolvedBuffer, &rtvDesc, rtvHandle);
 
@@ -333,11 +328,6 @@ void PostProcessor::createPostBackBuffers()
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.PlaneSlice = 0;
 
-	if (m_ResolvedSRVOffset != 0xffffffff)
-	{
-		srvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), m_ResolvedSRVOffset, pResourceManager->m_CBVSRVUAVDescriptorSize);
-		m_pRenderer->GetSRVUAVAllocator()->FreeDescriptorHandle(srvHandle);
-	}
 	m_ResolvedSRVOffset = m_pRenderer->GetSRVUAVAllocator()->AllocDescriptorHandle(&srvHandle);
 	pDevice->CreateShaderResourceView(m_pResolvedBuffer, &srvDesc, srvHandle);
 }
@@ -349,11 +339,12 @@ void PostProcessor::createImageResources(const int WIDTH, const int HEIGHT, Imag
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = pResourceManager->m_pDevice;
+	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12DescriptorHeap* pRTVHeap = m_pRenderer->GetRTVAllocator()->GetDescriptorHeap();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle;
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
+	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle = {};
 	static int s_ResourceCount = 0;
 
 	D3D12_RESOURCE_DESC resourceDesc = {};
@@ -390,12 +381,6 @@ void PostProcessor::createImageResources(const int WIDTH, const int HEIGHT, Imag
 	rtvDesc.Texture2D.MipSlice = 0;
 	rtvDesc.Texture2D.PlaneSlice = 0;
 
-	if (pImageResource->RTVOffset != 0xffffffff)
-	{
-		rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), pImageResource->RTVOffset, pResourceManager->m_RTVDescriptorSize);
-		m_pRenderer->GetRTVAllocator()->FreeDescriptorHandle(rtvHandle);
-		pImageResource->RTVOffset = 0xffffffff;
-	}
 	pImageResource->RTVOffset = m_pRenderer->GetRTVAllocator()->AllocDescriptorHandle(&rtvHandle);
 	pDevice->CreateRenderTargetView(pImageResource->pResource, &rtvDesc, rtvHandle);
 
@@ -408,12 +393,6 @@ void PostProcessor::createImageResources(const int WIDTH, const int HEIGHT, Imag
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.PlaneSlice = 0;
 
-	if (pImageResource->SRVOffset != 0xffffffff)
-	{
-		srvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pImageResource->SRVOffset, pResourceManager->m_CBVSRVUAVDescriptorSize);
-		m_pRenderer->GetSRVUAVAllocator()->FreeDescriptorHandle(srvHandle);
-		pImageResource->SRVOffset = 0xffffffff;
-	}
 	pImageResource->SRVOffset = m_pRenderer->GetSRVUAVAllocator()->AllocDescriptorHandle(&srvHandle);
 	pDevice->CreateShaderResourceView(pImageResource->pResource, &srvDesc, srvHandle);
 }
@@ -423,8 +402,8 @@ void PostProcessor::renderPostProcessing(UINT frameIndex)
 	_ASSERT(m_pRenderer);
 
 	ResourceManager* pManager = m_pRenderer->GetResourceManager();
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
-	
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
+
 	// bloom pass.
 	/*pManager->SetCommonState(BloomDown);
 	for (UINT64 i = 0, size = m_BloomDownFilters.size(); i < size; ++i)
@@ -491,7 +470,7 @@ void PostProcessor::renderImageFilter(ImageFilter& imageFilter, eRenderPSOType p
 	_ASSERT(m_pRenderer);
 
 	ResourceManager* pManager = m_pRenderer->GetResourceManager();
-	ID3D12GraphicsCommandList* pCommandList = pManager->GetCommandList();
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 
 	imageFilter.BeforeRender(m_pRenderer, psoSetting, frameIndex);
 	pCommandList->DrawIndexedInstanced(m_pScreenMesh->Index.Count, 1, 0, 0, 0);
