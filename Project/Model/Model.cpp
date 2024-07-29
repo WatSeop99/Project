@@ -244,9 +244,10 @@ void Model::Render(eRenderPSOType psoSetting)
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
-	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
+	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -566,9 +567,10 @@ void Model::RenderBoundingBox(eRenderPSOType psoSetting)
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
-	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
+	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 
@@ -618,9 +620,10 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
-	DynamicDescriptorPool* pDynamicDescriptorPool = pResourceManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pMeshConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
-	ConstantBufferPool* pMaterialConstantBufferPool = pResourceManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
+	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
+	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
+	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
 

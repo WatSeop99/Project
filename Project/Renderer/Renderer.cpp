@@ -249,8 +249,8 @@ void Renderer::Cleanup()
 		delete m_pRTVAllocator;
 		m_pRTVAllocator = nullptr;
 	}
-	m_DynamicDescriptorPool.Cleanup();
-	m_ConstantBufferManager.Cleanup();
+	/*m_DynamicDescriptorPool.Cleanup();
+	m_ConstantBufferManager.Cleanup();*/
 
 	if (m_pResourceManager)
 	{
@@ -297,11 +297,11 @@ void Renderer::Cleanup()
 		m_pTextureManager = nullptr;
 	}
 
-	for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+	/*for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
 		SAFE_RELEASE(m_ppCommandList[i]);
 		SAFE_RELEASE(m_ppCommandAllocator[i]);
-	}
+	}*/
 	SAFE_RELEASE(m_pSwapChain);
 	SAFE_RELEASE(m_pCommandQueue);
 
@@ -467,6 +467,12 @@ LRESULT Renderer::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
 
 	return DefWindowProc(hWnd, msg, wParam, lParam);
+}
+
+ConstantBufferManager* Renderer::GetConstantBufferPool(UINT threadIndex)
+{
+	_ASSERT(threadIndex >= 0 && threadIndex < m_RenderThreadCount);
+	return m_pppConstantBufferManager[m_FrameIndex][threadIndex];
 }
 
 ConstantBufferManager* Renderer::GetConstantBufferManager(UINT threadIndex)
@@ -663,24 +669,24 @@ LB_EXIT:
 
 	// create command list
 	{
-		for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-		{
-			WCHAR debugName[256];
+		//for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
+		//{
+		//	WCHAR debugName[256];
 
-			hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_ppCommandAllocator[i]));
-			BREAK_IF_FAILED(hr);
-			swprintf_s(debugName, 256, L"CommandAllocator%u", i);
-			m_ppCommandAllocator[i]->SetName(debugName);
+		//	hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_ppCommandAllocator[i]));
+		//	BREAK_IF_FAILED(hr);
+		//	swprintf_s(debugName, 256, L"CommandAllocator%u", i);
+		//	m_ppCommandAllocator[i]->SetName(debugName);
 
-			hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_ppCommandAllocator[i], nullptr, IID_PPV_ARGS(&m_ppCommandList[i]));
-			BREAK_IF_FAILED(hr);
-			swprintf_s(debugName, 256, L"CommandList%u", i);
-			m_ppCommandList[i]->SetName(debugName);
+		//	hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_ppCommandAllocator[i], nullptr, IID_PPV_ARGS(&m_ppCommandList[i]));
+		//	BREAK_IF_FAILED(hr);
+		//	swprintf_s(debugName, 256, L"CommandList%u", i);
+		//	m_ppCommandList[i]->SetName(debugName);
 
-			// Command lists are created in the recording state, but there is nothing
-			// to record yet. The main loop expects it to be closed, so close it now.
-			m_ppCommandList[i]->Close();
-		}
+		//	// Command lists are created in the recording state, but there is nothing
+		//	// to record yet. The main loop expects it to be closed, so close it now.
+		//	m_ppCommandList[i]->Close();
+		//}
 	}
 
 	// create render queue and command list pool, descriptor pool
@@ -756,8 +762,8 @@ LB_EXIT:
 	m_pSRVUAVAllocator = new DescriptorAllocator;
 	m_pSRVUAVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	
-	m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
-	m_ConstantBufferManager.Initialize(m_pDevice, 4096);
+	/*m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
+	m_ConstantBufferManager.Initialize(m_pDevice, 4096);*/
 
 #ifdef USE_MULTI_THREAD
 	// create thread and event
@@ -1064,18 +1070,13 @@ void Renderer::beginRender()
 
 #else
 
-	hr = m_ppCommandAllocator[m_FrameIndex]->Reset();
-	BREAK_IF_FAILED(hr);
-
-	hr = m_ppCommandList[m_FrameIndex]->Reset(m_ppCommandAllocator[m_FrameIndex], nullptr);
-	BREAK_IF_FAILED(hr);
-
-	ID3D12DescriptorHeap* ppDescriptorHeaps[] =
-	{
-		m_pppDescriptorPool[m_FrameIndex][0]->GetDescriptorHeap(),
-		m_pResourceManager->m_pSamplerHeap
-	};
-	m_ppCommandList[m_FrameIndex]->SetDescriptorHeaps(2, ppDescriptorHeaps);
+    ID3D12GraphicsCommandList* pCommandList = GetCommandList();
+    ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
+    {
+        m_pppDescriptorPool[m_FrameIndex][0]->GetDescriptorHeap(),
+        m_pResourceManager->m_pSamplerHeap
+    };
+    pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
 
 #endif
 }
@@ -1212,7 +1213,7 @@ void Renderer::renderObject()
 
 #else
 
-	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_FrameIndex];
+	ID3D12GraphicsCommandList* pCommandList = GetCommandList();
 	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
 	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
 
@@ -1544,8 +1545,10 @@ void Renderer::postProcess()
 
 #else
 
+	ID3D12GraphicsCommandList* pCommandList = GetCommandList();
+
 	const CD3DX12_RESOURCE_BARRIER BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pFloatBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
-	m_ppCommandList[m_FrameIndex]->ResourceBarrier(1, &BARRIER);
+	pCommandList->ResourceBarrier(1, &BARRIER);
 	m_pPostProcessor->Render(m_FrameIndex);
 
 #endif
@@ -1687,10 +1690,7 @@ void Renderer::endRender()
 	
 #else
 
-	_ASSERT(m_ppCommandList[m_FrameIndex]);
-	_ASSERT(m_pCommandQueue);
-
-	ID3D12GraphicsCommandList* pCommandList = m_ppCommandList[m_FrameIndex];
+	ID3D12GraphicsCommandList * pCommandList = GetCommandList();
 
 	const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
 	pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
@@ -1721,7 +1721,7 @@ void Renderer::present()
 		__debugbreak();
 	}
 
-	// for next frame
+	// for next frame.
 	UINT nextFrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 	WaitForFenceValue(m_LastFenceValues[m_FrameIndex]);
 
@@ -1736,8 +1736,14 @@ void Renderer::present()
 
 #else
 
-	m_ConstantBufferManager.Reset();
-	m_DynamicDescriptorPool.Reset();
+	m_pppCommandListPool[nextFrameIndex][0]->Reset();
+	m_pppConstantBufferManager[nextFrameIndex][0]->Reset();
+	m_pppDescriptorPool[nextFrameIndex][0]->Reset();
+	{
+		char debugString[256];
+		sprintf_s(debugString, 256, "frameIndex: %d, nextIndex: %d\n", m_FrameIndex, nextFrameIndex);
+		OutputDebugStringA(debugString);
+	}
 
 #endif
 

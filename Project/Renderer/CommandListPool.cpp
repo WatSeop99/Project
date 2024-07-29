@@ -138,6 +138,9 @@ ID3D12GraphicsCommandList* CommandListPool::GetCurrentCommandList()
 		{
 			__debugbreak();
 		}
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "alloc command list\n");
+		OutputDebugStringA(szDebugString);
 	}
 
 	return m_pCurCmdList->pCommandList;
@@ -151,6 +154,7 @@ bool CommandListPool::addCmdList()
 
 	ID3D12CommandAllocator* pCommandAllocator = nullptr;
 	ID3D12GraphicsCommandList* pCommandList = nullptr;
+	WCHAR szDebugName[256] = { 0, };
 
 	if (m_TotalCmdNum >= m_MaxCmdListNum)
 	{
@@ -168,11 +172,8 @@ bool CommandListPool::addCmdList()
 #endif
 		goto LB_RETURN;
 	} // m_PoolIndex
-	{
-		WCHAR debugName[256];
-		swprintf_s(debugName, 256, L"CommandAllocator%u", m_PoolIndex);
-		pCommandAllocator->SetName(debugName);
-	}
+	swprintf_s(szDebugName, 256, L"CommandAllocator%u", m_PoolIndex);
+	pCommandAllocator->SetName(szDebugName);
 
 	hr = m_pDevice->CreateCommandList(0, m_CommandListType, pCommandAllocator, nullptr, IID_PPV_ARGS(&pCommandList));
 	if (FAILED(hr))
@@ -184,11 +185,8 @@ bool CommandListPool::addCmdList()
 		pCommandAllocator = nullptr;
 		goto LB_RETURN;
 	}
-	{
-		WCHAR debugName[256];
-		swprintf_s(debugName, 256, L"CommandList%u", m_PoolIndex);
-		pCommandList->SetName(debugName);
-	}
+	swprintf_s(szDebugName, 256, L"CommandList%u", m_PoolIndex);
+	pCommandList->SetName(szDebugName);
 
 	pCmdList = new CommandList;
 	ZeroMemory(pCmdList, sizeof(CommandList));

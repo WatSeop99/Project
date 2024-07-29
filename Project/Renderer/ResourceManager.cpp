@@ -103,8 +103,8 @@ HRESULT ResourceManager::CreateVertexBuffer(UINT sizePerVertex, UINT numVertex, 
 
 		m_pCommandList->Close();
 
-		ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
-		m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		ID3D12CommandList* ppCommandLists[1] = { m_pCommandList };
+		m_pCommandQueue->ExecuteCommandLists(1, ppCommandLists);
 
 		UINT64 lastFenceValue = m_pRenderer->Fence();
 		m_pRenderer->WaitForFenceValue(lastFenceValue);
@@ -183,8 +183,8 @@ HRESULT ResourceManager::CreateIndexBuffer(UINT sizePerIndex, UINT numIndex, D3D
 
 		m_pCommandList->Close();
 
-		ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
-		m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		ID3D12CommandList* ppCommandLists[1] = { m_pCommandList };
+		m_pCommandQueue->ExecuteCommandLists(1, ppCommandLists);
 
 		UINT64 lastFenceValue = m_pRenderer->Fence();
 		m_pRenderer->WaitForFenceValue(lastFenceValue);
@@ -539,8 +539,8 @@ HRESULT ResourceManager::UpdateTexture(ID3D12Resource* pDestResource, ID3D12Reso
 	m_pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 	m_pCommandList->Close();
 
-	ID3D12CommandList* ppCommandLists[] = { m_pCommandList };
-	m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+	ID3D12CommandList* ppCommandLists[1] = { m_pCommandList };
+	m_pCommandQueue->ExecuteCommandLists(1, ppCommandLists);
 
 	UINT64 lastFenceValue = m_pRenderer->Fence();
 	m_pRenderer->WaitForFenceValue(lastFenceValue);

@@ -28,8 +28,9 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
-	DynamicDescriptorPool* pDynamicDescriptorPool = pManager->m_pDynamicDescriptorPool;
-	ConstantBufferPool* pImageFilterConstantBufferPool = pManager->m_pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
+	DynamicDescriptorPool* pDynamicDescriptorPool = pRenderer->GetDynamicDescriptorPool();
+	ConstantBufferManager* pConstantBufferManager = pRenderer->GetConstantBufferManager();
+	ConstantBufferPool* pImageFilterConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
 	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
