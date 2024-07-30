@@ -405,6 +405,7 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 			physx::PxU32 numShapes = pCapsuleActor->getNbShapes();
 			std::vector<physx::PxShape*> capsuleShapes(numShapes);
 			pCapsuleActor->getShapes(capsuleShapes.data(), numShapes);
+			// pCapsuleActor->userData;
 
 			for (physx::PxU32 i = 0; i < numShapes; ++i)
 			{
@@ -616,7 +617,7 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel
 	physx::PxVec3 displacement = physx::PxVec3(DELTA_POS.x, DELTA_POS.y, DELTA_POS.z);
 
 	// physx 상에서 캐릭터 이동.
-	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, pCharacter->CharacterControllerFilter);
+	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, pCharacter->CharacterControllerCollideFilter);
 	/*physx::PxTransform destinationPos(pCharacter->CharacterAnimationData.Position.x, pCharacter->CharacterAnimationData.Position.y, pCharacter->CharacterAnimationData.Position.z);
 	{
 		char szDebugString[256];
@@ -638,12 +639,12 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel
 	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_RightLeg] = footPos + rotatedRight * 0.11f; // 0.2f == radius;
 	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_LeftLeg] = footPos + rotatedLeft * 0.11f; // 0.2f == radius;
 
-	 physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
-	 // physx::PxTransform nextPos = pCharacter->pBoundingCapsule->getGlobalPose();
-	 Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
-	 // Vector3 nextPosVec((float)nextPos.p.x, (float)nextPos.p.y, (float)nextPos.p.z);
+	physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
+	// physx::PxTransform nextPos = pCharacter->pBoundingCapsule->getGlobalPose();
+	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
+	// Vector3 nextPosVec((float)nextPos.p.x, (float)nextPos.p.y, (float)nextPos.p.z);
 
-	 // 받아온 위치 기반 캐릭터 위치 갱신.
-	 pCharacter->CharacterAnimationData.Position = nextPosVec;
-	 pCharacter->CharacterAnimationData.Position.y += 0.4f;
+	// 받아온 위치 기반 캐릭터 위치 갱신.
+	pCharacter->CharacterAnimationData.Position = nextPosVec;
+	pCharacter->CharacterAnimationData.Position.y += 0.4f;
 }

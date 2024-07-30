@@ -16,8 +16,8 @@ void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInf
 
 	m_pRenderer = pRenderer;
 
-	/*CharacterFilterData.word0 = CollisionGroup_KinematicBody;
-	CharacterControllerFilter.mFilterData = &CharacterFilterData;*/
+	CharacterSholudCollideWith.word0 = CollisionGroup_Default;
+	CharacterControllerCollideFilter.mFilterData = &CharacterSholudCollideWith;
 
 	Model::Initialize(pRenderer, MESH_INFOS);
 	InitAnimationData(pRenderer, ANIM_DATA);

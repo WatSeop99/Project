@@ -29,7 +29,7 @@ void PhysicsManager::Initialize(UINT numThreads)
 	{
 		__debugbreak();
 	}
-	
+
 #ifdef _DEBUG
 	m_pPVD = PxCreatePvd(*m_pFoundation);
 	if (!m_pPVD)
@@ -92,14 +92,6 @@ void PhysicsManager::Initialize(UINT numThreads)
 	}
 
 	pCommonMaterial = m_pPhysics->createMaterial(0.5f, 0.5f, 0.6f); // (¸¶Âû·Â, dynamic ¸¶Âû·Â, Åº¼º·Â)
-
-	// left-hand coord <==> model coord.
-	PxVec4 col0(0.0f, 1.0f, 0.0f, 0.0f);
-	PxVec4 col1(-1.0f, 0.0f, 0.0f, 0.0f);
-	PxVec4 col2(0.0f, 0.0f, 1.0f, 0.0f);
-	PxVec4 col3(0.0f, 0.0f, 0.0f, 1.0f);
-	WorldToModel = PxTransform(PxMat44(col0, col1, col2, col3));
-	ModelToWorld = WorldToModel.getInverse();
 }
 
 void PhysicsManager::Update(const float DELTA_TIME)
@@ -174,14 +166,14 @@ void PhysicsManager::CookingStaticTriangleMesh(const std::vector<Vertex>* pVERTI
 	{
 		__debugbreak();
 	}
-	
+
 	PxTriangleMeshGeometry geom(pMesh);
 	PxShape* pShape = m_pPhysics->createShape(geom, *pCommonMaterial);
 	if (!pShape)
 	{
 		__debugbreak();
 	}
-	
+
 	PxFilterData filterData;
 	filterData.word0 = CollisionGroup_Default;
 	pShape->setSimulationFilterData(filterData);

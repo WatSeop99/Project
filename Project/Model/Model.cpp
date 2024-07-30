@@ -251,7 +251,7 @@ void Model::Render(eRenderPSOType psoSetting)
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
 	{
 		Mesh* pCurMesh = Meshes[i];
-		
+
 		Material* pMeshMaterialTextures = &pCurMesh->Material;
 		MeshConstant* pMeshConstantData = &pCurMesh->MeshConstantData;
 		MaterialConstant* pMaterialConstantData = &pCurMesh->MaterialConstantData;
@@ -266,10 +266,10 @@ void Model::Render(eRenderPSOType psoSetting)
 
 		switch (psoSetting)
 		{
-			case RenderPSOType_Default: 
+			case RenderPSOType_Default:
 			case RenderPSOType_Skybox:
-			case RenderPSOType_MirrorBlend: 
-			case RenderPSOType_ReflectionDefault: 
+			case RenderPSOType_MirrorBlend:
+			case RenderPSOType_ReflectionDefault:
 			case RenderPSOType_ReflectionSkybox:
 			{
 				hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 9);
@@ -359,9 +359,9 @@ void Model::Render(eRenderPSOType psoSetting)
 			break;
 
 			case RenderPSOType_StencilMask:
-			case RenderPSOType_DepthOnlyDefault: 
-			case RenderPSOType_DepthOnlyCubeDefault: 
-			case RenderPSOType_DepthOnlyCascadeDefault: 
+			case RenderPSOType_DepthOnlyDefault:
+			case RenderPSOType_DepthOnlyCubeDefault:
+			case RenderPSOType_DepthOnlyCascadeDefault:
 			{
 				hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 2);
 				BREAK_IF_FAILED(hr);
@@ -423,9 +423,9 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 
 		switch (psoSetting)
 		{
-			case RenderPSOType_Default: 
+			case RenderPSOType_Default:
 			case RenderPSOType_Skybox:
-			case RenderPSOType_MirrorBlend: 
+			case RenderPSOType_MirrorBlend:
 			case RenderPSOType_ReflectionDefault:
 			case RenderPSOType_ReflectionSkybox:
 			{
@@ -625,7 +625,7 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
-	
+
 	MeshConstant* pMeshConstantData = &m_pBoundingSphereMesh->MeshConstantData;
 	MaterialConstant* pMaterialConstantData = &m_pBoundingSphereMesh->MaterialConstantData;
 	CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
@@ -671,7 +671,7 @@ void Model::Cleanup()
 	{
 		Mesh** pMesh = &Meshes[i];
 		Material* pMaterial = &(*pMesh)->Material;
-		
+
 		if (pMaterial->pAlbedo)
 		{
 			pTextureManager->DeleteTexture(pMaterial->pAlbedo);

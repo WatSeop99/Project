@@ -68,8 +68,8 @@ public:
 	Chain LeftLeg;
 
 	physx::PxCapsuleController* pController = nullptr;
-	physx::PxFilterData CharacterFilterData;
-	physx::PxControllerFilters CharacterControllerFilter;
+	physx::PxFilterData CharacterSholudCollideWith;
+	physx::PxControllerFilters CharacterControllerCollideFilter;
 	// physx::PxRigidDynamic* pBoundingCapsule = nullptr;
 
 private:

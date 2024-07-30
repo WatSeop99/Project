@@ -32,8 +32,6 @@ public:
 
 public:
 	physx::PxMaterial* pCommonMaterial = nullptr;
-	physx::PxTransform WorldToModel = physx::PxTransform(physx::PxIdentity);
-	physx::PxTransform ModelToWorld = physx::PxTransform(physx::PxIdentity);
 
 private:
 	const physx::PxVec3 m_GRAVITY = physx::PxVec3(0.0f, -9.81f, 0.0f);
