@@ -32,13 +32,13 @@ void Renderer::Initizlie()
 	initDepthStencils();
 	initShaderResources();
 
-	D3D12_CPU_DESCRIPTOR_HANDLE nullSrv;
+	D3D12_CPU_DESCRIPTOR_HANDLE nullSrv = {};
 	if (m_pSRVUAVAllocator->AllocDescriptorHandle(&nullSrv) == -1)
 	{
 		__debugbreak();
 	}
 	
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -78,8 +78,6 @@ void Renderer::Update(const float DELTA_TIME)
 {
 	m_Camera.UpdateKeyboard(DELTA_TIME, &m_Keyboard);
 	processMouseControl(DELTA_TIME);
-
-	m_pPhysicsManager->Update(DELTA_TIME);
 
 	updateGlobalConstants(DELTA_TIME);
 	updateLightConstants(DELTA_TIME);
@@ -1691,13 +1689,11 @@ void Renderer::endRender()
 #else
 
 	ID3D12GraphicsCommandList * pCommandList = GetCommandList();
-
 	const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+	
 	pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
-	pCommandList->Close();
 
-	ID3D12CommandList* ppCommandLists[] = { pCommandList };
-	m_pCommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+	m_pppCommandListPool[m_FrameIndex][0]->ClosedAndExecute(m_pCommandQueue);
 
 #endif
 }
@@ -1723,7 +1719,7 @@ void Renderer::present()
 
 	// for next frame.
 	UINT nextFrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
-	WaitForFenceValue(m_LastFenceValues[m_FrameIndex]);
+	WaitForFenceValue(m_LastFenceValues[nextFrameIndex]);
 
 #ifdef USE_MULTI_THREAD
 
@@ -1739,11 +1735,6 @@ void Renderer::present()
 	m_pppCommandListPool[nextFrameIndex][0]->Reset();
 	m_pppConstantBufferManager[nextFrameIndex][0]->Reset();
 	m_pppDescriptorPool[nextFrameIndex][0]->Reset();
-	{
-		char debugString[256];
-		sprintf_s(debugString, 256, "frameIndex: %d, nextIndex: %d\n", m_FrameIndex, nextFrameIndex);
-		OutputDebugStringA(debugString);
-	}
 
 #endif
 

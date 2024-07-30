@@ -24,8 +24,6 @@ struct TextureHandle
 class TextureManager
 {
 public:
-	static void SetInitializeTextureHandle(TextureHandle* pHandle);
-
 	TextureManager() = default;
 	~TextureManager() { Cleanup(); }
 

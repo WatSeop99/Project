@@ -1,23 +1,6 @@
 #include "../pch.h"
 #include "TextureManager.h"
 
-void TextureManager::SetInitializeTextureHandle(TextureHandle* pHandle)
-{
-	_ASSERT(pHandle);
-
-	pHandle->pTextureResource = nullptr;
-	pHandle->pUploadBuffer = nullptr;
-	pHandle->RTVHandle = { 0xffffffff, };
-	pHandle->DSVHandle = { 0xffffffff, };
-	pHandle->SRVHandle = { 0xffffffff, };
-	pHandle->GPUHandle = { 0xffffffff, };
-	pHandle->pSearchHandle = nullptr;
-	pHandle->Link = { nullptr, };
-	pHandle->RefCount = 0;
-	pHandle->bUpdated = false;
-	pHandle->bFromFile = false;
-}
-
 void TextureManager::Initialize(Renderer* pRenderer, UINT maxBucketNum, UINT maxFileNum)
 {
 	_ASSERT(pRenderer);

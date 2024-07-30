@@ -5,6 +5,21 @@ using namespace physx;
 
 #define PVD_HOST "127.0.0.1"
 
+PxFilterFlags PhysicsManager::IgnoreCharacterControllerAndEndEffector(PxFilterObjectAttributes attributes0, PxFilterData filterData0, PxFilterObjectAttributes attributes1, PxFilterData filterData1, PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
+{
+	if (filterData0.word0 == CollisionGroup_KinematicBody && filterData1.word0 == CollisionGroup_EndEffector)
+	{
+		return PxFilterFlag::eSUPPRESS;
+	}
+	if (filterData0.word0 == CollisionGroup_EndEffector && filterData1.word0 == CollisionGroup_KinematicBody)
+	{
+		return PxFilterFlag::eSUPPRESS;
+	}
+
+	pairFlags = PxPairFlag::eCONTACT_DEFAULT | PxPairFlag::eTRIGGER_DEFAULT | PxPairFlag::eNOTIFY_CONTACT_POINTS;
+	return PxFilterFlag::eDEFAULT;
+}
+
 void PhysicsManager::Initialize(UINT numThreads)
 {
 	_ASSERT(numThreads >= 1);
@@ -32,16 +47,17 @@ void PhysicsManager::Initialize(UINT numThreads)
 		__debugbreak();
 	}
 
-	PxSceneDesc sceneDesc(m_pPhysics->getTolerancesScale());
-	sceneDesc.gravity = m_GRAVITY;
-
 	m_pDispatcher = PxDefaultCpuDispatcherCreate(numThreads);
 	if (!m_pDispatcher)
 	{
 		__debugbreak();
 	}
+
+	PxSceneDesc sceneDesc(m_pPhysics->getTolerancesScale());
+	sceneDesc.gravity = m_GRAVITY;
 	sceneDesc.cpuDispatcher = m_pDispatcher;
-	sceneDesc.filterShader = PxDefaultSimulationFilterShader;
+	// sceneDesc.filterShader = PxDefaultSimulationFilterShader;
+	sceneDesc.filterShader = IgnoreCharacterControllerAndEndEffector;
 
 	m_pScene = m_pPhysics->createScene(sceneDesc);
 	if (!m_pScene)
@@ -90,7 +106,6 @@ void PhysicsManager::Update(const float DELTA_TIME)
 {
 	_ASSERT(m_pScene);
 
-	// m_pScene->simulate(1.0f / 60.0f);
 	m_pScene->simulate(DELTA_TIME);
 	m_pScene->fetchResults(true);
 }
@@ -166,6 +181,10 @@ void PhysicsManager::CookingStaticTriangleMesh(const std::vector<Vertex>* pVERTI
 	{
 		__debugbreak();
 	}
+	
+	PxFilterData filterData;
+	filterData.word0 = CollisionGroup_Default;
+	pShape->setSimulationFilterData(filterData);
 
 	pPawn->attachShape(*pShape);
 	m_pScene->addActor(*pPawn);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Model.h"
-#include "../Graphics/Texture.h"
 
 class SkinnedMeshModel final : public Model
 {
@@ -68,7 +67,10 @@ public:
 	Chain RightLeg;
 	Chain LeftLeg;
 
-	physx::PxController* pController = nullptr;
+	physx::PxCapsuleController* pController = nullptr;
+	physx::PxFilterData CharacterFilterData;
+	physx::PxControllerFilters CharacterControllerFilter;
+	// physx::PxRigidDynamic* pBoundingCapsule = nullptr;
 
 private:
 	Mesh* m_ppRightArm[4] = { nullptr, }; // right arm - right fore arm - right hand - right hand middle.

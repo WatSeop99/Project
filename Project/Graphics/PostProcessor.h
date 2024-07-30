@@ -46,9 +46,9 @@ protected:
 	void createImageResources(const int WIDTH, const int HEIGHT, ImageFilter::ImageResource* pImageResource);
 
 	void renderPostProcessing(UINT frameIndex);
-	void renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager);
+	void renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pResourceManager, UINT frameIndex);
 	void renderImageFilter(ImageFilter& imageFilter, eRenderPSOType psoSetting, UINT frameIndex);
-	void renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, ImageFilter& imageFilter, int psoSetting);
+	void renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pResourceManager, ImageFilter& imageFilter, int psoSetting, UINT frameIndex);
 
 	void setRenderConfig(const PostProcessingBuffers& CONFIG);
 

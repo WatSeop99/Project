@@ -279,7 +279,7 @@ UINT RenderQueue::ProcessPostProcessing(UINT threadIndex, ID3D12CommandQueue* pC
 
 		pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pRenderItem->PSOType);
 		
-		pImageFilter->BeforeRender(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, pRenderItem->PSOType);
+		// pImageFilter->BeforeRender(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, pRenderItem->PSOType);
 		pCommandList->IASetVertexBuffers(0, 1, &pScreenMesh->Vertex.VertexBufferView);
 		pCommandList->IASetIndexBuffer(&pScreenMesh->Index.IndexBufferView);
 		pCommandList->DrawIndexedInstanced(pScreenMesh->Index.Count, 1, 0, 0, 0);

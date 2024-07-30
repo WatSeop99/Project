@@ -4,7 +4,6 @@
 #include "CommandListPool.h"
 #include "DynamicDescriptorPool.h"
 #include "RenderQueue.h"
-#include "../Graphics/Texture.h"
 #include "TextureManager.h"
 
 struct TextureHandle;
@@ -19,21 +18,6 @@ static const UINT MAX_DESCRIPTOR_NUM = 1024;
 class ResourceManager
 {
 public:
-	struct InitialData
-	{
-		ID3D12Device5* pDevice;
-		ID3D12CommandQueue* pCommandQueue;
-		ID3D12CommandAllocator** ppCommandAllocator;
-		ID3D12GraphicsCommandList** ppCommandList;
-		DynamicDescriptorPool* pDynamicDescriptorPool;
-		ConstantBufferManager* pConstantBufferManager;
-
-		HANDLE hFenceEvent;
-		ID3D12Fence* pFence;
-		UINT* pFrameIndex;
-		UINT64* pFenceValue;
-		UINT64* pLastFenceValues;
-	};
 	struct TextureHandles
 	{
 		TextureHandle* ppLightShadowMaps[MAX_LIGHTS];
@@ -75,17 +59,10 @@ protected:
 	void initPipelineStates();
 	void initShaders();
 
-	/*UINT64 fence();
-	void waitForGPU(UINT64 expectedFenceValue);*/
-
 public:
-	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
-	DynamicDescriptorPool* m_pDynamicDescriptorPool = nullptr;
-	ConstantBufferManager* m_pConstantBufferManager = nullptr;
-
 	D3D12_CPU_DESCRIPTOR_HANDLE m_NullSRVDescriptor = { 0xffffffff, };
 
-	UINT* m_pFrameIndex = nullptr;
+	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
 
 	UINT m_RTVDescriptorSize = 0;
 	UINT m_DSVDescriptorSize = 0;
@@ -107,11 +84,6 @@ private:
 	ID3D12CommandQueue* m_pCommandQueue = nullptr;
 	ID3D12CommandAllocator* m_pCommandAllocator = nullptr;
 	ID3D12GraphicsCommandList* m_pCommandList = nullptr;
-
-	/*HANDLE m_hFenceEvent = nullptr;
-	ID3D12Fence* m_pFence = nullptr;
-	UINT64* m_pFenceValue = nullptr;
-	UINT64* m_pFenceValues = nullptr;*/
 
 	// root signature.
 	ID3D12RootSignature* m_pDefaultRootSignature = nullptr;

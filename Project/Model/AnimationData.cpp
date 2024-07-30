@@ -215,12 +215,6 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 	Eigen::VectorXf deltaTheta(TOTAL_JOINT * 3);
 	Joint& endEffector = BodyChain[TOTAL_JOINT - 1];
 
-	{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "targetPos: %f, %f, %f\n", targetPos.x, targetPos.y, targetPos.z);
-		OutputDebugStringA(szDebugString);
-	}
-
 	for (int step = 0; step < 100; ++step)
 	{
 		Vector3 deltaPos = targetPos - endEffector.Position;

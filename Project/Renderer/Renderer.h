@@ -53,7 +53,6 @@ public:
 
 	inline ID3D12Device5* GetD3DDevice() { return m_pDevice; }
 	inline ID3D12CommandQueue* GetCommandQueue() { return m_pCommandQueue; }
-	// inline ID3D12CommandAllocator* GetCommandAllocator() { return m_pppCommandListPool[m_FrameIndex][0]->GetCurrentCommandAllocator(); }
 	inline ID3D12GraphicsCommandList* GetCommandList() { return m_pppCommandListPool[m_FrameIndex][0]->GetCurrentCommandList(); }
 
 	inline ResourceManager* GetResourceManager() { return m_pResourceManager; }
@@ -148,8 +147,6 @@ private:
 	ID3D12Device5* m_pDevice = nullptr;
 	IDXGISwapChain4* m_pSwapChain = nullptr;
 	ID3D12CommandQueue* m_pCommandQueue = nullptr;
-	/*ID3D12CommandAllocator* m_ppCommandAllocator[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };
-	ID3D12GraphicsCommandList* m_ppCommandList[SWAP_CHAIN_FRAME_COUNT] = { nullptr, };*/
 
 	// for multi-thread ////////////////////////
 	RenderQueue* m_pppRenderQueue[RenderPass_RenderPassCount][MAX_RENDER_THREAD_COUNT] = { nullptr, };

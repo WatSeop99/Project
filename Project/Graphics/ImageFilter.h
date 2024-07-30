@@ -26,7 +26,7 @@ public:
 	void UpdateConstantBuffers();
 
 	void BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, UINT frameIndex);
-	void BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting);
+	void BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pResourceManager, int psoSetting, UINT frameIndex);
 	void AfterRender(Renderer* pRenderer, eRenderPSOType psoSetting, UINT frameIndex);
 	void AfterRender(ID3D12GraphicsCommandList* pCommandList, int psoSetting);
 

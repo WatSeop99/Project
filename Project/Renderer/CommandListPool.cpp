@@ -138,9 +138,6 @@ ID3D12GraphicsCommandList* CommandListPool::GetCurrentCommandList()
 		{
 			__debugbreak();
 		}
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "alloc command list\n");
-		OutputDebugStringA(szDebugString);
 	}
 
 	return m_pCurCmdList->pCommandList;

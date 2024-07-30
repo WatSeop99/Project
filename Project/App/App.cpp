@@ -77,14 +77,20 @@ void App::Update(const float DELTA_TIME)
 {
 	Renderer::Update(DELTA_TIME);
 
+	m_pPhysicsManager->Update(DELTA_TIME);
+
 	for (UINT64 i = 0, size = m_RenderObjects.size(); i < size; ++i)
 	{
-		Model* pModel = m_RenderObjects[i];
+		const Model* pModel = m_RenderObjects[i];
+
+		if (!pModel->bIsVisible)
+		{
+			continue;
+		}
 
 		switch (pModel->ModelType)
 		{
 			case RenderObjectType_DefaultType:
-			case RenderObjectType_MirrorType:
 				break;
 
 			case RenderObjectType_SkinnedType:
@@ -104,10 +110,20 @@ void App::Update(const float DELTA_TIME)
 			}
 			break;
 
+			case RenderObjectType_MirrorType:
+				break;
+
 			default:
 				break;
 		}
 	}
+
+	//{
+	//	physx::PxTransform characterPos = m_pCharacter->pBoundingCapsule->getGlobalPose();
+	//	Vector3 posToVec3(characterPos.p.x, characterPos.p.y, characterPos.p.z);
+	//	m_pCharacter->CharacterAnimationData.Position = posToVec3;
+	//	// m_pCharacter->CharacterAnimationData.Position.y += 0.4f;
+	//}
 }
 
 void App::Cleanup()
@@ -286,8 +302,20 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		pGround->ModelType = RenderObjectType_MirrorType;
 		m_RenderObjects.push_back(pGround);
 
-
 		physx::PxRigidStatic* pGroundPlane = physx::PxCreatePlane(*pPhysics, physx::PxPlane(0.0f, 1.0f, 0.0f, 0.0f), *(m_pPhysicsManager->pCommonMaterial));
+		{
+			physx::PxFilterData groundFilterData;
+			groundFilterData.word0 = CollisionGroup_Default;
+
+			physx::PxU32 numShapes = pGroundPlane->getNbShapes();
+			std::vector<physx::PxShape*> shapes(numShapes);
+			pGroundPlane->getShapes(shapes.data(), numShapes);
+			for (physx::PxU32 i = 0; i < numShapes; ++i)
+			{
+				physx::PxShape* pShape = shapes[i];
+				pShape->setSimulationFilterData(groundFilterData);
+			}
+		}
 		m_pPhysicsManager->AddActor(pGroundPlane);
 	}
 
@@ -352,8 +380,8 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 
 
 		physx::PxControllerManager* pControlManager = m_pPhysicsManager->GetControllerManager();
+		physx::PxCapsuleController* pController = nullptr;
 		physx::PxCapsuleControllerDesc capsuleDesc;
-		physx::PxController* pController = nullptr;
 
 		// capsule 메시랑 동일하게 설정. 단, 여기서는 y값을 0으로 설정해줘야 함.
 		capsuleDesc.height = (m_pCharacter->BoundingSphere.Radius * 1.35f) - 0.5f;
@@ -362,13 +390,62 @@ void App::initExternalData(UINT64* pTotalRenderObjectCount)
 		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, m_pCharacter->CharacterAnimationData.Position.y, m_pCharacter->CharacterAnimationData.Position.z);
 		capsuleDesc.contactOffset = 0.05f;
 		capsuleDesc.material = m_pPhysicsManager->pCommonMaterial;
-		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.3f;
+		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.2f;
 		capsuleDesc.climbingMode = physx::PxCapsuleClimbingMode::eCONSTRAINED;
-		pController = pControlManager->createController(capsuleDesc);
+		pController = (physx::PxCapsuleController*)pControlManager->createController(capsuleDesc);
 		if (!pController)
 		{
 			__debugbreak();
 		}
+		{
+			physx::PxFilterData controllerFilter = {};
+			controllerFilter.word0 = CollisionGroup_KinematicBody;
+
+			physx::PxRigidDynamic* pCapsuleActor = pController->getActor();
+			physx::PxU32 numShapes = pCapsuleActor->getNbShapes();
+			std::vector<physx::PxShape*> capsuleShapes(numShapes);
+			pCapsuleActor->getShapes(capsuleShapes.data(), numShapes);
+
+			for (physx::PxU32 i = 0; i < numShapes; ++i)
+			{
+				physx::PxShape* pShape = capsuleShapes[i];
+				pShape->setSimulationFilterData(controllerFilter);
+				pShape->setQueryFilterData(controllerFilter);
+			}
+		}
+
+
+		// end-effector 충돌체 설정.
+		physx::PxRigidDynamic* pRightFoot = nullptr;
+		physx::PxRigidDynamic* pLeftFoot = nullptr;
+		physx::PxBoxGeometry boundingBoxGeom(0.2f, 0.2f, 0.2f);
+		physx::PxShape* pBoxShape = pPhysics->createShape(boundingBoxGeom, *(m_pPhysicsManager->pCommonMaterial));
+		if (!pBoxShape)
+		{
+			__debugbreak();
+		}
+
+		physx::PxFilterData endEffectorFilter = {};
+		endEffectorFilter.word0 = CollisionGroup_EndEffector;
+		pBoxShape->setSimulationFilterData(endEffectorFilter);
+		pBoxShape->setQueryFilterData(endEffectorFilter);
+
+		pRightFoot = pPhysics->createRigidDynamic(physx::PxTransform(0.0f, 0.0f, 3.0f));
+		if (!pRightFoot)
+		{
+			__debugbreak();
+		}
+		pRightFoot->attachShape(*pBoxShape);
+
+		pLeftFoot = pPhysics->createRigidDynamic(physx::PxTransform(0.0f, 0.0f, 3.0f));
+		if (!pLeftFoot)
+		{
+			__debugbreak();
+		}
+		pLeftFoot->attachShape(*pBoxShape);
+
+		m_pPhysicsManager->AddActor(pRightFoot);
+		m_pPhysicsManager->AddActor(pLeftFoot);
 		m_pCharacter->pController = pController;
 	}
 
@@ -539,7 +616,15 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel
 	physx::PxVec3 displacement = physx::PxVec3(DELTA_POS.x, DELTA_POS.y, DELTA_POS.z);
 
 	// physx 상에서 캐릭터 이동.
-	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, physx::PxControllerFilters());
+	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, pCharacter->CharacterControllerFilter);
+	/*physx::PxTransform destinationPos(pCharacter->CharacterAnimationData.Position.x, pCharacter->CharacterAnimationData.Position.y, pCharacter->CharacterAnimationData.Position.z);
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "pos: %f, %f, %f\n", pCharacter->CharacterAnimationData.Position.x, pCharacter->CharacterAnimationData.Position.y, pCharacter->CharacterAnimationData.Position.z);
+		OutputDebugStringA(szDebugString);
+	}*/
+	// pCharacter->pBoundingCapsule->setKinematicTarget(destinationPos);
+	// pCharacter->pBoundingCapsule->setGlobalPose(destinationPos);
 
 	// physx 상에서의 캐릭터 위치 받아오기.
 	const float TO_RADIAN = DirectX::XM_PI / 180.0f;
@@ -553,10 +638,12 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel
 	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_RightLeg] = footPos + rotatedRight * 0.11f; // 0.2f == radius;
 	pUpdateInfo->EndEffectorTargetPoses[SkinnedMeshModel::JointPart_LeftLeg] = footPos + rotatedLeft * 0.11f; // 0.2f == radius;
 
-	physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
-	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
+	 physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
+	 // physx::PxTransform nextPos = pCharacter->pBoundingCapsule->getGlobalPose();
+	 Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
+	 // Vector3 nextPosVec((float)nextPos.p.x, (float)nextPos.p.y, (float)nextPos.p.z);
 
-	// 받아온 위치 기반 캐릭터 위치 갱신.
-	pCharacter->CharacterAnimationData.Position = nextPosVec;
-	pCharacter->CharacterAnimationData.Position.y += 0.4f;
+	 // 받아온 위치 기반 캐릭터 위치 갱신.
+	 pCharacter->CharacterAnimationData.Position = nextPosVec;
+	 pCharacter->CharacterAnimationData.Position.y += 0.4f;
 }

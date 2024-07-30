@@ -3,7 +3,6 @@
 #include "Camera.h"
 #include "../Renderer/ConstantDataType.h"
 #include "../Model/SkinnedMeshModel.h"
-#include "Texture.h"
 #include "../Renderer/TextureManager.h"
 
 class Renderer;

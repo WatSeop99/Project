@@ -632,8 +632,6 @@ void ResourceManager::Cleanup()
 
 	SAFE_RELEASE(m_pSamplerHeap);
 
-	m_pConstantBufferManager = nullptr;
-	m_pDynamicDescriptorPool = nullptr;
 	m_pCommandQueue = nullptr;
 	m_pDevice = nullptr;
 }
@@ -707,7 +705,6 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable);
-			// CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_GlobalShaderResourceViewStartOffset, m_CBVSRVUAVDescriptorSize);
 			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pGlobalCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -718,7 +715,6 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			// m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
@@ -767,7 +763,6 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable);
-			// CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_GlobalShaderResourceViewStartOffset, m_CBVSRVUAVDescriptorSize);
 			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pReflectionCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -778,7 +773,6 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			// m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
@@ -824,14 +818,12 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
-			// CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_GlobalShaderResourceViewStartOffset, m_CBVSRVUAVDescriptorSize);
-		
+			
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			// m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
@@ -1100,8 +1092,7 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
-			// CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_GlobalShaderResourceViewStartOffset, m_CBVSRVUAVDescriptorSize);
-
+			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pGlobalCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
@@ -1111,7 +1102,6 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			// m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
@@ -1160,8 +1150,7 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
-			// CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_GlobalShaderResourceViewStartOffset, m_CBVSRVUAVDescriptorSize);
-
+			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pReflectionCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
@@ -1171,7 +1160,6 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			// m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
@@ -1217,14 +1205,12 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
-			// CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_pCBVSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_GlobalShaderResourceViewStartOffset, m_CBVSRVUAVDescriptorSize);
-
+			
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
-			// m_pDevice->CopyDescriptorsSimple(TOTAL_COMMON_SRV_COUNT, dstHandle, srvHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
 

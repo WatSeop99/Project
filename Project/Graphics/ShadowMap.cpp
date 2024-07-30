@@ -313,6 +313,11 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 
 void ShadowMap::Cleanup()
 {
+	if (!m_pRenderer)
+	{
+		return;
+	}
+
 	TextureManager* pTextureManager = m_pRenderer->GetTextureManager();
 	DescriptorAllocator* pDSVAllocator = m_pRenderer->GetDSVAllocator();
 	DescriptorAllocator* pSRVAllocator = m_pRenderer->GetSRVUAVAllocator();
@@ -320,20 +325,34 @@ void ShadowMap::Cleanup()
 	switch (m_LightType & m_TOTAL_LIGHT_TYPE)
 	{
 		case LIGHT_DIRECTIONAL:
-			pTextureManager->DeleteTexture(m_pDirectionalLightShadowBuffer);
+			if (m_pDirectionalLightShadowBuffer)
+			{
+				pTextureManager->DeleteTexture(m_pDirectionalLightShadowBuffer);
+				m_pDirectionalLightShadowBuffer = nullptr;
+			}
 			break;
 
 		case LIGHT_POINT:
-			pTextureManager->DeleteTexture(m_pPointLightShadowBuffer);
+			if (m_pPointLightShadowBuffer)
+			{
+				pTextureManager->DeleteTexture(m_pPointLightShadowBuffer);
+				m_pPointLightShadowBuffer = nullptr;
+			}
 			break;
 
 		case LIGHT_SPOT:
-			pTextureManager->DeleteTexture(m_pSpotLightShadowBuffer);
+			if (m_pSpotLightShadowBuffer)
+			{
+				pTextureManager->DeleteTexture(m_pSpotLightShadowBuffer);
+				m_pSpotLightShadowBuffer = nullptr;
+			}
 			break;
 
 		default:
 			break;
 	}
+
+	m_pRenderer = nullptr;
 }
 
 void ShadowMap::SetShadowWidth(const UINT WIDTH)

@@ -6,7 +6,7 @@
 // Vertex and Index Info
 struct BufferInfo
 {
-	ID3D12Resource* pBuffer = nullptr;
+	ID3D12Resource* pBuffer;
 	union
 	{
 		D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
@@ -42,10 +42,18 @@ public:
 		}
 	}
 
+	void Initialize()
+	{
+		Vertex.pBuffer = nullptr;
+		Vertex.Count = 0;
+		Index.pBuffer = nullptr;
+		Index.Count = 0;
+	}
+
 public:
 	BufferInfo Vertex;
 	BufferInfo Index;
-	Material Material;
+	Material Material = { nullptr, };
 
 	MeshConstant MeshConstantData;
 	MaterialConstant MaterialConstantData;

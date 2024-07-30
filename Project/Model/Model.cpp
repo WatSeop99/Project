@@ -42,6 +42,8 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 	{
 		const MeshInfo& MESH_DATA = MESH_INFOS[i];
 		Mesh* pNewMesh = new Mesh;
+		pNewMesh->Initialize();
+
 		MeshConstant& meshConstantData = pNewMesh->MeshConstantData;
 		MaterialConstant& materialConstantData = pNewMesh->MaterialConstantData;
 		Material* pMeshMaterial = &pNewMesh->Material;
@@ -62,7 +64,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(albedoTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.Albedo.Initialize(pRenderer, MESH_DATA.szAlbedoTextureFileName.c_str(), true);
 				pMeshMaterial->pAlbedo = pTextureManager->CreateTextureFromFile(MESH_DATA.szAlbedoTextureFileName.c_str(), true);
 				materialConstantData.bUseAlbedoMap = TRUE;
 			}
@@ -78,7 +79,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(emissiveTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.Emissive.Initialize(pRenderer, MESH_DATA.szEmissiveTextureFileName.c_str(), true);
 				pMeshMaterial->pEmissive = pTextureManager->CreateTextureFromFile(MESH_DATA.szEmissiveTextureFileName.c_str(), true);
 				materialConstantData.bUseEmissiveMap = TRUE;
 			}
@@ -94,7 +94,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(normalTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.Normal.Initialize(pRenderer, MESH_DATA.szNormalTextureFileName.c_str(), false);
 				pMeshMaterial->pNormal = pTextureManager->CreateTextureFromFile(MESH_DATA.szNormalTextureFileName.c_str(), false);
 				materialConstantData.bUseNormalMap = TRUE;
 			}
@@ -110,7 +109,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(heightTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.Height.Initialize(pRenderer, MESH_DATA.szHeightTextureFileName.c_str(), false);
 				pMeshMaterial->pHeight = pTextureManager->CreateTextureFromFile(MESH_DATA.szHeightTextureFileName.c_str(), false);
 				meshConstantData.bUseHeightMap = TRUE;
 			}
@@ -126,7 +124,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(aoTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.AmbientOcclusion.Initialize(pRenderer, MESH_DATA.szAOTextureFileName.c_str(), false);
 				pMeshMaterial->pAmbientOcclusion = pTextureManager->CreateTextureFromFile(MESH_DATA.szAOTextureFileName.c_str(), false);
 				materialConstantData.bUseAOMap = TRUE;
 			}
@@ -142,7 +139,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(metallicTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.Metallic.Initialize(pRenderer, MESH_DATA.szMetallicTextureFileName.c_str(), false);
 				pMeshMaterial->pMetallic = pTextureManager->CreateTextureFromFile(MESH_DATA.szMetallicTextureFileName.c_str(), false);
 				materialConstantData.bUseMetallicMap = TRUE;
 			}
@@ -158,7 +154,6 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 
 			if (_stat64(roughnessTextureA.c_str(), &sourceFileStat) != -1)
 			{
-				// pNewMesh->Material.Roughness.Initialize(pRenderer, MESH_DATA.szRoughnessTextureFileName.c_str(), false);
 				pMeshMaterial->pRoughness = pTextureManager->CreateTextureFromFile(MESH_DATA.szRoughnessTextureFileName.c_str(), false);
 				materialConstantData.bUseRoughnessMap = TRUE;
 			}
@@ -289,8 +284,6 @@ void Model::Render(eRenderPSOType psoSetting)
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t0 ~ t5
-				/*pDevice->CopyDescriptorsSimple(6, dstHandle, pCurMesh->Material.Albedo.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(6, CBV_SRV_DESCRIPTOR_SIZE);*/
 				if (pMeshMaterialTextures->pAlbedo)
 				{
 					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pAlbedo->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -352,7 +345,6 @@ void Model::Render(eRenderPSOType psoSetting)
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t6
-				// pDevice->CopyDescriptorsSimple(1, dstHandle, pCurMesh->Material.Height.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				if (pMeshMaterialTextures->pHeight)
 				{
 					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pHeight->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -449,8 +441,6 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t0 ~ t5
-				/*pDevice->CopyDescriptorsSimple(6, dstHandle, pCurMesh->Material.Albedo.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				dstHandle.Offset(6, CBV_SRV_DESCRIPTOR_SIZE);*/
 				if (pMeshMaterialTextures->pAlbedo)
 				{
 					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pAlbedo->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -563,12 +553,12 @@ void Model::RenderBoundingBox(eRenderPSOType psoSetting)
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
@@ -616,12 +606,12 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
@@ -737,9 +727,7 @@ void Model::initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS)
 	MakeWireBox(&meshData, BoundingBox.Center, Vector3(BoundingBox.Extents) + Vector3(1e-3f));
 	m_pBoundingBoxMesh = new Mesh;
 
-	MeshConstant& meshConstantData = m_pBoundingBoxMesh->MeshConstantData;
-	MaterialConstant& materialConstantData = m_pBoundingBoxMesh->MaterialConstantData;
-	meshConstantData.World = Matrix();
+	m_pBoundingBoxMesh->MeshConstantData.World = Matrix();
 
 	InitMeshBuffers(m_pRenderer, meshData, m_pBoundingBoxMesh);
 }
@@ -764,9 +752,7 @@ void Model::initBoundingSphere(const std::vector<MeshInfo>& MESH_INFOS)
 	MakeWireSphere(&meshData, BoundingSphere.Center, BoundingSphere.Radius);
 	m_pBoundingSphereMesh = new Mesh;
 
-	MeshConstant& meshConstantData = m_pBoundingSphereMesh->MeshConstantData;
-	MaterialConstant& materialConstantData = m_pBoundingSphereMesh->MaterialConstantData;
-	meshConstantData.World = Matrix();
+	m_pBoundingSphereMesh->MeshConstantData.World = Matrix();
 
 	InitMeshBuffers(m_pRenderer, meshData, m_pBoundingSphereMesh);
 }

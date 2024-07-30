@@ -179,10 +179,10 @@ void PostProcessor::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommand
 
 	// basic sampling.
 	pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_Sampling);
-	renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, m_BasicSamplingFilter, RenderPSOType_Sampling);
+	renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, m_BasicSamplingFilter, RenderPSOType_Sampling, frameIndex);
 
 	// post processing.
-	renderPostProcessing(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager);
+	renderPostProcessing(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, frameIndex);
 }
 
 void PostProcessor::Cleanup()
@@ -431,12 +431,12 @@ void PostProcessor::renderPostProcessing(UINT frameIndex)
 	pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 }
 
-void PostProcessor::renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager)
+void PostProcessor::renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pResourceManager, UINT frameIndex)
 {
 	_ASSERT(pCommandList);
 	_ASSERT(pDescriptorPool);
 	_ASSERT(pConstantBufferManager);
-	_ASSERT(pManager);
+	_ASSERT(pResourceManager);
 
 	// bloom pass.
 	/*pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, BloomDown);
@@ -451,17 +451,17 @@ void PostProcessor::renderPostProcessing(UINT threadIndex, ID3D12GraphicsCommand
 	}*/
 
 	// combine pass
-	pManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_Combine);
-	renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, m_CombineFilter, RenderPSOType_Combine);
+	pResourceManager->SetCommonState(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_Combine);
+	renderImageFilter(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pResourceManager, m_CombineFilter, RenderPSOType_Combine, frameIndex);
 
 	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIERs[2] =
 	{
-		CD3DX12_RESOURCE_BARRIER::Transition(m_ppBackBuffers[*(pManager->m_pFrameIndex)], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE),
+		CD3DX12_RESOURCE_BARRIER::Transition(m_ppBackBuffers[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE),
 		CD3DX12_RESOURCE_BARRIER::Transition(m_pPrevBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST)
 	};
 	const CD3DX12_RESOURCE_BARRIER AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pPrevBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON);
 	pCommandList->ResourceBarrier(2, BEFORE_BARRIERs);
-	pCommandList->CopyResource(m_pPrevBuffer, m_ppBackBuffers[*(pManager->m_pFrameIndex)]);
+	pCommandList->CopyResource(m_pPrevBuffer, m_ppBackBuffers[frameIndex]);
 	pCommandList->ResourceBarrier(1, &AFTER_BARRIER);
 }
 
@@ -477,9 +477,9 @@ void PostProcessor::renderImageFilter(ImageFilter& imageFilter, eRenderPSOType p
 	imageFilter.AfterRender(m_pRenderer, psoSetting, frameIndex);
 }
 
-void PostProcessor::renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, ImageFilter& imageFilter, int psoSetting)
+void PostProcessor::renderImageFilter(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pResourceManager, ImageFilter& imageFilter, int psoSetting, UINT frameIndex)
 {
-	imageFilter.BeforeRender(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pManager, psoSetting);
+	imageFilter.BeforeRender(threadIndex, pCommandList, pDescriptorPool, pConstantBufferManager, pResourceManager, psoSetting, frameIndex);
 	pCommandList->DrawIndexedInstanced(m_pScreenMesh->Index.Count, 1, 0, 0, 0);
 	imageFilter.AfterRender(pCommandList, psoSetting);
 }

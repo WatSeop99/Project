@@ -16,6 +16,9 @@ void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInf
 
 	m_pRenderer = pRenderer;
 
+	/*CharacterFilterData.word0 = CollisionGroup_KinematicBody;
+	CharacterControllerFilter.mFilterData = &CharacterFilterData;*/
+
 	Model::Initialize(pRenderer, MESH_INFOS);
 	InitAnimationData(pRenderer, ANIM_DATA);
 	initBoundingCapsule();
@@ -118,16 +121,9 @@ void SkinnedMeshModel::InitAnimationData(Renderer* pRenderer, const AnimationDat
 	// 여기서는 AnimationClip이 SkinnedMesh라고 가정.
 	// ANIM_DATA.Clips[0].Keys.size() -> 뼈의 수.
 
-	// BoneTransforms.Initialize(pRenderer, (UINT)ANIM_DATA.Clips[0].Keys.size(), sizeof(Matrix));
 	pBoneTransform = pRenderer->GetTextureManager()->CreateNonImageTexture((UINT)ANIM_DATA.Clips[0].Keys.size(), sizeof(Matrix));
 
 	// 단위행렬로 초기화.
-	/*Matrix* pBoneTransformConstData = (Matrix*)BoneTransforms.pData;
-	for (UINT64 i = 0, size = ANIM_DATA.Clips[0].Keys.size(); i < size; ++i)
-	{
-		pBoneTransformConstData[i] = Matrix();
-	}
-	BoneTransforms.Upload();*/
 	CD3DX12_RANGE writeRange(0, 0);
 	BYTE* pBoneTransformMem = nullptr;
 	pBoneTransform->pTextureResource->Map(0, &writeRange, (void**)&pBoneTransformMem);
@@ -218,17 +214,17 @@ void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
+	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
 
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
 	{
@@ -395,8 +391,8 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable;
-	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
+	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
 
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
 	{
@@ -551,12 +547,12 @@ void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
@@ -605,12 +601,12 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;

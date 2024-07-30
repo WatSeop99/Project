@@ -114,6 +114,11 @@ void Light::RenderShadowMap(std::vector<Model*>* pRenderObjects)
 
 void Light::Cleanup()
 {
+	if (!m_pRenderer)
+	{
+		return;
+	}
+
 	LightShadowMap.Cleanup();
 	bRotated = false;
 	bVisible = true;
