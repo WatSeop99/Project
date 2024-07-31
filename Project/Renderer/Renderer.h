@@ -14,6 +14,7 @@
 #include "../Model/SkinnedMeshModel.h"
 #include "../Physics/PhysicsManager.h"
 #include "../Graphics/PostProcessor.h"
+#include "../Renderer/Timer.h"
 
 class Renderer
 {
@@ -110,6 +111,8 @@ protected:
 
 	PhysicsManager* m_pPhysicsManager = nullptr;
 	PostProcessor* m_pPostProcessor = nullptr;
+
+	Timer m_Timer;
 
 	Keyboard m_Keyboard;
 	Mouse m_Mouse;

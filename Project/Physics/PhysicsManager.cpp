@@ -15,6 +15,10 @@ PxFilterFlags PhysicsManager::IgnoreCharacterControllerAndEndEffector(PxFilterOb
 	{
 		return PxFilterFlag::eSUPPRESS;
 	}
+	if (filterData0.word0 == CollisionGroup_EndEffector && filterData1.word0 == CollisionGroup_EndEffector)
+	{
+		return PxFilterFlag::eSUPPRESS;
+	}
 
 	pairFlags = PxPairFlag::eCONTACT_DEFAULT | PxPairFlag::eTRIGGER_DEFAULT | PxPairFlag::eNOTIFY_CONTACT_POINTS;
 	return PxFilterFlag::eDEFAULT;
@@ -161,8 +165,8 @@ void PhysicsManager::CookingStaticTriangleMesh(const std::vector<Vertex>* pVERTI
 		__debugbreak();
 	}
 
-	PxRigidStatic* pPawn = m_pPhysics->createRigidStatic(PxTransform(world));
-	if (!pPawn)
+	PxRigidStatic* pRigidStatic = m_pPhysics->createRigidStatic(PxTransform(world));
+	if (!pRigidStatic)
 	{
 		__debugbreak();
 	}
@@ -174,12 +178,17 @@ void PhysicsManager::CookingStaticTriangleMesh(const std::vector<Vertex>* pVERTI
 		__debugbreak();
 	}
 
+	eCollisionGroup type = CollisionGroup_Default;
 	PxFilterData filterData;
-	filterData.word0 = CollisionGroup_Default;
+	filterData.word0 = type;
 	pShape->setSimulationFilterData(filterData);
+	pShape->setQueryFilterData(filterData);
 
-	pPawn->attachShape(*pShape);
-	m_pScene->addActor(*pPawn);
+	pRigidStatic->userData = malloc(sizeof(eCollisionGroup));
+	memcpy(pRigidStatic->userData, &type, sizeof(eCollisionGroup));
+
+	pRigidStatic->attachShape(*pShape);
+	m_pScene->addActor(*pRigidStatic);
 }
 
 void PhysicsManager::AddActor(physx::PxRigidActor* pActor)
@@ -194,12 +203,51 @@ void PhysicsManager::Cleanup()
 {
 	if (m_pControllerManager)
 	{
-		m_pControllerManager->purgeControllers();
+		PxU32 numControllers = m_pControllerManager->getNbControllers();
+		for (PxU32 i = 0; i < numControllers; ++i)
+		{
+			PxController* pController = m_pControllerManager->getController(i);
+			PxRigidDynamic* pControllerActor = pController->getActor();
+			if (pControllerActor->userData)
+			{
+				free(pControllerActor->userData);
+			}
+			pController->release();
+		}
+
 		m_pControllerManager->release();
 		m_pControllerManager = nullptr;
 	}
+	if (m_pScene)
+	{
+		PxU32 numActors = m_pScene->getNbActors(PxActorTypeFlag::eRIGID_STATIC | PxActorTypeFlag::eRIGID_DYNAMIC);
+		std::vector<PxActor*> actors(numActors);
+		m_pScene->getActors(PxActorTypeFlag::eRIGID_STATIC | PxActorTypeFlag::eRIGID_DYNAMIC, actors.data(), numActors);
+
+		for (UINT i = 0; i < numActors; ++i)
+		{
+			void* pUserData = nullptr;
+			const PxRigidDynamic* pRigidDynamic = actors[i]->is<PxRigidDynamic>();
+			if (pRigidDynamic)
+			{
+				pUserData = pRigidDynamic->userData;
+			}
+			else
+			{
+				const PxRigidStatic* pRigidStatic = (PxRigidStatic*)actors[i];
+				pUserData = pRigidStatic->userData;
+			}
+
+			if (pUserData)
+			{
+				free(pUserData);
+			}
+		}
+
+		m_pScene->release();
+		m_pScene = nullptr;
+	}
 	PX_RELEASE(m_pTaskManager);
-	PX_RELEASE(m_pScene);
 	PX_RELEASE(m_pDispatcher);
 	PX_RELEASE(m_pPhysics);
 	if (m_pPVD)

@@ -29,8 +29,7 @@ public:
 	void InitAnimationData(Renderer* pRenderer, const AnimationData& ANIM_DATA);
 
 	void UpdateAnimation(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
-	void UpdateCharacterIK(Vector3& target, int chainPart, int clipID, int frame, const float DELTA_TIME);
-
+	
 	void Render(eRenderPSOType psoSetting) override;
 	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting) override;
 	void RenderBoundingCapsule(eRenderPSOType psoSetting);
@@ -68,8 +67,8 @@ public:
 	Chain LeftLeg;
 
 	physx::PxCapsuleController* pController = nullptr;
-	physx::PxFilterData CharacterSholudCollideWith;
-	physx::PxControllerFilters CharacterControllerCollideFilter;
+	physx::PxRigidDynamic* pRightFoot = nullptr;
+	physx::PxRigidDynamic* pLeftFoot = nullptr;
 	// physx::PxRigidDynamic* pBoundingCapsule = nullptr;
 
 private:
@@ -78,6 +77,6 @@ private:
 	Mesh* m_ppRightLeg[4] = { nullptr, }; // right up leg - right leg - right foot - right toe.
 	Mesh* m_ppLeftLeg[4] = { nullptr, }; // left up leg - left leg - left foot - left toe.
 	Mesh* m_pBoundingCapsuleMesh = nullptr;
-
-	const int TOTAL_JOINT_PART = 0;
+	Mesh* m_pTargetPos1 = nullptr; // for right foot.
+	Mesh* m_pTargetPos2 = nullptr; // for left foot.
 };

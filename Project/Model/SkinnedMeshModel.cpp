@@ -16,9 +16,6 @@ void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInf
 
 	m_pRenderer = pRenderer;
 
-	CharacterSholudCollideWith.word0 = CollisionGroup_Default;
-	CharacterControllerCollideFilter.mFilterData = &CharacterSholudCollideWith;
-
 	Model::Initialize(pRenderer, MESH_INFOS);
 	InitAnimationData(pRenderer, ANIM_DATA);
 	initBoundingCapsule();
@@ -76,7 +73,7 @@ void SkinnedMeshModel::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH
 	HRESULT hr = S_OK;
 	ResourceManager* pManager = pRenderer->GetResourceManager();
 
-	// vertex buffer.
+	// Create vertex buffer.
 	if (MESH_INFO.SkinnedVertices.size() > 0)
 	{
 		hr = pManager->CreateVertexBuffer(sizeof(SkinnedVertex),
@@ -99,7 +96,7 @@ void SkinnedMeshModel::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH
 		(*ppNewMesh)->Vertex.Count = (UINT)MESH_INFO.Vertices.size();
 	}
 
-	// index buffer.
+	// Create index buffer.
 	hr = pManager->CreateIndexBuffer(sizeof(UINT),
 									 (UINT)MESH_INFO.Indices.size(),
 									 &(*ppNewMesh)->Index.IndexBufferView,
@@ -127,7 +124,7 @@ void SkinnedMeshModel::InitAnimationData(Renderer* pRenderer, const AnimationDat
 	CD3DX12_RANGE writeRange(0, 0);
 	BYTE* pBoneTransformMem = nullptr;
 	pBoneTransform->pTextureResource->Map(0, &writeRange, (void**)&pBoneTransformMem);
-	
+
 	Matrix* pDest = (Matrix*)pBoneTransformMem;
 	for (UINT64 i = 0, size = ANIM_DATA.Clips[0].Keys.size(); i < size; ++i)
 	{
@@ -145,11 +142,8 @@ void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_
 	}
 
 	// 입력에 따른 변환행렬 업데이트.
-	CharacterAnimationData.Update(clipID, frame);
+	// CharacterAnimationData.Update(clipID, frame);
 
-	// joint 위치 갱신.
-	updateChainPosition();
-	
 	// IK 계산. 서 있을 때만.
 	if (clipID == 0)
 	{
@@ -157,9 +151,12 @@ void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_
 		CharacterAnimationData.Update(clipID, frame);
 	}
 
-	// 버퍼 업데이트.
-	CD3DX12_RANGE writeRange(0, 0);
+	// joint 위치 갱신.
+	updateChainPosition();
+
+	// Update bone transform buffer.
 	BYTE* pBoneTransformMem = nullptr;
+	CD3DX12_RANGE writeRange(0, 0);
 	pBoneTransform->pTextureResource->Map(0, &writeRange, (void**)&pBoneTransformMem);
 
 	Matrix* pDest = (Matrix*)pBoneTransformMem;
@@ -171,36 +168,6 @@ void SkinnedMeshModel::UpdateAnimation(int clipID, int frame, const float DELTA_
 	pBoneTransform->pTextureResource->Unmap(0, nullptr);
 
 	updateJointSpheres(clipID, frame);
-}
-
-void SkinnedMeshModel::UpdateCharacterIK(Vector3& target, int chainPart, int clipID, int frame, const float DELTA_TIME)
-{
-	switch (chainPart)
-	{
-		// right arm.
-		case 0:
-			RightArm.SolveIK(target, clipID, frame, DELTA_TIME);
-			break;
-
-			// left arm.
-		case 1:
-			LeftArm.SolveIK(target, clipID, frame, DELTA_TIME);
-			break;
-
-			// right leg.
-		case 2:
-			RightLeg.SolveIK(target, clipID, frame, DELTA_TIME);
-			break;
-
-			// left leg.
-		case 3:
-			LeftLeg.SolveIK(target, clipID, frame, DELTA_TIME);
-			break;
-
-		default:
-			__debugbreak();
-			break;
-	}
 }
 
 void SkinnedMeshModel::Render(eRenderPSOType psoSetting)
@@ -413,7 +380,7 @@ void SkinnedMeshModel::Render(UINT threadIndex, ID3D12GraphicsCommandList* pComm
 
 		switch (psoSetting)
 		{
-			case RenderPSOType_Skinned: 
+			case RenderPSOType_Skinned:
 			case RenderPSOType_ReflectionSkinned:
 			{
 				hr = pDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable, &gpuDescriptorTable, 10);
@@ -566,7 +533,7 @@ void SkinnedMeshModel::RenderBoundingCapsule(eRenderPSOType psoSetting)
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBV_SRV_DESCRIPTOR_SIZE);
-	
+
 	MeshConstant* pMeshConstantData = &m_pBoundingBoxMesh->MeshConstantData;
 	MaterialConstant* pMaterialConstantData = &m_pBoundingBoxMesh->MaterialConstantData;
 	CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
@@ -611,10 +578,10 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
 	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable[16];
-	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable[16];
-	
-	for (int i = 0; i < 16; ++i)
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable[18];
+	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable[18];
+
+	for (int i = 0; i < 18; ++i)
 	{
 		hr = pDynamicDescriptorPool->AllocDescriptorTable(&cpuDescriptorTable[i], &gpuDescriptorTable[i], 3);
 		BREAK_IF_FAILED(hr);
@@ -751,6 +718,67 @@ void SkinnedMeshModel::RenderJointSphere(eRenderPSOType psoSetting)
 			pCommandList->DrawIndexedInstanced(pPartOfLeg->Index.Count, 1, 0, 0, 0);
 			++descriptorTableIndex;
 		}
+
+		{
+			CD3DX12_CPU_DESCRIPTOR_HANDLE& descriptorHandle = cpuDescriptorTable[descriptorTableIndex];
+
+			MeshConstant* pMeshConstantData = &m_pTargetPos1->MeshConstantData;
+			MaterialConstant* pMaterialConstantData = &m_pTargetPos1->MaterialConstantData;
+			CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
+			CBInfo* pMaterialCB = pMaterialConstantBufferPool->AllocCB();
+
+			// Upload constant buffer(mesh, material).
+			BYTE* pMeshConstMem = pMeshCB->pSystemMemAddr;
+			BYTE* pMaterialConstMem = pMaterialCB->pSystemMemAddr;
+			memcpy(pMeshConstMem, &m_pTargetPos1->MeshConstantData, sizeof(m_pTargetPos1->MeshConstantData));
+			memcpy(pMaterialConstMem, &m_pTargetPos1->MaterialConstantData, sizeof(m_pTargetPos1->MaterialConstantData));
+
+			// b2, b3
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+			// t6(null)
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable[descriptorTableIndex]);
+
+			pCommandList->IASetVertexBuffers(0, 1, &m_pTargetPos1->Vertex.VertexBufferView);
+			pCommandList->IASetIndexBuffer(&m_pTargetPos1->Index.IndexBufferView);
+			pCommandList->DrawIndexedInstanced(m_pTargetPos1->Index.Count, 1, 0, 0, 0);
+			++descriptorTableIndex;
+		}
+		{
+			CD3DX12_CPU_DESCRIPTOR_HANDLE& descriptorHandle = cpuDescriptorTable[descriptorTableIndex];
+
+			MeshConstant* pMeshConstantData = &m_pTargetPos2->MeshConstantData;
+			MaterialConstant* pMaterialConstantData = &m_pTargetPos2->MaterialConstantData;
+			CBInfo* pMeshCB = pMeshConstantBufferPool->AllocCB();
+			CBInfo* pMaterialCB = pMaterialConstantBufferPool->AllocCB();
+
+			// Upload constant buffer(mesh, material).
+			BYTE* pMeshConstMem = pMeshCB->pSystemMemAddr;
+			BYTE* pMaterialConstMem = pMaterialCB->pSystemMemAddr;
+			memcpy(pMeshConstMem, &m_pTargetPos2->MeshConstantData, sizeof(m_pTargetPos2->MeshConstantData));
+			memcpy(pMaterialConstMem, &m_pTargetPos2->MaterialConstantData, sizeof(m_pTargetPos2->MaterialConstantData));
+
+			// b2, b3
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pMeshCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pMaterialCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			descriptorHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
+
+			// t6(null)
+			pDevice->CopyDescriptorsSimple(1, descriptorHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable[descriptorTableIndex]);
+
+			pCommandList->IASetVertexBuffers(0, 1, &m_pTargetPos2->Vertex.VertexBufferView);
+			pCommandList->IASetIndexBuffer(&m_pTargetPos2->Index.IndexBufferView);
+			pCommandList->DrawIndexedInstanced(m_pTargetPos2->Index.Count, 1, 0, 0, 0);
+			++descriptorTableIndex;
+		}
 	}
 }
 
@@ -796,6 +824,16 @@ void SkinnedMeshModel::Cleanup()
 		delete m_pBoundingCapsuleMesh;
 		m_pBoundingCapsuleMesh = nullptr;
 	}
+	if (m_pTargetPos1)
+	{
+		delete m_pTargetPos1;
+		m_pTargetPos1 = nullptr;
+	}
+	if(m_pTargetPos2)
+	{
+		delete m_pTargetPos2;
+		m_pTargetPos2 = nullptr;
+	}
 }
 
 void SkinnedMeshModel::initBoundingCapsule()
@@ -813,12 +851,11 @@ void SkinnedMeshModel::initBoundingCapsule()
 
 void SkinnedMeshModel::initJointSpheres()
 {
-	MeshInfo meshData;
+	MeshInfo meshData = INIT_MESH_INFO;
 	MeshConstant* pMeshConst = nullptr;
 	MaterialConstant* pMaterialConst = nullptr;
 
 	// for chain debugging.
-	meshData = INIT_MESH_INFO;
 	MakeWireSphere(&meshData, BoundingSphere.Center, 0.03f);
 	RightHandMiddle.Radius = 0.03f + 1e-3f;
 	LeftHandMiddle.Radius = 0.03f + 1e-3f;
@@ -836,12 +873,17 @@ void SkinnedMeshModel::initJointSpheres()
 		*ppLeftArmPart = new Mesh;
 		*ppRightLegPart = new Mesh;
 		*ppLeftLegPart = new Mesh;
-		
+
 		InitMeshBuffers(m_pRenderer, meshData, ppRightArmPart);
 		InitMeshBuffers(m_pRenderer, meshData, ppLeftArmPart);
 		InitMeshBuffers(m_pRenderer, meshData, ppRightLegPart);
 		InitMeshBuffers(m_pRenderer, meshData, ppLeftLegPart);
 	}
+
+	m_pTargetPos1 = new Mesh;
+	m_pTargetPos2 = new Mesh;
+	InitMeshBuffers(m_pRenderer, meshData, &m_pTargetPos1);
+	InitMeshBuffers(m_pRenderer, meshData, &m_pTargetPos2);
 }
 
 void SkinnedMeshModel::initChain()
@@ -875,31 +917,31 @@ void SkinnedMeshModel::initChain()
 	};
 	const Matrix BONE_CORRECTION_TRANSFORM[16] =
 	{
-		// right arm
-		Matrix::CreateTranslation(Vector3(0.09f, 0.52f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(-0.18f, 0.51f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(-0.32f, 0.52f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(-0.44f, 0.52f, 0.048f)),
+		// right arm.
+		Matrix::CreateTranslation(Vector3(0.085f, 0.33f, 0.06f)),
+		Matrix::CreateTranslation(Vector3(-0.04f, 0.32f, 0.06f)),
+		Matrix::CreateTranslation(Vector3(-0.18f, 0.32f, 0.06f)),
+		Matrix::CreateTranslation(Vector3(-0.235f, 0.32f, 0.055f)),
 
-		// left arm
-		Matrix::CreateTranslation(Vector3(0.32f, 0.5125f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(0.61f, 0.5f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(0.74f, 0.5f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(0.87f, 0.5f, 0.05f)),
+		// left arm.
+		Matrix::CreateTranslation(Vector3(0.32f, 0.34f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.45f, 0.32f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.59f, 0.32f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.65f, 0.32f, 0.05f)),
 
-		// right leg
-		Matrix::CreateTranslation(Vector3(0.165f, 0.05f, 0.04f)),
-		Matrix::CreateTranslation(Vector3(0.155f, -0.18f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.16f, -0.38f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.14f, -0.43f, -0.09f)),
+		// right leg.
+		Matrix::CreateTranslation(Vector3(0.16f, 0.02f, 0.04f)),
+		Matrix::CreateTranslation(Vector3(0.15f, -0.17f, 0.04f)),
+		Matrix::CreateTranslation(Vector3(0.16f, -0.39f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.15f, -0.42f, 0.0f)),
 
-		// left leg
-		Matrix::CreateTranslation(Vector3(0.26f, 0.05f, 0.04f)),
-		Matrix::CreateTranslation(Vector3(0.26f, -0.18f, 0.05f)),
+		// left leg.
+		Matrix::CreateTranslation(Vector3(0.26f, 0.025f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.26f, -0.165f, 0.05f)),
 		Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.26f, -0.43f, -0.09f)),
+		Matrix::CreateTranslation(Vector3(0.26f, -0.42f, 0.0f)),
 	};
-	const Vector2 ANGLE_LIMITATION[16][3] = 
+	const Vector2 ANGLE_LIMITATION[16][3] =
 	{
 		// right arm
 		{ Vector2(-1.0f, 1.0f), Vector2(0.0f), Vector2(-57.0f * TO_RADIAN, 85.0f * TO_RADIAN) },
@@ -1024,98 +1066,17 @@ void SkinnedMeshModel::initChain()
 
 void SkinnedMeshModel::updateChainPosition()
 {
-	const char* BONE_NAME[16] =
+	for (int i = 0; i < 4; ++i)
 	{
-		"mixamorig:RightArm",
-		"mixamorig:RightForeArm",
-		"mixamorig:RightHand",
-		"mixamorig:RightHandMiddle1",
+		Joint* pRightArmPart = &RightArm.BodyChain[i];
+		Joint* pLeftArmPart = &LeftArm.BodyChain[i];
+		Joint* pRightLegPart = &RightLeg.BodyChain[i];
+		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
-		"mixamorig:LeftArm",
-		"mixamorig:LeftForeArm",
-		"mixamorig:LeftHand",
-		"mixamorig:LeftHandMiddle1",
-
-		"mixamorig:RightUpLeg",
-		"mixamorig:RightLeg",
-		"mixamorig:RightFoot",
-		"mixamorig:RightToeBase",
-
-		"mixamorig:LeftUpLeg",
-		"mixamorig:LeftLeg",
-		"mixamorig:LeftFoot",
-		"mixamorig:LeftToeBase",
-	};
-	const Matrix BONE_CORRECTION_TRANSFORM[16] =
-	{
-		/*Matrix::CreateTranslation(Vector3(0.09f, 0.52f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(-0.18f, 0.51f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(-0.32f, 0.52f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(-0.44f, 0.52f, 0.048f)),
-
-		Matrix::CreateTranslation(Vector3(0.32f, 0.5125f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(0.61f, 0.5f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(0.74f, 0.5f, 0.048f)),
-		Matrix::CreateTranslation(Vector3(0.87f, 0.5f, 0.05f)),
-
-		Matrix::CreateTranslation(Vector3(0.165f, 0.05f, 0.04f)),
-		Matrix::CreateTranslation(Vector3(0.155f, -0.18f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.16f, -0.38f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.14f, -0.43f, -0.09f)),
-
-		Matrix::CreateTranslation(Vector3(0.26f, 0.05f, 0.04f)),
-		Matrix::CreateTranslation(Vector3(0.26f, -0.18f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.26f, -0.43f, -0.09f)),*/
-
-		Matrix::CreateTranslation(Vector3(0.085f, 0.33f, 0.06f)),
-		Matrix::CreateTranslation(Vector3(-0.04f, 0.32f, 0.06f)),
-		Matrix::CreateTranslation(Vector3(-0.18f, 0.32f, 0.06f)),
-		Matrix::CreateTranslation(Vector3(-0.235f, 0.32f, 0.055f)),
-
-		Matrix::CreateTranslation(Vector3(0.32f, 0.34f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.45f, 0.32f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.59f, 0.32f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.65f, 0.32f, 0.05f)),
-
-		Matrix::CreateTranslation(Vector3(0.16f, 0.02f, 0.04f)),
-		Matrix::CreateTranslation(Vector3(0.15f, -0.17f, 0.04f)),
-		Matrix::CreateTranslation(Vector3(0.16f, -0.39f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.15f, -0.42f, 0.0f)),
-
-		Matrix::CreateTranslation(Vector3(0.26f, 0.025f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.26f, -0.165f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
-		Matrix::CreateTranslation(Vector3(0.26f, -0.42f, 0.0f)),
-	};
-
-	for (int i = 0; i < 16; ++i)
-	{
-		const int BONE_ID = CharacterAnimationData.BoneNameToID[BONE_NAME[i]];
-		const Matrix BONE_TRANSFORM = CharacterAnimationData.Get(BONE_ID);
-
-		Matrix jointWorld = BONE_CORRECTION_TRANSFORM[i] * BONE_TRANSFORM * World;
-
-		if (i >= 0 && i < 4) // right arm.
-		{
-			Joint* pJoint = &RightArm.BodyChain[i % 4];
-			pJoint->Position = jointWorld.Translation();
-		}
-		else if (i >= 4 && i < 8) // left arm.
-		{
-			Joint* pJoint = &LeftArm.BodyChain[i % 4];
-			pJoint->Position = jointWorld.Translation();
-		}
-		else if (i >= 8 && i < 12) // right leg.
-		{
-			Joint* pJoint = &RightLeg.BodyChain[i % 4];
-			pJoint->Position = jointWorld.Translation();
-		}
-		else if (i >= 12 && i < 16) // left leg.
-		{
-			Joint* pJoint = &LeftLeg.BodyChain[i % 4];
-			pJoint->Position = jointWorld.Translation();
-		}
+		pRightArmPart->Position = (pRightArmPart->Correction * CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Translation();
+		pLeftArmPart->Position = (pLeftArmPart->Correction * CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Translation();
+		pRightLegPart->Position = (pRightLegPart->Correction * CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Translation();
+		pLeftLegPart->Position = (pLeftLegPart->Correction * CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Translation();
 	}
 }
 
@@ -1128,117 +1089,44 @@ void SkinnedMeshModel::updateJointSpheres(int clipID, int frame)
 	// 캐릭터에서는 이를 방지하기 위해 bounding object만 따로 변환시킴.
 
 	const int ROOT_BONE_ID = CharacterAnimationData.BoneNameToID["mixamorig:Hips"];
-	const Matrix ROOT_BONE_TRANSFORM = CharacterAnimationData.GetRootBoneTransformWithoutLocalRot(clipID, frame);
+	// const Matrix ROOT_BONE_TRANSFORM = CharacterAnimationData.GetRootBoneTransformWithoutLocalRot(clipID, frame);
+	const Matrix ROOT_BONE_TRANSFORM = Matrix::CreateTranslation(CharacterAnimationData.Position.x, CharacterAnimationData.Position.y - 0.5f, CharacterAnimationData.Position.z);
 	const Matrix CORRECTION_CENTER = Matrix::CreateTranslation(Vector3(0.2f, 0.05f, 0.0f));
 
-	m_pBoundingBoxMesh->MeshConstantData.World = (CORRECTION_CENTER * ROOT_BONE_TRANSFORM * World).Transpose();
+	// m_pBoundingBoxMesh->MeshConstantData.World = (CORRECTION_CENTER * ROOT_BONE_TRANSFORM * World).Transpose();
+	m_pBoundingBoxMesh->MeshConstantData.World = (CORRECTION_CENTER * ROOT_BONE_TRANSFORM).Transpose();
 	m_pBoundingSphereMesh->MeshConstantData.World = m_pBoundingBoxMesh->MeshConstantData.World;
 	m_pBoundingCapsuleMesh->MeshConstantData.World = m_pBoundingBoxMesh->MeshConstantData.World;
 	BoundingBox.Center = m_pBoundingBoxMesh->MeshConstantData.World.Transpose().Translation();
 	BoundingSphere.Center = BoundingBox.Center;
 
 	// update debugging sphere for chain.
+	for (int i = 0; i < 4; ++i)
 	{
-		const char* BONE_NAME[16] =
-		{
-			"mixamorig:RightArm",
-			"mixamorig:RightForeArm",
-			"mixamorig:RightHand",
-			"mixamorig:RightHandMiddle1",
+		MeshConstant* pRightArmMeshConstantData = &m_ppRightArm[i]->MeshConstantData;
+		MeshConstant* pLeftArmMeshConstantData = &m_ppLeftArm[i]->MeshConstantData;
+		MeshConstant* pRightLegMeshConstantData = &m_ppRightLeg[i]->MeshConstantData;
+		MeshConstant* pLeftLegMeshConstantData = &m_ppLeftLeg[i]->MeshConstantData;
 
-			"mixamorig:LeftArm",
-			"mixamorig:LeftForeArm",
-			"mixamorig:LeftHand",
-			"mixamorig:LeftHandMiddle1",
+		Joint* pRightArmPart = &RightArm.BodyChain[i];
+		Joint* pLeftArmPart = &LeftArm.BodyChain[i];
+		Joint* pRightLegPart = &RightLeg.BodyChain[i];
+		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
-			"mixamorig:RightUpLeg",
-			"mixamorig:RightLeg",
-			"mixamorig:RightFoot",
-			"mixamorig:RightToeBase",
-
-			"mixamorig:LeftUpLeg",
-			"mixamorig:LeftLeg",
-			"mixamorig:LeftFoot",
-			"mixamorig:LeftToeBase",
-		};
-		const Matrix BONE_CORRECTION_TRANSFORM[16] =
-		{
-			/*Matrix::CreateTranslation(Vector3(0.09f, 0.52f, 0.048f)),
-			Matrix::CreateTranslation(Vector3(-0.18f, 0.51f, 0.048f)),
-			Matrix::CreateTranslation(Vector3(-0.32f, 0.52f, 0.048f)),
-			Matrix::CreateTranslation(Vector3(-0.44f, 0.52f, 0.048f)),
-
-			Matrix::CreateTranslation(Vector3(0.32f, 0.5125f, 0.048f)),
-			Matrix::CreateTranslation(Vector3(0.61f, 0.5f, 0.048f)),
-			Matrix::CreateTranslation(Vector3(0.74f, 0.5f, 0.048f)),
-			Matrix::CreateTranslation(Vector3(0.87f, 0.5f, 0.05f)),
-
-			Matrix::CreateTranslation(Vector3(0.165f, 0.05f, 0.04f)),
-			Matrix::CreateTranslation(Vector3(0.155f, -0.18f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.16f, -0.38f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.14f, -0.43f, -0.09f)),
-
-			Matrix::CreateTranslation(Vector3(0.26f, 0.05f, 0.04f)),
-			Matrix::CreateTranslation(Vector3(0.26f, -0.18f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.26f, -0.43f, -0.09f)),*/
-
-			Matrix::CreateTranslation(Vector3(0.085f, 0.33f, 0.06f)),
-			Matrix::CreateTranslation(Vector3(-0.04f, 0.32f, 0.06f)),
-			Matrix::CreateTranslation(Vector3(-0.18f, 0.32f, 0.06f)),
-			Matrix::CreateTranslation(Vector3(-0.235f, 0.32f, 0.055f)),
-
-			Matrix::CreateTranslation(Vector3(0.32f, 0.34f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.45f, 0.32f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.59f, 0.32f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.65f, 0.32f, 0.05f)),
-
-			Matrix::CreateTranslation(Vector3(0.16f, 0.02f, 0.04f)),
-			Matrix::CreateTranslation(Vector3(0.15f, -0.17f, 0.04f)),
-			Matrix::CreateTranslation(Vector3(0.16f, -0.39f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.15f, -0.42f, 0.0f)),
-
-			Matrix::CreateTranslation(Vector3(0.26f, 0.025f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.26f, -0.165f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
-			Matrix::CreateTranslation(Vector3(0.26f, -0.42f, 0.0f)),
-		};
-		MeshConstant* ppMeshConstantDatas[16] =
-		{
-			&m_ppRightArm[0]->MeshConstantData,
-			&m_ppRightArm[1]->MeshConstantData,
-			&m_ppRightArm[2]->MeshConstantData,
-			&m_ppRightArm[3]->MeshConstantData,
-			&m_ppLeftArm[0]->MeshConstantData,
-			&m_ppLeftArm[1]->MeshConstantData,
-			&m_ppLeftArm[2]->MeshConstantData,
-			&m_ppLeftArm[3]->MeshConstantData,
-			&m_ppRightLeg[0]->MeshConstantData,
-			&m_ppRightLeg[1]->MeshConstantData,
-			&m_ppRightLeg[2]->MeshConstantData,
-			&m_ppRightLeg[3]->MeshConstantData,
-			&m_ppLeftLeg[0]->MeshConstantData,
-			&m_ppLeftLeg[1]->MeshConstantData,
-			&m_ppLeftLeg[2]->MeshConstantData,
-			&m_ppLeftLeg[3]->MeshConstantData,
-		};
-
-		for (int i = 0; i < 16; ++i)
-		{
-			// ppMeshConstantDatas[i]->World = (BONE_CORRECTION_TRANSFORM[i] * transformMatrics[i] * World).Transpose();
-			// ppMeshConstants[i]->World = (transformMatrics[i] * World).Transpose();
-
-			const int BONE_ID = CharacterAnimationData.BoneNameToID[BONE_NAME[i]];
-			const Matrix BONE_TRANSFORM = CharacterAnimationData.Get(BONE_ID);
-
-			ppMeshConstantDatas[i]->World = (BONE_CORRECTION_TRANSFORM[i] * BONE_TRANSFORM * World).Transpose();
-		}
-
-		RightHandMiddle.Center = ppMeshConstantDatas[3]->World.Transpose().Translation();
-		LeftHandMiddle.Center = ppMeshConstantDatas[7]->World.Transpose().Translation();
-		RightToe.Center = ppMeshConstantDatas[11]->World.Transpose().Translation();
-		LeftToe.Center = ppMeshConstantDatas[15]->World.Transpose().Translation();
+		pRightArmMeshConstantData->World = (pRightArmPart->Correction * CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Transpose();
+		// pRightArmMeshConstantData->World = (CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Transpose();
+		pLeftArmMeshConstantData->World = (pLeftArmPart->Correction * CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Transpose();
+		// pLeftArmMeshConstantData->World = (CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Transpose();
+		pRightLegMeshConstantData->World = (pRightLegPart->Correction * CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Transpose();
+		// pRightLegMeshConstantData->World = (CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Transpose();
+		pLeftLegMeshConstantData->World = (pLeftLegPart->Correction * CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Transpose();
+		// pLeftLegMeshConstantData->World = (CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Transpose();
 	}
+
+	RightHandMiddle.Center = m_ppRightArm[3]->MeshConstantData.World.Transpose().Translation();
+	LeftHandMiddle.Center = m_ppLeftArm[3]->MeshConstantData.World.Transpose().Translation();
+	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
+	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
 }
 
 void SkinnedMeshModel::solveCharacterIK(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)
@@ -1250,32 +1138,36 @@ void SkinnedMeshModel::solveCharacterIK(int clipID, int frame, const float DELTA
 			continue;
 		}
 
-		Vector3 targetPos;
+		Vector3 targetPos(pUpdateInfo->EndEffectorTargetPoses[JointPart]);
 
 		switch (JointPart)
 		{
 			case JointPart_RightArm:
-				targetPos = RightArm.BodyChain[3].Position;
-				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
 				RightArm.SolveIK(targetPos, clipID, frame, DELTA_TIME);
 				break;
 
 			case JointPart_LeftArm:
-				targetPos = LeftArm.BodyChain[3].Position;
-				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
 				LeftArm.SolveIK(targetPos, clipID, frame, DELTA_TIME);
 				break;
 
 			case JointPart_RightLeg:
-				targetPos = RightLeg.BodyChain[3].Position;
-				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
 				RightLeg.SolveIK(targetPos, clipID, frame, DELTA_TIME);
+				m_pTargetPos1->MeshConstantData.World = Matrix::CreateTranslation(targetPos).Transpose();
+				/*{
+					char szDebugString[256];
+					sprintf_s(szDebugString, 256, "targetRightFootPos: %f, %f, %f\n", targetPos.x, targetPos.y, targetPos.z);
+					OutputDebugStringA(szDebugString);
+				}*/
 				break;
 
 			case JointPart_LeftLeg:
-				targetPos = LeftLeg.BodyChain[3].Position;
-				targetPos.y = pUpdateInfo->EndEffectorTargetPoses[JointPart].y;
 				LeftLeg.SolveIK(targetPos, clipID, frame, DELTA_TIME);
+				m_pTargetPos2->MeshConstantData.World = Matrix::CreateTranslation(targetPos).Transpose();
+				/*{
+					char szDebugString[256];
+					sprintf_s(szDebugString, 256, "targetLeftFootPos: %f, %f, %f\n", targetPos.x, targetPos.y, targetPos.z);
+					OutputDebugStringA(szDebugString);
+				}*/
 				break;
 
 			default:

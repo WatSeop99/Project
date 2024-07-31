@@ -45,8 +45,10 @@ public:
 	void Initialize()
 	{
 		Vertex.pBuffer = nullptr;
+		Vertex.VertexBufferView = {};
 		Vertex.Count = 0;
 		Index.pBuffer = nullptr;
+		Index.IndexBufferView = {};
 		Index.Count = 0;
 	}
 

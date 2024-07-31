@@ -283,7 +283,7 @@ HRESULT ResourceManager::CreateTextureFromFile(ID3D12Resource** ppOutResource, D
 
 	const BYTE* pSrc = image.data();
 	BYTE* pDest = pMappedPtr;
-	for (UINT i = 0; i < width; ++i)
+	for (int i = 0; i < width; ++i)
 	{
 		memcpy(pDest, pSrc, width * pixelSize);
 		pSrc += (width * pixelSize);

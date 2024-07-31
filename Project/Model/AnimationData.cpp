@@ -6,13 +6,13 @@
 Matrix AnimationClip::Key::GetTransform()
 {
 	Quaternion newRot = Quaternion::Concatenate(Rotation, IKUpdateRotation);
+	IKUpdateRotation = Quaternion();
 	return (Matrix::CreateScale(Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Position));
 }
 
-// void AnimationData::Update(int clipID, int frame, const CharacterMoveInfo& MOVE_INFO)
-void AnimationData::Update(int clipID, int frame)
+void AnimationData::Update(const int CLIP_ID, const int FRAME)
 {
-	AnimationClip& clip = Clips[clipID];
+	AnimationClip& clip = Clips[CLIP_ID];
 
 	// root bone id은 0(아닐 수 있음).
 	// root bone에 대한 bone transform update.
@@ -23,15 +23,15 @@ void AnimationData::Update(int clipID, int frame)
 
 		const int PARENT_ID = BoneParents[ROOT_BONE_ID];
 		const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
-		AnimationClip::Key& key = keys[frame % KEY_SIZE];
+		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
 		/*AccumulatedRootTransform = Matrix::CreateFromQuaternion(Rotation) * Matrix::CreateTranslation(Position);
 		PrevPos = Position;*/
 
-		if (frame != 0)
+		if (FRAME != 0)
 		{
 			// 걷기 시작하거나 멈추기 시작하는 동작은 자체 속도가 너무 큼. 따라서 0.3으로 고정.
-			Velocity = (clipID == 1 || clipID == 3 ? 
+			Velocity = (CLIP_ID == 1 || CLIP_ID == 3 ? 
 						0.3f : (key.Position - PrevKeyPos).Length());
 			AccumulatedRootTransform = Matrix::CreateFromQuaternion(Rotation) * Matrix::CreateTranslation(Position);
 		}
@@ -58,6 +58,7 @@ void AnimationData::Update(int clipID, int frame)
 
 		Quaternion newRot = Quaternion::Concatenate(key.Rotation, key.IKUpdateRotation);
 		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(key.Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX;
+		key.IKUpdateRotation = Quaternion();
 	}
 
 	// 나머지 bone transform 업데이트.
@@ -68,17 +69,17 @@ void AnimationData::Update(int clipID, int frame)
 
 		const int PARENT_ID = BoneParents[boneID];
 		const Matrix& PARENT_MATRIX = BoneTransforms[PARENT_ID];
-		AnimationClip::Key& key = keys[frame % KEY_SIZE];
+		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
 		BoneTransforms[boneID] = key.GetTransform() * PARENT_MATRIX;
 	}
 }
 
-void AnimationData::ResetAllUpdateRotationInClip(int clipID)
+void AnimationData::ResetAllUpdateRotationInClip(const int CLIP_ID)
 {
 	for (UINT64 i = 0, totalBone = BoneIDToNames.size(); i < totalBone; ++i)
 	{
-		std::vector<AnimationClip::Key>& keys = Clips[clipID].Keys[i];
+		std::vector<AnimationClip::Key>& keys = Clips[CLIP_ID].Keys[i];
 		const UINT64 KEY_SIZE = keys.size();
 
 		for (UINT j = 0; j < KEY_SIZE; ++j)
@@ -89,9 +90,9 @@ void AnimationData::ResetAllUpdateRotationInClip(int clipID)
 	}
 }
 
-Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(int clipID, int frame)
+Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME)
 {
-	AnimationClip& clip = Clips[clipID];
+	AnimationClip& clip = Clips[CLIP_ID];
 
 	// root bone id은 0(아닐 수 있음).
 	// root bone에 대한 bone transform update.
@@ -101,7 +102,7 @@ Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(int clipID, int frame)
 
 	const int PARENT_ID = BoneParents[ROOT_BONE_ID];
 	const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
-	AnimationClip::Key& key = keys[frame % KEY_SIZE];
+	AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
 	return InverseDefaultTransform * OffsetMatrices[ROOT_BONE_ID] * Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX * DefaultTransform;
 }
@@ -174,11 +175,12 @@ void Joint::Update(float deltaThetaX, float deltaThetaY, float deltaThetaZ, std:
 
 	// 적용.
 	// key.UpdateRotation = newUpdateRot;
-	for (UINT64 i = 0; i < KEY_SIZE; ++i)
+	/*for (UINT64 i = 0; i < KEY_SIZE; ++i)
 	{
 		AnimationClip::Key& key = keys[i % KEY_SIZE];
 		key.IKUpdateRotation = newUpdateRot;
-	}
+	}*/
+	keys[frame % KEY_SIZE].IKUpdateRotation = newUpdateRot;
 }
 
 void Joint::JacobianX(Vector3* pOutput, Vector3& parentPos)
@@ -215,10 +217,16 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 	Eigen::VectorXf deltaTheta(TOTAL_JOINT * 3);
 	Joint& endEffector = BodyChain[TOTAL_JOINT - 1];
 
-	for (int step = 0; step < 100; ++step)
+	for (int step = 0; step < 50; ++step)
 	{
 		Vector3 deltaPos = targetPos - endEffector.Position;
 		float deltaPosLength = deltaPos.Length();
+
+		{
+			char szDebugString[256];
+			sprintf_s(szDebugString, 256, "deltaPosLength: %f\n", deltaPosLength);
+			OutputDebugStringA(szDebugString);
+		}
 
 		if (deltaPosLength <= 0.001f || deltaPosLength >= 1.0f)
 		{
@@ -250,16 +258,10 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 		deltaTheta = J.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 		deltaTheta *= DELTA_TIME;
 		/*{
-			char debugString[256];
-
-			sprintf_s(debugString, "Theta 1: %f, %f, %f\n", deltaTheta[0], deltaTheta[1], deltaTheta[2]);
-			OutputDebugStringA(debugString);
-
-			sprintf_s(debugString, "Theta 2: %f, %f, %f\n", deltaTheta[3], deltaTheta[4], deltaTheta[5]);
-			OutputDebugStringA(debugString);
-
-			sprintf_s(debugString, "Theta 3: %f, %f, %f\n\n", deltaTheta[6], deltaTheta[7], deltaTheta[8]);
-			OutputDebugStringA(debugString);
+			char szDebugString[256];
+			sprintf_s(szDebugString, 256, "Theta 1: %f, %f, %f  Theta 2: %f, %f, %f  Theta 3: %f, %f, %f\n", 
+					  deltaTheta[0], deltaTheta[1], deltaTheta[2], deltaTheta[3], deltaTheta[4], deltaTheta[5], deltaTheta[6], deltaTheta[7], deltaTheta[8]);
+			OutputDebugStringA(szDebugString);
 		}*/
 		columnIndex = 0;
 		for (UINT64 i = 0; i < TOTAL_JOINT; ++i)

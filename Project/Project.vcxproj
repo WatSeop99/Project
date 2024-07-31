@@ -141,6 +141,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="App\App.h" />
+    <ClInclude Include="Physics\CustomFilterCallback.h" />
     <ClInclude Include="Physics\CollisionGroup.h" />
     <ClInclude Include="Renderer\DescriptorAllocator.h" />
     <ClInclude Include="Renderer\ConstantBufferManager.h" />
@@ -188,6 +189,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\App.cpp" />
+    <ClCompile Include="Physics\CustomFilterCallback.cpp" />
     <ClCompile Include="Renderer\DescriptorAllocator.cpp" />
     <ClCompile Include="Renderer\ConstantBufferManager.cpp" />
     <ClCompile Include="Renderer\ConstantBufferPool.cpp" />

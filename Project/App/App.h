@@ -5,7 +5,6 @@
 #include "../Model/Model.h"
 #include "../Renderer/Renderer.h"
 #include "../Util/Utility.h"
-#include "../Renderer/Timer.h"
 
 class App final : public Renderer
 {
@@ -22,16 +21,16 @@ public:
 	void Cleanup();
 
 protected:
-	void initExternalData(UINT64* pTotalRenderObjectCount);
+	void initExternalData();
 
-	void updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo);
-	void simulateCharacterContol(SkinnedMeshModel* pCharacter, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo, const Vector3& DELTA_POS, const float DELTA_TIME);
+	void updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, Vector3* pDeltapos);
+	void updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo);
+	void simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& DELTA_POS, const float DELTA_TIME, int clipID, int frame);
 
 private:
-	Timer m_Timer;
-
 	// data
 	std::vector<Model*> m_RenderObjects;
+	std::vector<SkinnedMeshModel*> m_Characters;
 
 	std::vector<Light> m_Lights;
 	std::vector<Model*> m_LightSpheres;
