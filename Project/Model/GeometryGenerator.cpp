@@ -1,5 +1,6 @@
 #include "../pch.h"
 #include "ModelLoader.h"
+#include "../Util/Utility.h"
 #include "GeometryGenerator.h"
 
 HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::wstring& fileName, bool bRevertNormals)
@@ -13,7 +14,7 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 		goto LB_RET;
 	}
 
-	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
+	Normalize(Vector3(0.0f), 2.0f, modelLoader.MeshInfos, modelLoader.AnimData);
 	dst = modelLoader.MeshInfos;
 
 LB_RET:
@@ -31,7 +32,7 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 		goto LB_RET;
 	}
 
-	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
+	Normalize(Vector3(0.0f), 2.0f, modelLoader.MeshInfos, modelLoader.AnimData);
 	meshInfos = modelLoader.MeshInfos;
 	animData = modelLoader.AnimData;
 
@@ -45,25 +46,25 @@ void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<Me
 	using namespace DirectX;
 
 	// Normalize vertices
-	Vector3 vmin(1000, 1000, 1000);
-	Vector3 vmax(-1000, -1000, -1000);
+	Vector3 vmin(1000.0f, 1000.0f, 1000.0f);
+	Vector3 vmax(-1000.0f, -1000.0f, -1000.0f);
 	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
 	{
 		MeshInfo& curMesh = meshes[i];
 		for (UINT64 j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
 		{
 			Vertex& v = curMesh.Vertices[j];
-			vmin.x = XMMin(vmin.x, v.Position.x);
-			vmin.y = XMMin(vmin.y, v.Position.y);
-			vmin.z = XMMin(vmin.z, v.Position.z);
-			vmax.x = XMMax(vmax.x, v.Position.x);
-			vmax.y = XMMax(vmax.y, v.Position.y);
-			vmax.z = XMMax(vmax.z, v.Position.z);
+			vmin.x = Min(vmin.x, v.Position.x);
+			vmin.y = Min(vmin.y, v.Position.y);
+			vmin.z = Min(vmin.z, v.Position.z);
+			vmax.x = Max(vmax.x, v.Position.x);
+			vmax.y = Max(vmax.y, v.Position.y);
+			vmax.z = Max(vmax.z, v.Position.z);
 		}
 	}
 
 	float dx = vmax.x - vmin.x, dy = vmax.y - vmin.y, dz = vmax.z - vmin.z;
-	float scale = LONGEST_LENGTH / XMMax(XMMax(dx, dy), dz);
+	float scale = LONGEST_LENGTH / Max(Max(dx, dy), dz);
 	Vector3 translation = -(vmin + vmax) * 0.5f + CENTER;
 
 	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)

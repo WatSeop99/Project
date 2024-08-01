@@ -32,22 +32,22 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		findDeformingBones(pSCENE);
 
 		// 트리 구조를 따라, 업데이트 순서대로 뼈들의 인덱스를 결정.
-		int counter = 0;
-		updateBoneIDs(pSCENE->mRootNode, &counter);
+		int totalBoneCount = 0;
+		updateBoneIDs(pSCENE->mRootNode, &totalBoneCount);
 
 		// 업데이트 순서대로 뼈 이름 저장. (pBoneIDToNames)
-		UINT64 totalBoneIDs = AnimData.BoneNameToID.size();
-		AnimData.BoneIDToNames.resize(totalBoneIDs);
+		AnimData.BoneIDToNames.resize(totalBoneCount);
 		for (auto iter = AnimData.BoneNameToID.begin(), endIter = AnimData.BoneNameToID.end(); iter != endIter; ++iter)
 		{
 			AnimData.BoneIDToNames[iter->second] = iter->first;
 		}
 
 		// 각 뼈마다 부모 인덱스를 저장할 준비.
-		AnimData.BoneParents.resize(totalBoneIDs, -1);
+		AnimData.BoneParents.resize(totalBoneCount, -1);
 
 		Matrix globalTransform; // Initial transformation.
-		// AnimData.GlobalTransforms.resize(totalBoneIDs);
+		AnimData.GlobalTransforms.resize(totalBoneCount);
+		AnimData.InverseGlobalTransforms.resize(totalBoneCount);
 		processNode(pSCENE->mRootNode, pSCENE, globalTransform);
 
 		// 애니메이션 정보 읽기.
@@ -61,15 +61,10 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 	else
 	{
 		const char* pErrorDescription = importer.GetErrorString();
+		char szDebugString[256];
 
-		OutputDebugStringA("Failed to read file: ");
-		OutputDebugStringA((szBasePath + fileNameA).c_str());
-		OutputDebugStringA("\n");
-
-
-		OutputDebugStringA("Assimp error: ");
-		OutputDebugStringA(pErrorDescription);
-		OutputDebugStringA("\n");
+		sprintf_s(szDebugString, 256, "Failed to read file: %s\nAssimp error: %s\n", (szBasePath + fileNameA).c_str(), pErrorDescription);
+		OutputDebugStringA(szDebugString);
 
 		hr = E_FAIL;
 	}
@@ -94,15 +89,10 @@ HRESULT ModelLoader::LoadAnimation(std::wstring& basePath, std::wstring& fileNam
 	else
 	{
 		const char* pErrorDescription = importer.GetErrorString();
+		char szDebugString[256];
 
-		OutputDebugStringA("Failed to read animation from file: ");
-		OutputDebugStringA((szBasePath + fileNameA).c_str());
-		OutputDebugStringA("\n");
-
-
-		OutputDebugStringA("Assimp error: ");
-		OutputDebugStringA(pErrorDescription);
-		OutputDebugStringA("\n");
+		sprintf_s(szDebugString, 256, "Failed to read animation from file: %s\n Assimp error: %s\n", (szBasePath + fileNameA).c_str(), pErrorDescription);
+		OutputDebugStringA(szDebugString);
 
 		hr = E_FAIL;
 	}
@@ -141,18 +131,24 @@ const aiNode* ModelLoader::findParent(const aiNode * pNODE)
 
 void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& transform)
 {
-	// 사용되는 부모 뼈를 찾아서 부모의 인덱스 저장.
-	const aiNode* pPARENT = findParent(pNode->mParent);
-	if (pNode->mParent &&
-		AnimData.BoneNameToID.count(pNode->mName.C_Str()) > 0 &&
-		pPARENT)
-	{
-		const int BONE_ID = AnimData.BoneNameToID[pNode->mName.C_Str()];
-		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
-	}
-
+	// 현재 노드의 global transform 계산.
 	Matrix globalTransform(&pNode->mTransformation.a1);
 	globalTransform = globalTransform.Transpose() * transform;
+
+
+	// 사용되는 부모 뼈를 찾아서 부모의 인덱스와 global transform 저장.
+	const aiNode* pPARENT = findParent(pNode->mParent);
+	const char* pNODE_NAME = pNode->mName.C_Str();
+	if (pNode->mParent &&
+		AnimData.BoneNameToID.count(pNODE_NAME) > 0 &&
+		pPARENT)
+	{
+		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
+		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
+		AnimData.GlobalTransforms[BONE_ID] = globalTransform;
+		AnimData.InverseGlobalTransforms[BONE_ID] = globalTransform.Invert();
+	}
+
 
 	for (UINT i = 0; i < pNode->mNumMeshes; ++i)
 	{
@@ -165,14 +161,6 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 			Vertex& v = newMeshInfo.Vertices[j];
 			v.Position = DirectX::SimpleMath::Vector3::Transform(v.Position, globalTransform);
 		}
-
-		/*AnimData.GlobalTransforms.resize(pMesh->mNumBones);
-		for (UINT i = 0; i < pMesh->mNumBones; ++i)
-		{
-			const aiBone* pBONE = pMesh->mBones[i];
-			const UINT BONE_ID = AnimData.BoneNameToID[pBONE->mName.C_Str()];
-			AnimData.GlobalTransforms[BONE_ID] = globalTransform;
-		}*/
 
 		MeshInfos.push_back(newMeshInfo);
 	}
@@ -244,7 +232,6 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 		const UINT64 TOTAL_BONE = AnimData.BoneNameToID.size();
 		AnimData.OffsetMatrices.resize(TOTAL_BONE);
 		AnimData.BoneTransforms.resize(TOTAL_BONE);
-		// AnimData.GlobalTransforms.resize(TOTAL_BONE);
 
 		int count = 0;
 		for (UINT i = 0; i < pMesh->mNumBones; ++i)
@@ -253,8 +240,7 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 			const UINT BONE_ID = AnimData.BoneNameToID[pBONE->mName.C_Str()];
 
 			AnimData.OffsetMatrices[BONE_ID] = Matrix((float*)&pBONE->mOffsetMatrix).Transpose();
-			// AnimData.GlobalTransforms[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
-
+			
 			// 이 뼈가 영향을 주는 정점 개수.
 			for (UINT j = 0; j < pBONE->mNumWeights; ++j)
 			{
@@ -274,10 +260,8 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 
 		{
 			char debugString[256];
-			OutputDebugStringA("Max number of influencing bones per vertex = ");
-			sprintf_s(debugString, "%d", maxBones);
+			sprintf_s(debugString, "Max number of influencing bones per vertex = %d\n", maxBones);
 			OutputDebugStringA(debugString);
-			OutputDebugStringA("\n");
 		}
 
 		skinnedVertices.resize(VERT_SIZE);
@@ -318,11 +302,9 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 
 		if (!pMeshInfo->szOpacityTextureFileName.empty())
 		{
-			OutputDebugStringW(pMeshInfo->szAlbedoTextureFileName.c_str());
-			OutputDebugStringA("\n");
-			OutputDebugStringA("Opacity ");
-			OutputDebugStringW(pMeshInfo->szOpacityTextureFileName.c_str());
-			OutputDebugStringA("\n");
+			WCHAR szDebugString[256];
+			swprintf_s(szDebugString, 256, L"%s\nOpacity %s\n", pMeshInfo->szAlbedoTextureFileName.c_str(), pMeshInfo->szOpacityTextureFileName.c_str());
+			OutputDebugStringW(szDebugString);
 		}
 	}
 }
@@ -404,8 +386,9 @@ HRESULT ModelLoader::readTextureFileName(const aiScene* pSCENE, aiMaterial* pMat
 			}
 			else
 			{
-				OutputDebugStringA(fullPath.c_str());
-				OutputDebugStringA(" doesn't exists. Return empty filename.\n");
+				char szDebugString[256];
+				sprintf_s(szDebugString, 256, "%s doesn't exists. Return empty filename.\n", fullPath.c_str());
+				OutputDebugStringA(szDebugString);
 			}
 		}
 		else
@@ -457,9 +440,10 @@ void ModelLoader::updateBoneIDs(aiNode* pNode, int* pCounter)
 	static int s_ID = 0;
 	if (pNode)
 	{
-		if (AnimData.BoneNameToID.count(pNode->mName.C_Str()))
+		const char* pNODE_NAME = pNode->mName.C_Str();
+		if (AnimData.BoneNameToID.count(pNODE_NAME))
 		{
-			AnimData.BoneNameToID[pNode->mName.C_Str()] = *pCounter;
+			AnimData.BoneNameToID[pNODE_NAME] = *pCounter;
 			*pCounter += 1;
 		}
 		for (UINT i = 0; i < pNode->mNumChildren; ++i)

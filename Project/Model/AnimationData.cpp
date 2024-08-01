@@ -25,14 +25,10 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-		/*AccumulatedRootTransform = Matrix::CreateFromQuaternion(Rotation) * Matrix::CreateTranslation(Position);
-		PrevPos = Position;*/
-
 		if (FRAME != 0)
 		{
-			// 걷기 시작하거나 멈추기 시작하는 동작은 자체 속도가 너무 큼. 따라서 0.3으로 고정.
-			Velocity = (CLIP_ID == 1 || CLIP_ID == 3 ? 
-						0.3f : (key.Position - PrevKeyPos).Length());
+			// 걷기 시작하거나 멈추기 시작하는 동작은 자체 속도가 너무 큼. 따라서 0.25로 고정.
+			Velocity = ((CLIP_ID == 1 || CLIP_ID == 3) ? 0.25f : (key.Position - PrevKeyPos).Length());
 			AccumulatedRootTransform = Matrix::CreateFromQuaternion(Rotation) * Matrix::CreateTranslation(Position);
 		}
 		else
@@ -217,18 +213,17 @@ void Chain::SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA
 	Eigen::VectorXf deltaTheta(TOTAL_JOINT * 3);
 	Joint& endEffector = BodyChain[TOTAL_JOINT - 1];
 
-	for (int step = 0; step < 50; ++step)
+	for (int step = 0; step < 20; ++step)
 	{
 		Vector3 deltaPos = targetPos - endEffector.Position;
 		float deltaPosLength = deltaPos.Length();
-
-		{
+		/*{
 			char szDebugString[256];
 			sprintf_s(szDebugString, 256, "deltaPosLength: %f\n", deltaPosLength);
 			OutputDebugStringA(szDebugString);
-		}
+		}*/
 
-		if (deltaPosLength <= 0.001f || deltaPosLength >= 1.0f)
+		if (deltaPosLength <= 0.2f || deltaPosLength >= 0.5f)
 		{
 			break;
 		}

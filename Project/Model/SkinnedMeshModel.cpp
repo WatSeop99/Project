@@ -857,10 +857,10 @@ void SkinnedMeshModel::initJointSpheres()
 
 	// for chain debugging.
 	MakeWireSphere(&meshData, BoundingSphere.Center, 0.03f);
-	RightHandMiddle.Radius = 0.03f + 1e-3f;
+	/*RightHandMiddle.Radius = 0.03f + 1e-3f;
 	LeftHandMiddle.Radius = 0.03f + 1e-3f;
 	RightToe.Radius = 0.03f + 1e-3f;
-	LeftToe.Radius = 0.03f + 1e-3f;
+	LeftToe.Radius = 0.03f + 1e-3f;*/
 
 	for (int i = 0; i < 4; ++i)
 	{
@@ -1089,12 +1089,11 @@ void SkinnedMeshModel::updateJointSpheres(int clipID, int frame)
 	// 캐릭터에서는 이를 방지하기 위해 bounding object만 따로 변환시킴.
 
 	const int ROOT_BONE_ID = CharacterAnimationData.BoneNameToID["mixamorig:Hips"];
-	// const Matrix ROOT_BONE_TRANSFORM = CharacterAnimationData.GetRootBoneTransformWithoutLocalRot(clipID, frame);
-	const Matrix ROOT_BONE_TRANSFORM = Matrix::CreateTranslation(CharacterAnimationData.Position.x, CharacterAnimationData.Position.y - 0.5f, CharacterAnimationData.Position.z);
+	const Matrix ROOT_BONE_TRANSFORM = CharacterAnimationData.GetRootBoneTransformWithoutLocalRot(clipID, frame);
 	const Matrix CORRECTION_CENTER = Matrix::CreateTranslation(Vector3(0.2f, 0.05f, 0.0f));
 
 	// m_pBoundingBoxMesh->MeshConstantData.World = (CORRECTION_CENTER * ROOT_BONE_TRANSFORM * World).Transpose();
-	m_pBoundingBoxMesh->MeshConstantData.World = (CORRECTION_CENTER * ROOT_BONE_TRANSFORM).Transpose();
+	m_pBoundingBoxMesh->MeshConstantData.World = (ROOT_BONE_TRANSFORM * World).Transpose();
 	m_pBoundingSphereMesh->MeshConstantData.World = m_pBoundingBoxMesh->MeshConstantData.World;
 	m_pBoundingCapsuleMesh->MeshConstantData.World = m_pBoundingBoxMesh->MeshConstantData.World;
 	BoundingBox.Center = m_pBoundingBoxMesh->MeshConstantData.World.Transpose().Translation();
@@ -1114,13 +1113,9 @@ void SkinnedMeshModel::updateJointSpheres(int clipID, int frame)
 		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
 		pRightArmMeshConstantData->World = (pRightArmPart->Correction * CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Transpose();
-		// pRightArmMeshConstantData->World = (CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Transpose();
 		pLeftArmMeshConstantData->World = (pLeftArmPart->Correction * CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Transpose();
-		// pLeftArmMeshConstantData->World = (CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Transpose();
 		pRightLegMeshConstantData->World = (pRightLegPart->Correction * CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Transpose();
-		// pRightLegMeshConstantData->World = (CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Transpose();
 		pLeftLegMeshConstantData->World = (pLeftLegPart->Correction * CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Transpose();
-		// pLeftLegMeshConstantData->World = (CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Transpose();
 	}
 
 	RightHandMiddle.Center = m_ppRightArm[3]->MeshConstantData.World.Transpose().Translation();
