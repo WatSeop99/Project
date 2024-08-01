@@ -14,7 +14,7 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 		goto LB_RET;
 	}
 
-	Normalize(Vector3(0.0f), 2.0f, modelLoader.MeshInfos, modelLoader.AnimData);
+	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
 	dst = modelLoader.MeshInfos;
 
 LB_RET:
@@ -32,7 +32,7 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 		goto LB_RET;
 	}
 
-	Normalize(Vector3(0.0f), 2.0f, modelLoader.MeshInfos, modelLoader.AnimData);
+	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
 	meshInfos = modelLoader.MeshInfos;
 	animData = modelLoader.AnimData;
 
@@ -46,36 +46,38 @@ void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<Me
 	using namespace DirectX;
 
 	// Normalize vertices
-	Vector3 vmin(1000.0f, 1000.0f, 1000.0f);
-	Vector3 vmax(-1000.0f, -1000.0f, -1000.0f);
+	Vector3 vMin(1000.0f, 1000.0f, 1000.0f);
+	Vector3 vMax(-1000.0f, -1000.0f, -1000.0f);
 	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
 	{
 		MeshInfo& curMesh = meshes[i];
 		for (UINT64 j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
 		{
 			Vertex& v = curMesh.Vertices[j];
-			vmin.x = Min(vmin.x, v.Position.x);
-			vmin.y = Min(vmin.y, v.Position.y);
-			vmin.z = Min(vmin.z, v.Position.z);
-			vmax.x = Max(vmax.x, v.Position.x);
-			vmax.y = Max(vmax.y, v.Position.y);
-			vmax.z = Max(vmax.z, v.Position.z);
+			vMin.x = Min(vMin.x, v.Position.x);
+			vMin.y = Min(vMin.y, v.Position.y);
+			vMin.z = Min(vMin.z, v.Position.z);
+			vMax.x = Max(vMax.x, v.Position.x);
+			vMax.y = Max(vMax.y, v.Position.y);
+			vMax.z = Max(vMax.z, v.Position.z);
 		}
 	}
 
-	float dx = vmax.x - vmin.x, dy = vmax.y - vmin.y, dz = vmax.z - vmin.z;
+	float dx = vMax.x - vMin.x;
+	float dy = vMax.y - vMin.y;
+	float dz = vMax.z - vMin.z;
 	float scale = LONGEST_LENGTH / Max(Max(dx, dy), dz);
-	Vector3 translation = -(vmin + vmax) * 0.5f + CENTER;
+	Vector3 translation = -(vMin + vMax) * 0.5f + CENTER;
 
 	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
 	{
 		MeshInfo& curMesh = meshes[i];
-		for (size_t j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
+		for (UINT64 j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
 		{
 			Vertex& v = curMesh.Vertices[j];
 			v.Position = (v.Position + translation) * scale;
 		}
-		for (size_t j = 0, skinnedVertSize = curMesh.SkinnedVertices.size(); j < skinnedVertSize; ++j)
+		for (UINT64 j = 0, skinnedVertSize = curMesh.SkinnedVertices.size(); j < skinnedVertSize; ++j)
 		{
 			SkinnedVertex& v = curMesh.SkinnedVertices[j];
 			v.Position = (v.Position + translation) * scale;
