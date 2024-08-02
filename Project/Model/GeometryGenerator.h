@@ -21,5 +21,6 @@ void MakeTetrahedron(MeshInfo* pOutDst);
 void MakeIcosahedron(MeshInfo* pOutDst);
 
 void MakeSlope(MeshInfo* pOutDst, const float ANGLE, const float LENGTH);
+void MakeStair(MeshInfo* pOutDst, const int STEP, const float STEP_WIDTH, const float STEP_HEIGHT, const float STEP_DEPTH);
 
 void SubdivideToSphere(MeshInfo* pOutDst, const float RADIUS, MeshInfo& meshData);

@@ -363,8 +363,8 @@ void App::initExternalData()
 		}
 
 		// Vector3 center(0.0f, 0.5f, 2.0f);
-		// Vector3 center(0.0f, 1.0f, 5.0f);
-		Vector3 center(0.0f, 0.0f, 5.0f);
+		Vector3 center(0.0f, 1.0f, 5.0f);
+		// Vector3 center(0.0f, 0.0f, 5.0f);
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];
@@ -411,7 +411,6 @@ void App::initExternalData()
 			physx::PxU32 numShapes = pCapsuleActor->getNbShapes();
 			std::vector<physx::PxShape*> capsuleShapes(numShapes);
 			pCapsuleActor->getShapes(capsuleShapes.data(), numShapes);
-			// pCapsuleActor->userData;
 
 			for (physx::PxU32 i = 0; i < numShapes; ++i)
 			{
@@ -429,7 +428,7 @@ void App::initExternalData()
 		// end-effector 충돌체 설정.
 		physx::PxRigidDynamic* pRightFoot = nullptr;
 		physx::PxRigidDynamic* pLeftFoot = nullptr;
-		physx::PxBoxGeometry boundingBoxGeom(0.01f, 0.01f, 0.01f);
+		physx::PxBoxGeometry boundingBoxGeom(0.025f, 0.025f, 0.025f);
 		physx::PxShape* pBoxShape = pPhysics->createShape(boundingBoxGeom, *(m_pPhysicsManager->pCommonMaterial));
 		if (!pBoxShape)
 		{
@@ -526,7 +525,71 @@ void App::initExternalData()
 			14, 16, 17, 15, 14, 17, // 뒷면
 		};
 
-		m_pPhysicsManager->CookingStaticTriangleMesh(&mesh.Vertices, &mesh.Indices, pSlope->World);
+		Matrix world = Matrix::CreateRotationY(-90.0f * DirectX::XM_PI / 180.0f) * Matrix::CreateTranslation(position);
+		m_pPhysicsManager->CookingStaticTriangleMesh(&mesh.Vertices, &mesh.Indices, world);
+	}
+
+	// 계단
+	{
+		Model* pStair = nullptr;
+		MeshInfo mesh = INIT_MESH_INFO;
+		MakeStair(&mesh, 5, 1.0f, 0.1f, 0.2f);
+
+		std::wstring path = L"./Assets/Textures/PBR/stringy-marble-ue/";
+		mesh.szAlbedoTextureFileName = path + L"stringy_marble_albedo.png";
+		mesh.szEmissiveTextureFileName = L"";
+		mesh.szAOTextureFileName = path + L"stringy_marble_ao.png";
+		mesh.szMetallicTextureFileName = path + L"stringy_marble_Metallic.png";
+		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
+		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
+
+		pStair = new Model(this, { mesh });
+
+		MaterialConstant& groundMaterialConstantData = pStair->Meshes[0]->MaterialConstantData;
+		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
+		groundMaterialConstantData.EmissionFactor = Vector3(0.0f);
+		groundMaterialConstantData.MetallicFactor = 0.5f;
+		groundMaterialConstantData.RoughnessFactor = 0.3f;
+
+		// Vector3 position = Vector3(0.0f, -1.0f, 0.0f);
+		Vector3 position(0.0f, 0.0f, -3.0f);
+		Matrix newWorld = Matrix::CreateRotationY(90.0f * DirectX::XM_PI / 180.0f) * Matrix::CreateTranslation(position);
+		pStair->UpdateWorld(newWorld);
+
+		pStair->ModelType = RenderObjectType_DefaultType;
+		m_RenderObjects.push_back(pStair);
+
+
+		mesh.Indices =
+		{
+			0, 2, 1, 1, 2, 3,		// 하단면
+			4, 5, 6, 5, 7, 6,		// 상단면
+			8, 10, 9, 11, 13, 12,	// 양쪽면
+			14, 16, 17, 15, 14, 17, // 뒷면
+		};
+
+		mesh.Indices.clear();
+		for (int i = 0; i < 10; ++i)
+		{
+			UINT baseIndex = i * 24;
+			UINT inds[36] = 
+			{
+				baseIndex,		baseIndex + 2,	baseIndex + 1,  baseIndex,		baseIndex + 3,  baseIndex + 2,			// 윗면
+				baseIndex + 4,  baseIndex + 6,	baseIndex + 5,  baseIndex + 4,  baseIndex + 7,	baseIndex + 6,	// 아랫면
+				baseIndex + 8,  baseIndex + 10, baseIndex + 9,	baseIndex + 8,  baseIndex + 11, baseIndex + 10, // 앞면
+				baseIndex + 12, baseIndex + 14, baseIndex + 13, baseIndex + 12, baseIndex + 15, baseIndex + 14, // 뒷면
+				baseIndex + 16, baseIndex + 18, baseIndex + 17, baseIndex + 16, baseIndex + 19, baseIndex + 18, // 왼쪽
+				baseIndex + 20, baseIndex + 22, baseIndex + 21, baseIndex + 20, baseIndex + 23, baseIndex + 22  // 오른쪽
+			};
+
+			for (int j = 0; j < 36; ++j)
+			{
+				mesh.Indices.push_back(inds[j]);
+			}
+		}
+
+		Matrix world = Matrix::CreateRotationY(-90.0f * DirectX::XM_PI / 180.0f) * Matrix::CreateTranslation(position);
+		m_pPhysicsManager->CookingStaticTriangleMesh(&mesh.Vertices, &mesh.Indices, world);
 	}
 }
 

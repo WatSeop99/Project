@@ -842,6 +842,324 @@ void MakeSlope(MeshInfo* pOutDst, const float ANGLE, const float LENGTH)
 	};
 }
 
+void MakeStair(MeshInfo* pOutDst, const int STEP, const float STEP_WIDTH, const float STEP_HEIGHT, const float STEP_DEPTH)
+{
+	_ASSERT(pOutDst);
+	_ASSERT(STEP >= 1);
+	_ASSERT(STEP_WIDTH > 0.0f && STEP_HEIGHT > 0.0f && STEP_DEPTH > 0.0f);
+
+	std::vector<Vertex>& vertices = pOutDst->Vertices;
+	std::vector<UINT>& indices = pOutDst->Indices;
+
+	/*for (int i = 0; i < STEP; ++i)
+	{
+		float y = i * STEP_HEIGHT;
+		float z = i * STEP_DEPTH;
+
+		Vertex v1;
+		Vertex v2;
+		Vertex v3;
+		Vertex v4;
+		Vertex v5;
+		Vertex v6;
+		Vertex v7;
+		Vertex v8;
+		Vertex v9;
+		Vertex v10;
+		Vertex v11;
+		Vertex v12;
+		Vertex v13;
+		Vertex v14;
+		Vertex v15;
+		Vertex v16;
+		int baseIndex = i * 24;
+
+		v1.Position = Vector3(0.0f, y + STEP_HEIGHT, z);
+		v1.Normal = Vector3(0.0f, 1.0f, 0.0f);
+		v1.Texcoord = Vector2(0.0f, 0.0f);
+
+		v2.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z);
+		v2.Normal = Vector3(0.0f, 1.0f, 0.0f);
+		v2.Texcoord = Vector2(1.0f, 0.0f);
+
+		v3.Position = Vector3(0.0f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		v3.Normal = Vector3(0.0f, 1.0f, 0.0f);
+		v3.Texcoord = Vector2(0.0f, 1.0f);
+
+		v4.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z + STEP_DEPTH);
+		v4.Normal = Vector3(0.0f, 1.0f, 0.0f);
+		v4.Texcoord = Vector2(1.0f, 1.0f);
+
+		vertices.push_back(v1);
+		vertices.push_back(v2);
+		vertices.push_back(v3);
+		vertices.push_back(v4);
+
+		indices.push_back(baseIndex);
+		indices.push_back(baseIndex + 2);
+		indices.push_back(baseIndex + 1);
+		indices.push_back(baseIndex + 2);
+		indices.push_back(baseIndex + 3);
+		indices.push_back(baseIndex + 1);
+
+
+		v5.Position = Vector3(0.0f, y, z);
+		v5.Normal = Vector3(0.0f, 0.0f, -1.0f);
+		v5.Texcoord = Vector2(0.0f, 0.0f);
+
+		v6.Position = Vector3(STEP_WIDTH, y, z);
+		v6.Normal = Vector3(0.0f, 0.0f, -1.0f);
+		v6.Texcoord = Vector2(1.0f, 0.0f);
+
+		v7.Position = Vector3(0.0f, y + STEP_HEIGHT, z);
+		v7.Normal = Vector3(0.0f, 0.0f, -1.0f);
+		v7.Texcoord = Vector2(0.0f, 1.0f);
+
+		v8.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z);
+		v8.Normal = Vector3(0.0f, 0.0f, -1.0f);
+		v8.Texcoord = Vector2(1.0f, 1.0f);
+
+		vertices.push_back(v5);
+		vertices.push_back(v6);
+		vertices.push_back(v7);
+		vertices.push_back(v8);
+
+		indices.push_back(baseIndex + 4);
+		indices.push_back(baseIndex + 6);
+		indices.push_back(baseIndex + 5);
+		indices.push_back(baseIndex + 6);
+		indices.push_back(baseIndex + 7);
+		indices.push_back(baseIndex + 5);
+
+
+		v9.Position = Vector3(0.0f, y, z + STEP_DEPTH);
+		v9.Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		v9.Texcoord = Vector2(0.0f, 0.0f);
+
+		v10.Position = Vector3(0.0f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		v10.Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		v10.Texcoord = Vector2(0.0f, 1.0f);
+
+		v11.Position = Vector3(0.0f, y, z);
+		v11.Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		v11.Texcoord = Vector2(1.0f, 0.0f);
+
+		v12.Position = Vector3(0.0f, y + STEP_HEIGHT, z);
+		v12.Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		v12.Texcoord = Vector2(1.0f, 1.0f);
+
+		vertices.push_back(v9);
+		vertices.push_back(v10);
+		vertices.push_back(v11);
+		vertices.push_back(v12);
+
+		indices.push_back(baseIndex + 8);
+		indices.push_back(baseIndex + 10);
+		indices.push_back(baseIndex + 9);
+		indices.push_back(baseIndex + 10);
+		indices.push_back(baseIndex + 11);
+		indices.push_back(baseIndex + 9);
+
+
+		v13.Position = Vector3(STEP_WIDTH, y, z + STEP_DEPTH);
+		v13.Normal = Vector3(1.0f, 0.0f, 0.0f);
+		v13.Texcoord = Vector2(0.0f, 0.0f);
+
+		v14.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z + STEP_DEPTH);
+		v14.Normal = Vector3(1.0f, 0.0f, 0.0f);
+		v14.Texcoord = Vector2(0.0f, 1.0f);
+
+		v15.Position = Vector3(STEP_WIDTH, y, z);
+		v15.Normal = Vector3(1.0f, 0.0f, 0.0f);
+		v15.Texcoord = Vector2(1.0f, 0.0f);
+
+		v16.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z);
+		v16.Normal = Vector3(1.0f, 0.0f, 0.0f);
+		v16.Texcoord = Vector2(1.0f, 1.0f);
+
+		vertices.push_back(v13);
+		vertices.push_back(v14);
+		vertices.push_back(v15);
+		vertices.push_back(v16);
+
+		indices.push_back(baseIndex + 12);
+		indices.push_back(baseIndex + 14);
+		indices.push_back(baseIndex + 13);
+		indices.push_back(baseIndex + 14);
+		indices.push_back(baseIndex + 15);
+		indices.push_back(baseIndex + 13);
+
+
+		if (i < STEP - 1)
+		{
+			Vertex v17;
+			Vertex v18;
+			Vertex v19;
+			Vertex v20;
+
+			v17.Position = Vector3(0.0f, y + STEP_HEIGHT, z + STEP_DEPTH);
+			v17.Normal = Vector3(0.0f, 0.0f, 1.0f);
+			v17.Texcoord = Vector2(0.0f, 0.0f);
+
+			v18.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z + STEP_DEPTH);
+			v18.Normal = Vector3(0.0f, 0.0f, 1.0f);
+			v18.Texcoord = Vector2(1.0f, 0.0f);
+
+			v19.Position = Vector3(0.0f, y + 2.0f * STEP_HEIGHT, z + STEP_DEPTH);
+			v19.Normal = Vector3(0.0f, 0.0f, 1.0f);
+			v19.Texcoord = Vector2(0.0f, 1.0f);
+
+			v20.Position = Vector3(STEP_WIDTH, y + 2.0f * STEP_HEIGHT, z + STEP_DEPTH);
+			v20.Normal = Vector3(0.0f, 0.0f, 1.0f);
+			v20.Texcoord = Vector2(1.0f, 1.0f);
+
+			vertices.push_back(v17);
+			vertices.push_back(v18);
+			vertices.push_back(v19);
+			vertices.push_back(v20);
+
+			indices.push_back(baseIndex + 16);
+			indices.push_back(baseIndex + 18);
+			indices.push_back(baseIndex + 17);
+			indices.push_back(baseIndex + 18);
+			indices.push_back(baseIndex + 19);
+			indices.push_back(baseIndex + 17);
+		}
+	}*/
+
+	for (int i = 0; i < STEP; ++i)
+	{
+		float y = i * STEP_HEIGHT;
+		float z = i * STEP_DEPTH;
+
+		Vertex verts[24];
+
+		// À­¸é
+		verts[0].Position = Vector3(-STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z);
+		verts[0].Normal = Vector3(0.0f, 1.0f, 0.0f);
+		verts[0].Texcoord = Vector2(0.0f, 0.0f);
+
+		verts[1].Position = Vector3(-STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		verts[1].Normal = Vector3(0.0f, 1.0f, 0.0f);
+		verts[1].Texcoord = Vector2(1.0f, 0.0f);
+
+		verts[2].Position = Vector3(STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		verts[2].Normal = Vector3(0.0f, 1.0f, 0.0f);
+		verts[2].Texcoord = Vector2(1.0f, 1.0f);
+
+		verts[3].Position = Vector3(STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z);
+		verts[3].Normal = Vector3(0.0f, 1.0f, 0.0f);
+		verts[3].Texcoord = Vector2(0.0f, 1.0f);
+
+		// ¾Æ·§¸é
+		verts[4].Position = Vector3(-STEP_WIDTH * 0.5f, y, z);
+		verts[4].Normal = Vector3(0.0f, -1.0f, 0.0f);
+		verts[4].Texcoord = Vector2(0.0f, 0.0f);
+
+		verts[5].Position = Vector3(STEP_WIDTH * 0.5f, y, z);
+		verts[5].Normal = Vector3(0.0f, -1.0f, 0.0f);
+		verts[5].Texcoord = Vector2(1.0f, 0.0f);
+
+		verts[6].Position = Vector3(STEP_WIDTH * 0.5f, y, z + STEP_DEPTH);
+		verts[6].Normal = Vector3(0.0f, -1.0f, 0.0f);
+		verts[6].Texcoord = Vector2(1.0f, 1.0f);
+
+		verts[7].Position = Vector3(-STEP_WIDTH * 0.5f, y, z + STEP_DEPTH);
+		verts[7].Normal = Vector3(0.0f, -1.0f, 0.0f);
+		verts[7].Texcoord = Vector2(0.0f, 1.0f);
+
+		// ¾Õ¸é
+		verts[8].Position = Vector3(-STEP_WIDTH * 0.5f, y, z);
+		verts[8].Normal = Vector3(0.0f, 0.0f, -1.0f);
+		verts[8].Texcoord = Vector2(0.0f, 0.0f);
+
+		verts[9].Position = Vector3(-STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z);
+		verts[9].Normal = Vector3(0.0f, 0.0f, -1.0f);
+		verts[9].Texcoord = Vector2(1.0f, 0.0f);
+
+		verts[10].Position = Vector3(STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z);
+		verts[10].Normal = Vector3(0.0f, 0.0f, -1.0f);
+		verts[10].Texcoord = Vector2(1.0f, 1.0f);
+
+		verts[11].Position = Vector3(STEP_WIDTH * 0.5f, y, z);
+		verts[11].Normal = Vector3(0.0f, 0.0f, -1.0f);
+		verts[11].Texcoord = Vector2(0.0f, 1.0f);
+
+		// µÞ¸é
+		verts[12].Position = Vector3(-STEP_WIDTH * 0.5f, y, z + STEP_DEPTH);
+		verts[12].Normal = Vector3(0.0f, 0.0f, 1.0f);
+		verts[12].Texcoord = Vector2(0.0f, 0.0f);
+
+		verts[13].Position = Vector3(STEP_WIDTH * 0.5f, y, z + STEP_DEPTH);
+		verts[13].Normal = Vector3(0.0f, 0.0f, 1.0f);
+		verts[13].Texcoord = Vector2(1.0f, 0.0f);
+
+		verts[14].Position = Vector3(STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		verts[14].Normal = Vector3(0.0f, 0.0f, 1.0f);
+		verts[14].Texcoord = Vector2(1.0f, 1.0f);
+
+		verts[15].Position = Vector3(-STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		verts[15].Normal = Vector3(0.0f, 0.0f, 1.0f);
+		verts[15].Texcoord = Vector2(0.0f, 1.0f);
+
+		// ¿ÞÂÊ
+		verts[16].Position = Vector3(-STEP_WIDTH * 0.5f, y, z + STEP_DEPTH);
+		verts[16].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		verts[16].Texcoord = Vector2(0.0f, 0.0f);
+
+		verts[17].Position = Vector3(-STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		verts[17].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		verts[17].Texcoord = Vector2(1.0f, 0.0f);
+
+		verts[18].Position = Vector3(-STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z);
+		verts[18].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		verts[18].Texcoord = Vector2(1.0f, 1.0f);
+
+		verts[19].Position = Vector3(-STEP_WIDTH * 0.5f, y, z);
+		verts[19].Normal = Vector3(-1.0f, 0.0f, 0.0f);
+		verts[19].Texcoord = Vector2(0.0f, 1.0f);
+
+		// ¿À¸¥ÂÊ
+		verts[20].Position = Vector3(STEP_WIDTH * 0.5f, y, z + STEP_DEPTH);
+		verts[20].Normal = Vector3(1.0f, 0.0f, 0.0f);
+		verts[20].Texcoord = Vector2(0.0f, 0.0f);
+
+		verts[21].Position = Vector3(STEP_WIDTH * 0.5f, y, z);
+		verts[21].Normal = Vector3(1.0f, 0.0f, 0.0f);
+		verts[21].Texcoord = Vector2(1.0f, 0.0f);
+
+		verts[22].Position = Vector3(STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z);
+		verts[22].Normal = Vector3(STEP_WIDTH * 0.5f, 0.0f, 0.0f);
+		verts[22].Texcoord = Vector2(1.0f, 1.0f);
+
+		verts[23].Position = Vector3(STEP_WIDTH * 0.5f, y + STEP_HEIGHT, z + STEP_DEPTH);
+		verts[23].Normal = Vector3(1.0f, 0.0f, 0.0f);
+		verts[23].Texcoord = Vector2(0.0f, 1.0f);
+
+
+		UINT baseIndex = i * 24;
+		UINT inds[36] =
+		{
+			baseIndex,		baseIndex + 1,  baseIndex + 2,  baseIndex,		baseIndex + 2,  baseIndex + 3,			// À­¸é
+			baseIndex + 4,  baseIndex + 5,  baseIndex + 6,  baseIndex + 4,  baseIndex + 6,  baseIndex + 7,  // ¾Æ·§¸é
+			baseIndex + 8,  baseIndex + 9,  baseIndex + 10, baseIndex + 8,  baseIndex + 10, baseIndex + 11, // ¾Õ¸é
+			baseIndex + 12, baseIndex + 13, baseIndex + 14, baseIndex + 12, baseIndex + 14, baseIndex + 15, // µÞ¸é
+			baseIndex + 16, baseIndex + 17, baseIndex + 18, baseIndex + 16, baseIndex + 18, baseIndex + 19, // ¿ÞÂÊ
+			baseIndex + 20, baseIndex + 21, baseIndex + 22, baseIndex + 20, baseIndex + 22, baseIndex + 23  // ¿À¸¥ÂÊ
+		};
+
+
+		for (int j = 0; j < 24; ++j)
+		{
+			vertices.push_back(verts[j]);
+		}
+		for (int j = 0; j < 36; ++j)
+		{
+			indices.push_back(inds[j]);
+		}
+	}
+}
+
 void SubdivideToSphere(MeshInfo* pOutDst, const float RADIUS, MeshInfo& meshData)
 {
 	using namespace DirectX;

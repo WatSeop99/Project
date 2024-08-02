@@ -114,18 +114,10 @@ void PhysicsManager::CookingStaticTriangleMesh(const std::vector<Vertex>* pVERTI
 	const UINT64 TOTAL_VERTEX = pVERTICES->size();
 	const UINT64 TOTAL_INDEX = pINDICES->size();
 	const Vector3 POSITION = WORLD.Translation();
-	const PxVec3 POSITION_PX(POSITION.x, POSITION.y, POSITION.z);
-	PxMat44 world;
+	const Quaternion ROTATION = Quaternion::CreateFromRotationMatrix(WORLD);
 	std::vector<PxVec3> vertices(TOTAL_VERTEX);
 	std::vector<PxU32> indices(TOTAL_INDEX);
 
-	for (int i = 0; i < 4; ++i)
-	{
-		for (int j = 0; j < 4; ++j)
-		{
-			world(i, j) = WORLD.m[i][j];
-		}
-	}
 	for (UINT64 i = 0; i < TOTAL_VERTEX; ++i)
 	{
 		PxVec3& v = vertices[i];
@@ -165,7 +157,10 @@ void PhysicsManager::CookingStaticTriangleMesh(const std::vector<Vertex>* pVERTI
 		__debugbreak();
 	}
 
-	PxRigidStatic* pRigidStatic = m_pPhysics->createRigidStatic(PxTransform(world));
+	PxVec3 translation(POSITION.x, POSITION.y, POSITION.z);
+	PxQuat rotation(ROTATION.x, ROTATION.y, ROTATION.z, ROTATION.w);
+	PxTransform transform(translation, rotation);
+	PxRigidStatic* pRigidStatic = m_pPhysics->createRigidStatic(transform);
 	if (!pRigidStatic)
 	{
 		__debugbreak();
