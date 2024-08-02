@@ -47,7 +47,7 @@ void Renderer::Initizlie()
 	srvDesc.Texture2D.PlaneSlice = 0;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	m_pDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
-	m_pResourceManager->m_NullSRVDescriptor = nullSrv;
+	m_pResourceManager->NullSRVDescriptor = nullSrv;
 
 
 	PostProcessor::PostProcessingBuffers config =
@@ -119,7 +119,7 @@ void Renderer::ProcessByThread(UINT threadIndex, ResourceManager* pManager, int 
 		case RenderPass_Collider:
 		{
 			ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
-			CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pRTVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->RTVDescriptorSize);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pDSVAllocator->GetDescriptorHeap()->GetCPUDescriptorHandleForHeapStart());
 
 			pCommandList->RSSetViewports(1, &m_ScreenViewport);
@@ -212,7 +212,7 @@ void Renderer::Cleanup()
 	cleanDepthStencils();
 	cleanRenderTargets();
 	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE nullSRV(m_pResourceManager->m_NullSRVDescriptor);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE nullSRV(m_pResourceManager->NullSRVDescriptor);
 		m_pSRVUAVAllocator->FreeDescriptorHandle(nullSRV);
 	}
 
@@ -992,16 +992,16 @@ void Renderer::cleanRenderTargets()
 	_ASSERT(m_pFloatBuffer);
 
 	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, m_pResourceManager->m_RTVDescriptorSize);;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset, m_pResourceManager->RTVDescriptorSize);;
 	for(UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
 	{
 		m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
 		SAFE_RELEASE(m_pRenderTargets[i]);
-		rtvHandle.Offset(1, m_pResourceManager->m_RTVDescriptorSize);
+		rtvHandle.Offset(1, m_pResourceManager->RTVDescriptorSize);
 	}
 	m_MainRenderTargetOffset = 0xffffffff;
 
-	rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
+	rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->RTVDescriptorSize);
 	m_pRTVAllocator->FreeDescriptorHandle(rtvHandle);
 	m_FloatBufferRTVOffset = 0xffffffff;
 	SAFE_RELEASE(m_pFloatBuffer);
@@ -1013,7 +1013,7 @@ void Renderer::cleanDepthStencils()
 	_ASSERT(m_pDefaultDepthStencil);
 
 	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart(), m_DefaultDepthStencilOffset, m_pResourceManager->m_DSVDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart(), m_DefaultDepthStencilOffset, m_pResourceManager->DSVDescriptorSize);
 
 	m_pDSVAllocator->FreeDescriptorHandle(dsvHandle);
 	m_DefaultDepthStencilOffset = 0xffffffff;
@@ -1027,12 +1027,12 @@ void Renderer::cleanShaderResources()
 	_ASSERT(m_pPrevBuffer);
 
 	ID3D12DescriptorHeap* pSRVUAVHeap = m_pSRVUAVAllocator->GetDescriptorHeap();
-	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, m_pResourceManager->m_CBVSRVUAVDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferSRVOffset, m_pResourceManager->CBVSRVUAVDescriptorSize);
 
 	m_pSRVUAVAllocator->FreeDescriptorHandle(srvHandle);
 	m_FloatBufferSRVOffset = 0xffffffff;
 
-	srvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_PrevBufferSRVOffset, m_pResourceManager->m_CBVSRVUAVDescriptorSize);
+	srvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(pSRVUAVHeap->GetCPUDescriptorHandleForHeapStart(), m_PrevBufferSRVOffset, m_pResourceManager->CBVSRVUAVDescriptorSize);
 	m_pSRVUAVAllocator->FreeDescriptorHandle(srvHandle);
 	m_PrevBufferSRVOffset = 0xffffffff;
 	SAFE_RELEASE(m_pPrevBuffer);
@@ -1215,7 +1215,7 @@ void Renderer::renderObject()
 	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
 	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
 
-	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
+	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->RTVDescriptorSize;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart());
@@ -1469,6 +1469,7 @@ void Renderer::renderObjectBoundingModel()
 			case RenderObjectType_SkinnedType:
 			{
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+				// pCharacter->RenderBoundingSphere(RenderPSOType_Wire);
 				pCharacter->RenderBoundingCapsule(RenderPSOType_Wire);
 				pCharacter->RenderJointSphere(RenderPSOType_Wire);
 			}

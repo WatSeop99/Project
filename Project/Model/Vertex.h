@@ -21,6 +21,6 @@ struct SkinnedVertex
 	Vector2 Texcoord;
 	Vector3 Tangent;
 
-	float BlendWeights[8] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };  // BLENDWEIGHT0 and 1
-	UCHAR BoneIndices[8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; // BLENDINDICES0 and 1
+	float BlendWeights[8] = { 0.0f, };  // BLENDWEIGHT0 and 1
+	UCHAR BoneIndices[8] = { 0, };		// BLENDINDICES0 and 1
 };

@@ -39,31 +39,51 @@ void Camera::UpdateKeyboard(const float DELTA_TIME, Keyboard* pKeyboard)
 	}
 }
 
-void Camera::UpdateMouse(float mouseNDCX, float mouseNDCY)
+void Camera::UpdateMouse(const float MOUSE_NDC_X, const float MOUSE_NDC_Y)
 {
 	if (bUseFirstPersonView)
 	{
 		// 얼마나 회전할지 계산.
-		m_Yaw = mouseNDCX * DirectX::XM_2PI;       // 좌우 360도.
-		m_Pitch = -mouseNDCY * DirectX::XM_PIDIV2; // 위 아래 90도.
+		m_Yaw = MOUSE_NDC_X * DirectX::XM_2PI;       // 좌우 360도.
+		m_Pitch = -MOUSE_NDC_Y * DirectX::XM_PIDIV2; // 위 아래 90도.
 		UpdateViewDir();
 	}
 }
 
-void Camera::MoveForward(float deltaTime)
+void Camera::MoveForward(const float DELTA_TIME)
 {
 	// 이동후의_위치 = 현재_위치 + 이동방향 * 속도 * 시간차이.
-	m_Position += m_ViewDirection * m_Speed * deltaTime;
+	m_Position += m_ViewDirection * m_Speed * DELTA_TIME;
 }
 
-void Camera::MoveRight(float deltaTime)
+void Camera::MoveRight(const float DELTA_TIME)
 {
 	// 이동후의_위치 = 현재_위치 + 이동방향 * 속도 * 시간차이.
-	m_Position += m_RightDirection * m_Speed * deltaTime;
+	m_Position += m_RightDirection * m_Speed * DELTA_TIME;
 }
 
-void Camera::MoveUp(float deltaTime)
+void Camera::MoveUp(const float DELTA_TIME)
 {
 	// 이동후의_위치 = 현재_위치 + 이동방향 * 속도 * 시간차이.
-	m_Position += m_UpDirection * m_Speed * deltaTime;
+	m_Position += m_UpDirection * m_Speed * DELTA_TIME;
+}
+
+void Camera::Reset(const Vector3& POS, const float YAW, const float PITCH)
+{
+	m_Position = POS;
+	m_Yaw = YAW;
+	m_Pitch = PITCH;
+	UpdateViewDir();
+}
+
+Matrix Camera::GetView()
+{
+	return (Matrix::CreateTranslation(-m_Position) * Matrix::CreateRotationY(-m_Yaw) * Matrix::CreateRotationX(-m_Pitch)); // m_Pitch가 양수이면 고개를 드는 방향.
+}
+
+Matrix Camera::GetProjection()
+{
+	return (m_bUsePerspectiveProjection ?
+			DirectX::XMMatrixPerspectiveFovLH(DirectX::XMConvertToRadians(m_ProjectionFovAngleY), m_Aspect, m_NearZ, m_FarZ) :
+			DirectX::XMMatrixOrthographicOffCenterLH(-m_Aspect, m_Aspect, -1.0f, 1.0f, m_NearZ, m_FarZ));
 }

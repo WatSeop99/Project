@@ -41,6 +41,7 @@ protected:
 
 public:
 	Matrix World;
+	Matrix InverseWorld;
 	Matrix WorldInverseTranspose;
 
 	std::vector<Mesh*> Meshes;

@@ -46,8 +46,9 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		AnimData.BoneParents.resize(totalBoneCount, -1);
 
 		Matrix globalTransform; // Initial transformation.
-		AnimData.GlobalTransforms.resize(totalBoneCount);
-		AnimData.InverseGlobalTransforms.resize(totalBoneCount);
+		// AnimData.GlobalTransforms.resize(totalBoneCount);
+		// AnimData.InverseGlobalTransforms.resize(totalBoneCount);
+		AnimData.InverseRootGlobalTransform = Matrix(&pSCENE->mRootNode->mTransformation.a1).Transpose();
 		processNode(pSCENE->mRootNode, pSCENE, globalTransform);
 
 		// 애니메이션 정보 읽기.
@@ -55,6 +56,8 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		{
 			readAnimation(pSCENE);
 		}
+
+		// AnimData.AccumulatedRootTransform = AnimData.OffsetMatrices[0];
 
 		updateTangents();
 	}
@@ -145,8 +148,8 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 	{
 		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
 		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
-		AnimData.GlobalTransforms[BONE_ID] = globalTransform;
-		AnimData.InverseGlobalTransforms[BONE_ID] = globalTransform.Invert();
+		// AnimData.GlobalTransforms[BONE_ID] = globalTransform;
+		// AnimData.InverseGlobalTransforms[BONE_ID] = globalTransform.Invert();
 	}
 
 

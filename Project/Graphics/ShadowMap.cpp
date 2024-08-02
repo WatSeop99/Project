@@ -23,8 +23,8 @@ void ShadowMap::Initialize(Renderer* pRenderer, UINT lightType)
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	ZeroMemory(&dsvDesc, sizeof(D3D12_DEPTH_STENCIL_VIEW_DESC));
 	ZeroMemory(&srvDesc, sizeof(D3D12_SHADER_RESOURCE_VIEW_DESC));
 
@@ -197,17 +197,19 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 	_ASSERT(m_pRenderer);
 
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
-	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
+
+	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	ConstantBufferPool* pShadowConstantBufferGSPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ShadowConstant);
 	ConstantBufferPool* pShadowConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_GlobalConstant);
-	const UINT DSV_DESCRIPTOR_SIZE = pResourceManager->m_DSVDescriptorSize;
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT DSV_DESCRIPTOR_SIZE = pResourceManager->DSVDescriptorSize;
+	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle;
 	ID3D12Resource* pDepthStencilResource = nullptr;
-	CD3DX12_RESOURCE_BARRIER beforeBarrier;
-	CD3DX12_RESOURCE_BARRIER afterBarrier;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle = {};
+
+	CD3DX12_RESOURCE_BARRIER beforeBarrier = {};
+	CD3DX12_RESOURCE_BARRIER afterBarrier = {};
 	eRenderPSOType pso;
 
 	setShadowViewport(pCommandList);
@@ -234,6 +236,7 @@ void ShadowMap::Render(std::vector<Model*>* pRenderObjects)
 			break;
 
 		default:
+			__debugbreak();
 			break;
 	}
 	_ASSERT(pDepthStencilResource);

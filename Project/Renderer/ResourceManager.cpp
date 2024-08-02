@@ -11,10 +11,10 @@ void ResourceManager::Initialize(Renderer* pRenderer)
 	m_pDevice = pRenderer->GetD3DDevice();
 	m_pCommandQueue = pRenderer->GetCommandQueue();
 
-	m_RTVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	m_DSVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	m_CBVSRVUAVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	m_SamplerDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	RTVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	DSVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	CBVSRVUAVDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	SamplerDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
 	{
 		HRESULT hr = S_OK;
@@ -565,17 +565,14 @@ void ResourceManager::Cleanup()
 	m_pSpecularTexture = nullptr;
 	m_pBRDFTexture = nullptr;
 
-	m_GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
+	GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
 
-	m_RTVDescriptorSize = 0;
-	m_DSVDescriptorSize = 0;
-	m_CBVSRVUAVDescriptorSize = 0;
-	m_SamplerDescriptorSize = 0;
+	RTVDescriptorSize = 0;
+	DSVDescriptorSize = 0;
+	CBVSRVUAVDescriptorSize = 0;
+	SamplerDescriptorSize = 0;
 
-	m_RTVHeapSize = 0;
-	m_DSVHeapSize = 0;
-	m_CBVSRVUAVHeapSize = 0;
-	m_SamplerHeapSize = 0;
+	SamplerHeapSize = 0;
 
 	SAFE_RELEASE(m_pDefaultSolidPSO);
 	SAFE_RELEASE(m_pSkinnedSolidPSO);
@@ -708,39 +705,39 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pGlobalCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[0]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[2]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pEnvTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pIrradianceTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pSpecularTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBRDFTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 		}
 		break;
 
@@ -766,39 +763,39 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pReflectionCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[0]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[2]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pEnvTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pIrradianceTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pSpecularTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBRDFTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 		}
 		break;
 
@@ -817,39 +814,39 @@ void ResourceManager::SetCommonState(eRenderPSOType psoState)
 			memcpy(pLightConstMem, m_pLightConstantData, sizeof(LightConstant));
 
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBVSRVUAVDescriptorSize);
 			
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[0]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[2]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pEnvTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pIrradianceTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pSpecularTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBRDFTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 		}
 		break;
 
@@ -1091,43 +1088,43 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			memcpy(pLightConstMem, m_pLightConstantData, sizeof(LightConstant));
 
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBVSRVUAVDescriptorSize);
 			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pGlobalCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[0]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[2]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pEnvTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pIrradianceTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pSpecularTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBRDFTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 		}
 		break;
 
@@ -1149,43 +1146,43 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			memcpy(pLightConstMem, m_pLightConstantData, sizeof(LightConstant));
 
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBVSRVUAVDescriptorSize);
 			
 			// b0
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pReflectionCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pReflectionCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[0]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[2]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pEnvTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pIrradianceTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pSpecularTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBRDFTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 		}
 		break;
 
@@ -1204,39 +1201,39 @@ void ResourceManager::SetCommonState(UINT threadIndex, ID3D12GraphicsCommandList
 			memcpy(pLightConstMem, m_pLightConstantData, sizeof(LightConstant));
 
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, m_CBVSRVUAVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE dstHandle(cpuDescriptorTable, 0, CBVSRVUAVDescriptorSize);
 			
 			// b1
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, pLightCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			// t8 ~ t16
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[1]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
-			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			m_pDevice->CopyDescriptorsSimple(1, dstHandle, NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[0]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_ppLightShadowMaps[2]->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pEnvTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pIrradianceTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pSpecularTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 
 			m_pDevice->CopyDescriptorsSimple(1, dstHandle, m_pBRDFTexture->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			dstHandle.Offset(1, m_CBVSRVUAVDescriptorSize);
+			dstHandle.Offset(1, CBVSRVUAVDescriptorSize);
 		}
 		break;
 
@@ -1536,28 +1533,28 @@ void ResourceManager::initSamplers()
 	CD3DX12_CPU_DESCRIPTOR_HANDLE samplerStartHandle(m_pSamplerHeap->GetCPUDescriptorHandleForHeapStart());
 
 	m_pDevice->CreateSampler(&samplerLinearWrapDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerLinearClampDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerPointWrapDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerPointClampDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerShadowPointDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerShadowLinearDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerShadowCompareDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 
 	m_pDevice->CreateSampler(&samplerLinearMirrorDesc, samplerStartHandle);
-	samplerStartHandle.Offset(1, m_SamplerDescriptorSize);
+	samplerStartHandle.Offset(1, SamplerDescriptorSize);
 }
 
 void ResourceManager::initRasterizerStateDescs()

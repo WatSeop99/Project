@@ -37,27 +37,13 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		}
 		PrevKeyPos = key.Position;
 
-		//if (frame != 0)
-		//{
-		//	AccumulatedRootTransform = (Matrix::CreateTranslation(key.Position - PrevPos) * AccumulatedRootTransform); // root 뼈의 변환을 누적시킴.
-		//}
-		//else
-		//{
-
-		//	Vector3 rootBoneTranslation = AccumulatedRootTransform.Translation();
-		//	rootBoneTranslation.y = key.Position.y - 8.0f;
-		//	AccumulatedRootTransform.Translation(rootBoneTranslation);
-		//}
-
-		//PrevPos = key.Position;
-		//// key.Position = Vector3(0.0f);
-
 		Quaternion newRot = Quaternion::Concatenate(key.Rotation, key.IKUpdateRotation);
 		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(key.Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX;
 		key.IKUpdateRotation = Quaternion();
 	}
 
 	// 나머지 bone transform 업데이트.
+	// bone id가 부모->자식 순으로 선형적으로 저장되어 있기에 가능함.
 	for (UINT64 boneID = 1, totalTransformSize = BoneTransforms.size(); boneID < totalTransformSize; ++boneID)
 	{
 		std::vector<AnimationClip::Key>& keys = clip.Keys[boneID];
@@ -86,6 +72,11 @@ void AnimationData::ResetAllUpdateRotationInClip(const int CLIP_ID)
 	}
 }
 
+Matrix AnimationData::Get(const int BONE_ID)
+{
+	return (InverseDefaultTransform * OffsetMatrices[BONE_ID] * BoneTransforms[BONE_ID] * InverseRootGlobalTransform * DefaultTransform);
+}
+
 Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME)
 {
 	AnimationClip& clip = Clips[CLIP_ID];
@@ -100,8 +91,7 @@ Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, con
 	const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 	AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-	// return InverseDefaultTransform * OffsetMatrices[ROOT_BONE_ID] * Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX * DefaultTransform;
-	return InverseDefaultTransform * OffsetMatrices[ROOT_BONE_ID] * Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX * DefaultTransform;
+	return InverseDefaultTransform * OffsetMatrices[ROOT_BONE_ID] * Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX * InverseRootGlobalTransform * DefaultTransform;
 }
 
 Joint::Joint()

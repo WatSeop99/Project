@@ -47,12 +47,12 @@ int App::Run()
 			static UINT64 s_PrevFrameCheckTick = 0;
 
 			float frameTime = (float)m_Timer.GetElapsedSeconds();
-			float frameChange = frameTime;
+			// float frameChange = frameTime;
 			UINT64 curTick = GetTickCount64();
 
 			++s_FrameCount;
 
-			Update(frameChange);
+			Update(frameTime);
 			Render();
 
 			s_PrevUpdateTick = curTick;
@@ -61,7 +61,7 @@ int App::Run()
 				s_PrevFrameCheckTick = curTick;
 
 				WCHAR txt[64];
-				swprintf_s(txt, L"DX12  %uFPS", s_FrameCount);
+				swprintf_s(txt, 64, L"DX12  %uFPS", s_FrameCount);
 				SetWindowText(m_hMainWindow, txt);
 
 				s_FrameCount = 0;
@@ -363,8 +363,8 @@ void App::initExternalData()
 		}
 
 		// Vector3 center(0.0f, 0.5f, 2.0f);
-		Vector3 center(0.0f, 1.0f, 5.0f);
-		// Vector3 center(0.0f, 0.0f, 5.0f);
+		// Vector3 center(0.0f, 1.0f, 5.0f);
+		Vector3 center(0.0f, 0.5f, 5.0f);
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];
@@ -372,11 +372,10 @@ void App::initExternalData()
 			materialConstantData.AlbedoFactor = Vector3(1.0f);
 			materialConstantData.RoughnessFactor = 0.8f;
 			materialConstantData.MetallicFactor = 0.0f;
-
 		}
 		m_pCharacter->Name = "MainCharacter";
 		m_pCharacter->bIsPickable = true;
-		m_pCharacter->UpdateWorld(Matrix::CreateScale(1.0f) * Matrix::CreateTranslation(center));
+		m_pCharacter->UpdateWorld(Matrix::CreateTranslation(center));
 		m_pCharacter->CharacterAnimationData.Position = center;
 		m_pCharacter->CharacterAnimationData.AccumulatedRootTransform.Translation(center);
 		m_RenderObjects.push_back((Model*)m_pCharacter);
@@ -710,11 +709,11 @@ void App::updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshMod
 
 	rightFootPosVec = Vector3::Transform(rightFootPosVec, correction);
 	leftFootPosVec = Vector3::Transform(leftFootPosVec, correction);
-	{
+	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPosVec.x, rightFootPosVec.y, rightFootPosVec.z, leftFootPosVec.x, leftFootPosVec.y, leftFootPosVec.z);
 		OutputDebugStringA(szDebugString);
-	}
+	}*/
 
 	pUpdateInfo->bUpdatedJointParts[SkinnedMeshModel::JointPart_RightLeg] = true;
 	pUpdateInfo->bUpdatedJointParts[SkinnedMeshModel::JointPart_LeftLeg] = true;
@@ -749,10 +748,12 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	physx::PxRigidDynamic* pRightFoot = pCharacter->pRightFoot;
 	physx::PxRigidDynamic* pLeftFoot = pCharacter->pLeftFoot;
 
-	Matrix correction = Matrix::CreateTranslation(Vector3(-0.23f, 0.0f, 0.0f));
+	Matrix correction = Matrix::CreateTranslation(Vector3(-0.24f, 0.0f, 0.0f));
 
 	Vector3 rightFootPos = (correction * pCharacter->RightLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	// Vector3 rightFootPos = (pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
 	Vector3 leftFootPos = (correction * pCharacter->LeftLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	// Vector3 leftFootPos = (pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
 	
 	physx::PxRaycastBuffer hit;
 	physx::PxVec3 rayOrigin1 = physx::PxVec3(rightFootPos.x, rightFootPos.y - 0.5f, rightFootPos.z);

@@ -25,13 +25,14 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 	_ASSERT(m_SRVHandles.size() > 0);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pManager = pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = pRenderer->GetConstantBufferManager();
+
 	ID3D12Device5* pDevice = pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pImageFilterConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
@@ -59,7 +60,6 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 			dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 			// b4
-			// pDevice->CopyDescriptorsSimple(1, dstHandle, m_ConstantBuffer.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			pDevice->CopyDescriptorsSimple(1, dstHandle, pImageFilterCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->ResourceBarrier(1, &BARRIER);
@@ -88,7 +88,6 @@ void ImageFilter::BeforeRender(Renderer* pRenderer, eRenderPSOType psoSetting, U
 			dstHandle.Offset(1, CBV_SRV_UAV_DESCRIPTOR_SIZE);
 
 			// b4
-			// pDevice->CopyDescriptorsSimple(1, dstHandle, m_ConstantBuffer.GetCBVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			pDevice->CopyDescriptorsSimple(1, dstHandle, pImageFilterCB->CBVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
@@ -115,7 +114,7 @@ void ImageFilter::BeforeRender(UINT threadIndex, ID3D12GraphicsCommandList* pCom
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ConstantBufferPool* pImageFilterConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_ImageFilterConstant);
-	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_UAV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
@@ -190,7 +189,6 @@ void ImageFilter::AfterRender(Renderer* pRenderer, eRenderPSOType psoSetting, UI
 	_ASSERT(m_RTVHandles.size() > 0);
 	_ASSERT(m_SRVHandles.size() > 0);
 
-	ResourceManager* pManager = pRenderer->GetResourceManager();
 	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
 
 	switch (psoSetting)
@@ -256,7 +254,7 @@ void ImageFilter::SetSRVOffsets(Renderer* pRenderer, const std::vector<ImageReso
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pSRVHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_CPU_DESCRIPTOR_HANDLE startSrvHandle(srvHandle);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
 	m_SRVHandles.clear();
 	m_SRVHandles.resize(SRVs.size());
@@ -276,7 +274,7 @@ void ImageFilter::SetRTVOffsets(Renderer* pRenderer, const std::vector<ImageReso
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_CPU_DESCRIPTOR_HANDLE startRtvHandle(rtvHandle);
-	const UINT RTV_DESCRIPTOR_SIZE = pResourceManager->m_RTVDescriptorSize;
+	const UINT RTV_DESCRIPTOR_SIZE = pResourceManager->RTVDescriptorSize;
 
 	m_RTVHandles.clear();
 	m_RTVHandles.resize(RTVs.size());

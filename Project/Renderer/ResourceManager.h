@@ -60,22 +60,19 @@ protected:
 	void initShaders();
 
 public:
-	D3D12_CPU_DESCRIPTOR_HANDLE m_NullSRVDescriptor = { 0xffffffff, };
+	D3D12_CPU_DESCRIPTOR_HANDLE NullSRVDescriptor = { 0xffffffff, };
 
 	ID3D12DescriptorHeap* m_pSamplerHeap = nullptr;
 
-	UINT m_RTVDescriptorSize = 0;
-	UINT m_DSVDescriptorSize = 0;
-	UINT m_CBVSRVUAVDescriptorSize = 0;
-	UINT m_SamplerDescriptorSize = 0;
+	UINT RTVDescriptorSize = 0;
+	UINT DSVDescriptorSize = 0;
+	UINT CBVSRVUAVDescriptorSize = 0;
+	UINT SamplerDescriptorSize = 0;
 
-	UINT m_RTVHeapSize = 0;
-	UINT m_DSVHeapSize = 0;
-	UINT m_CBVSRVUAVHeapSize = 0;
-	UINT m_SamplerHeapSize = 0;
+	UINT SamplerHeapSize = 0;
 
 	// descriptor set 편의를 위한 offset 저장 용도.
-	UINT m_GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
+	UINT GlobalShaderResourceViewStartOffset = 0xffffffff; // t8 ~ t16
 
 private:
 	Renderer* m_pRenderer = nullptr;

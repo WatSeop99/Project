@@ -142,8 +142,7 @@ void PostProcessor::Render(UINT frameIndex)
 {
 	_ASSERT(m_pRenderer);
 
-	ResourceManager* pManager = m_pRenderer->GetResourceManager();
-	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
+	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 
 	pCommandList->RSSetViewports(1, &m_Viewport);
@@ -154,7 +153,7 @@ void PostProcessor::Render(UINT frameIndex)
 	pCommandList->IASetIndexBuffer(&m_pScreenMesh->Index.IndexBufferView);
 
 	// basic sampling.
-	pManager->SetCommonState(RenderPSOType_Sampling);
+	pResourceManager->SetCommonState(RenderPSOType_Sampling);
 	renderImageFilter(m_BasicSamplingFilter, RenderPSOType_Sampling, frameIndex);
 
 	// post processing.
@@ -167,8 +166,6 @@ void PostProcessor::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommand
 	_ASSERT(pDescriptorPool);
 	_ASSERT(pConstantBufferManager);
 	_ASSERT(pManager);
-
-	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 
 	pCommandList->RSSetViewports(1, &m_Viewport);
 	pCommandList->RSSetScissorRects(1, &m_ScissorRect);
@@ -198,13 +195,13 @@ void PostProcessor::Cleanup()
 
 	if (m_ResolvedRTVOffset != 0xffffffff)
 	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_ResolvedRTVOffset, pResourceManager->m_RTVDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_ResolvedRTVOffset, pResourceManager->RTVDescriptorSize);
 		m_pRenderer->GetRTVAllocator()->FreeDescriptorHandle(rtvHandle);
 		m_ResolvedRTVOffset = 0xffffffff;
 	}
 	if (m_ResolvedSRVOffset != 0xffffffff)
 	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), m_ResolvedSRVOffset, pResourceManager->m_CBVSRVUAVDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), m_ResolvedSRVOffset, pResourceManager->CBVSRVUAVDescriptorSize);
 		m_pRenderer->GetSRVUAVAllocator()->FreeDescriptorHandle(srvHandle);
 		m_ResolvedSRVOffset = 0xffffffff;
 	}
@@ -216,13 +213,13 @@ void PostProcessor::Cleanup()
 
 		if (pImageResource->RTVOffset != 0xffffffff)
 		{
-			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), pImageResource->RTVOffset, pResourceManager->m_RTVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), pImageResource->RTVOffset, pResourceManager->RTVDescriptorSize);
 			m_pRenderer->GetRTVAllocator()->FreeDescriptorHandle(rtvHandle);
 			pImageResource->RTVOffset = 0xffffffff;
 		}
 		if (pImageResource->SRVOffset != 0xffffffff)
 		{
-			CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pImageResource->SRVOffset, pResourceManager->m_CBVSRVUAVDescriptorSize);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pImageResource->SRVOffset, pResourceManager->CBVSRVUAVDescriptorSize);
 			m_pRenderer->GetSRVUAVAllocator()->FreeDescriptorHandle(srvHandle);
 			pImageResource->SRVOffset = 0xffffffff;
 		}
@@ -277,14 +274,8 @@ void PostProcessor::createPostBackBuffers()
 	_ASSERT(m_pRenderer);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
-	ID3D12DescriptorHeap* pRTVHeap = m_pRenderer->GetRTVAllocator()->GetDescriptorHeap();
-	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
-	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(pCBVSRVHeap->GetCPUDescriptorHandleForHeapStart(), pResourceManager->m_CBVSRVUAVHeapSize, pResourceManager->m_CBVSRVUAVDescriptorSize);
-
+	
 	D3D12_RESOURCE_DESC resourceDesc = {};
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	resourceDesc.Alignment = 0;
@@ -310,6 +301,9 @@ void PostProcessor::createPostBackBuffers()
 	m_pResolvedBuffer->SetName(L"ResolvedBuffer");
 
 
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
+	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle = {};
+
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.Format = resourceDesc.Format;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -318,7 +312,6 @@ void PostProcessor::createPostBackBuffers()
 
 	m_ResolvedRTVOffset = m_pRenderer->GetRTVAllocator()->AllocDescriptorHandle(&rtvHandle);
 	pDevice->CreateRenderTargetView(m_pResolvedBuffer, &rtvDesc, rtvHandle);
-
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = resourceDesc.Format;
@@ -338,13 +331,8 @@ void PostProcessor::createImageResources(const int WIDTH, const int HEIGHT, Imag
 	_ASSERT(pImageResource);
 
 	HRESULT hr = S_OK;
-	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
-	ID3D12DescriptorHeap* pRTVHeap = m_pRenderer->GetRTVAllocator()->GetDescriptorHeap();
-	ID3D12DescriptorHeap* pCBVSRVHeap = m_pRenderer->GetSRVUAVAllocator()->GetDescriptorHeap();
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
-	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle = {};
+	
 	static int s_ResourceCount = 0;
 
 	D3D12_RESOURCE_DESC resourceDesc = {};
@@ -375,6 +363,9 @@ void PostProcessor::createImageResources(const int WIDTH, const int HEIGHT, Imag
 	pImageResource->pResource->SetName(szDebugName);
 
 
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
+	CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle = {};
+
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.Format = resourceDesc.Format;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -383,7 +374,6 @@ void PostProcessor::createImageResources(const int WIDTH, const int HEIGHT, Imag
 
 	pImageResource->RTVOffset = m_pRenderer->GetRTVAllocator()->AllocDescriptorHandle(&rtvHandle);
 	pDevice->CreateRenderTargetView(pImageResource->pResource, &rtvDesc, rtvHandle);
-
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = resourceDesc.Format;
@@ -401,7 +391,7 @@ void PostProcessor::renderPostProcessing(UINT frameIndex)
 {
 	_ASSERT(m_pRenderer);
 
-	ResourceManager* pManager = m_pRenderer->GetResourceManager();
+	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 
 	// bloom pass.
@@ -417,7 +407,7 @@ void PostProcessor::renderPostProcessing(UINT frameIndex)
 	}*/
 
 	// combine pass
-	pManager->SetCommonState(RenderPSOType_Combine);
+	pResourceManager->SetCommonState(RenderPSOType_Combine);
 	renderImageFilter(m_CombineFilter, RenderPSOType_Combine, frameIndex);
 
 	const CD3DX12_RESOURCE_BARRIER BEFORE_BARRIERs[2] =
@@ -469,7 +459,6 @@ void PostProcessor::renderImageFilter(ImageFilter& imageFilter, eRenderPSOType p
 {
 	_ASSERT(m_pRenderer);
 
-	ResourceManager* pManager = m_pRenderer->GetResourceManager();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 
 	imageFilter.BeforeRender(m_pRenderer, psoSetting, frameIndex);

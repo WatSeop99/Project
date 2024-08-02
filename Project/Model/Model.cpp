@@ -29,10 +29,11 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 	m_pRenderer = pRenderer;
 
 	HRESULT hr = S_OK;
-	struct _stat64 sourceFileStat;
+	struct _stat64 sourceFileStat = {};
 
 	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
 	TextureManager* pTextureManager = pRenderer->GetTextureManager();
+	
 	ID3D12Device5* pDevice = pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = pRenderer->GetCommandList();
 
@@ -69,8 +70,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szAlbedoTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szAlbedoTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 		if (!MESH_DATA.szEmissiveTextureFileName.empty())
@@ -84,8 +86,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szEmissiveTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szEmissiveTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 		if (!MESH_DATA.szNormalTextureFileName.empty())
@@ -99,8 +102,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szNormalTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szNormalTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 		if (!MESH_DATA.szHeightTextureFileName.empty())
@@ -114,8 +118,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szHeightTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szHeightTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 		if (!MESH_DATA.szAOTextureFileName.empty())
@@ -129,8 +134,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szAOTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szAOTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 		if (!MESH_DATA.szMetallicTextureFileName.empty())
@@ -144,8 +150,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szMetallicTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szMetallicTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 		if (!MESH_DATA.szRoughnessTextureFileName.empty())
@@ -159,8 +166,9 @@ void Model::Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_IN
 			}
 			else
 			{
-				OutputDebugStringW(MESH_DATA.szRoughnessTextureFileName.c_str());
-				OutputDebugStringA(" does not exists. Skip texture reading.\n");
+				WCHAR szDebugString[256];
+				swprintf_s(szDebugString, 256, L"%s does not exists. Skip texture reading.\n", MESH_DATA.szRoughnessTextureFileName.c_str());
+				OutputDebugStringW(szDebugString);
 			}
 		}
 
@@ -201,6 +209,7 @@ void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh
 void Model::UpdateWorld(const Matrix& WORLD)
 {
 	World = WORLD;
+	InverseWorld = WORLD.Invert();
 	WorldInverseTranspose = WORLD;
 	WorldInverseTranspose.Translation(Vector3(0.0f));
 	WorldInverseTranspose = WorldInverseTranspose.Invert().Transpose();
@@ -236,14 +245,14 @@ void Model::Render(eRenderPSOType psoSetting)
 
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = m_pRenderer->GetResourceManager();
+	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ID3D12GraphicsCommandList* pCommandList = m_pRenderer->GetCommandList();
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
-	ConstantBufferManager* pConstantBufferManager = m_pRenderer->GetConstantBufferManager();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
@@ -290,7 +299,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -300,7 +309,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -310,7 +319,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -320,7 +329,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -330,7 +339,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -340,7 +349,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -351,7 +360,7 @@ void Model::Render(eRenderPSOType psoSetting)
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 
 				pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
@@ -397,10 +406,11 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 	_ASSERT(pConstantBufferManager);
 
 	HRESULT hr = S_OK;
+	
 	ID3D12Device5* pDevice = m_pRenderer->GetD3DDevice();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pManager->CBVSRVUAVDescriptorSize;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
 	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuDescriptorTable = {};
@@ -447,7 +457,7 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -457,7 +467,7 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -467,7 +477,7 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -477,7 +487,7 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -487,7 +497,7 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
@@ -497,19 +507,18 @@ void Model::Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, Dy
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 				// t6
-				// pDevice->CopyDescriptorsSimple(1, dstHandle, pCurMesh->Material.Height.GetSRVHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				if (pMeshMaterialTextures->pHeight)
 				{
 					pDevice->CopyDescriptorsSimple(1, dstHandle, pMeshMaterialTextures->pHeight->SRVHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 				else
 				{
-					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					pDevice->CopyDescriptorsSimple(1, dstHandle, pManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
 
 				pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
@@ -561,7 +570,7 @@ void Model::RenderBoundingBox(eRenderPSOType psoSetting)
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -591,7 +600,7 @@ void Model::RenderBoundingBox(eRenderPSOType psoSetting)
 	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 	// t6(null)
-	pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 
@@ -614,7 +623,7 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 	DynamicDescriptorPool* pDynamicDescriptorPool = m_pRenderer->GetDynamicDescriptorPool();
 	ConstantBufferPool* pMeshConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Mesh);
 	ConstantBufferPool* pMaterialConstantBufferPool = pConstantBufferManager->GetConstantBufferPool(ConstantBufferType_Material);
-	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->m_CBVSRVUAVDescriptorSize;
+	const UINT CBV_SRV_DESCRIPTOR_SIZE = pResourceManager->CBVSRVUAVDescriptorSize;
 
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorTable = {};
@@ -644,7 +653,7 @@ void Model::RenderBoundingSphere(eRenderPSOType psoSetting)
 	dstHandle.Offset(1, CBV_SRV_DESCRIPTOR_SIZE);
 
 	// t6(null)
-	pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->m_NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	pDevice->CopyDescriptorsSimple(1, dstHandle, pResourceManager->NullSRVDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	pCommandList->SetGraphicsRootDescriptorTable(0, gpuDescriptorTable);
 
@@ -724,10 +733,11 @@ void Model::initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS)
 	}
 
 	MeshInfo meshData = INIT_MESH_INFO;
-	MakeWireBox(&meshData, BoundingBox.Center, Vector3(BoundingBox.Extents) + Vector3(1e-3f));
+	// MakeWireBox(&meshData, BoundingBox.Center, Vector3(BoundingBox.Extents) + Vector3(1e-3f));
+	MakeWireBox(&meshData, Vector3(0.0f), Vector3(BoundingBox.Extents) + Vector3(1e-3f));
+	
 	m_pBoundingBoxMesh = new Mesh;
-
-	m_pBoundingBoxMesh->MeshConstantData.World = Matrix();
+	m_pBoundingBoxMesh->Initialize();
 
 	InitMeshBuffers(m_pRenderer, meshData, m_pBoundingBoxMesh);
 }
@@ -749,10 +759,10 @@ void Model::initBoundingSphere(const std::vector<MeshInfo>& MESH_INFOS)
 	BoundingSphere = DirectX::BoundingSphere(BoundingBox.Center, maxRadius);
 
 	MeshInfo meshData = INIT_MESH_INFO;
-	MakeWireSphere(&meshData, BoundingSphere.Center, BoundingSphere.Radius);
+	MakeWireSphere(&meshData, Vector3(0.0f), BoundingSphere.Radius);
+	
 	m_pBoundingSphereMesh = new Mesh;
-
-	m_pBoundingSphereMesh->MeshConstantData.World = Matrix();
+	m_pBoundingSphereMesh->Initialize();
 
 	InitMeshBuffers(m_pRenderer, meshData, m_pBoundingSphereMesh);
 }
