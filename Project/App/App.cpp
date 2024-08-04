@@ -573,7 +573,7 @@ void App::initExternalData()
 			UINT baseIndex = i * 24;
 			UINT inds[36] = 
 			{
-				baseIndex,		baseIndex + 2,	baseIndex + 1,  baseIndex,		baseIndex + 3,  baseIndex + 2,			// À­¸é
+				baseIndex,		baseIndex + 2,	baseIndex + 1,  baseIndex,		baseIndex + 3,  baseIndex + 2,	// À­¸é
 				baseIndex + 4,  baseIndex + 6,	baseIndex + 5,  baseIndex + 4,  baseIndex + 7,	baseIndex + 6,	// ¾Æ·§¸é
 				baseIndex + 8,  baseIndex + 10, baseIndex + 9,	baseIndex + 8,  baseIndex + 11, baseIndex + 10, // ¾Õ¸é
 				baseIndex + 12, baseIndex + 14, baseIndex + 13, baseIndex + 12, baseIndex + 15, baseIndex + 14, // µÞ¸é

@@ -851,16 +851,13 @@ void SkinnedMeshModel::initBoundingCapsule()
 void SkinnedMeshModel::initJointSpheres()
 {
 	MeshInfo meshData = INIT_MESH_INFO;
-	MeshConstant* pMeshConst = nullptr;
-	MaterialConstant* pMaterialConst = nullptr;
-
-	// for chain debugging.
 	MakeWireSphere(&meshData, Vector3(0.0f), 0.03f);
 	/*RightHandMiddle.Radius = 0.03f + 1e-3f;
 	LeftHandMiddle.Radius = 0.03f + 1e-3f;
 	RightToe.Radius = 0.03f + 1e-3f;
 	LeftToe.Radius = 0.03f + 1e-3f;*/
 
+	// for chain debugging.
 	for (int i = 0; i < 4; ++i)
 	{
 		Mesh** ppRightArmPart = &m_ppRightArm[i];
@@ -1083,12 +1080,12 @@ void SkinnedMeshModel::updateChainPosition()
 		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
 		// pRightArmPart->Position = (pRightArmPart->Correction * CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Translation();
-		pRightArmPart->Position = (CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Translation();
 		// pLeftArmPart->Position = (pLeftArmPart->Correction * CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Translation();
-		pLeftArmPart->Position = (CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Translation();
 		// pRightLegPart->Position = (pRightLegPart->Correction * CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Translation();
-		pRightLegPart->Position = (CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Translation();
 		// pLeftLegPart->Position = (pLeftLegPart->Correction * CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Translation();
+		pRightArmPart->Position = (CharacterAnimationData.Get(pRightArmPart->BoneID) * World).Translation();
+		pLeftArmPart->Position = (CharacterAnimationData.Get(pLeftArmPart->BoneID) * World).Translation();
+		pRightLegPart->Position = (CharacterAnimationData.Get(pRightLegPart->BoneID) * World).Translation();
 		pLeftLegPart->Position = (CharacterAnimationData.Get(pLeftLegPart->BoneID) * World).Translation();
 	}
 }
@@ -1146,11 +1143,12 @@ void SkinnedMeshModel::updateJointSpheres(int clipID, int frame)
 	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
 	{
-		Matrix transform = CharacterAnimationData.Get(RightArm.BodyChain[3].BoneID);
-		Vector3 pos = transform.Translation();
+		Matrix modelTransform = CharacterAnimationData.Get(RightArm.BodyChain[3].BoneID);
+		Vector3 modelPos = modelTransform.Translation();
+		Vector3 pos = RightArm.BodyChain[3].Position;
 
 		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "righthand center in model space: %f, %f, %f\n", pos.x, pos.y, pos.z);
+		sprintf_s(szDebugString, 256, "righthand center in model space: %f, %f, %f\n", modelPos.x, modelPos.y, modelPos.z);
 		OutputDebugStringA(szDebugString);
 		sprintf_s(szDebugString, 256, "righthand center: %f, %f, %f\n", RightHandMiddle.Center.x, RightHandMiddle.Center.y, RightHandMiddle.Center.z);
 		OutputDebugStringA(szDebugString);
@@ -1159,16 +1157,16 @@ void SkinnedMeshModel::updateJointSpheres(int clipID, int frame)
 
 void SkinnedMeshModel::solveCharacterIK(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)
 {
-	for (int JointPart = 0; JointPart < JointPart_TotalJointParts; ++JointPart)
+	for (int jointPart = 0; jointPart < JointPart_TotalJointParts; ++jointPart)
 	{
-		if (!pUpdateInfo->bUpdatedJointParts[JointPart])
+		if (!pUpdateInfo->bUpdatedJointParts[jointPart])
 		{
 			continue;
 		}
 
-		Vector3 targetPos(pUpdateInfo->EndEffectorTargetPoses[JointPart]);
+		Vector3 targetPos(pUpdateInfo->EndEffectorTargetPoses[jointPart]);
 
-		switch (JointPart)
+		switch (jointPart)
 		{
 			case JointPart_RightArm:
 				RightArm.SolveIK(targetPos, clipID, frame, DELTA_TIME);
