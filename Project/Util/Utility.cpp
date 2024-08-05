@@ -277,6 +277,24 @@ float Max(float x, float y)
 	return (x > y ? x : y);
 }
 
+Vector3 Min(const Vector3& V1, const Vector3& V2)
+{
+	DirectX::XMVECTOR v1 = DirectX::XMLoadFloat3(&V1);
+	DirectX::XMVECTOR v2 = DirectX::XMLoadFloat3(&V2);
+	DirectX::XMVECTOR ret = DirectX::XMVectorMin(v1, v2);
+
+	return Vector3(ret);
+}
+
+Vector3 Max(const Vector3& V1, const Vector3& V2)
+{
+	DirectX::XMVECTOR v1 = DirectX::XMLoadFloat3(&V1);
+	DirectX::XMVECTOR v2 = DirectX::XMLoadFloat3(&V2);
+	DirectX::XMVECTOR ret = DirectX::XMVectorMax(v1, v2);
+
+	return Vector3(ret);
+}
+
 float Clamp(float x, float upper, float lower)
 {
 	return Max(lower, Min(x, upper));

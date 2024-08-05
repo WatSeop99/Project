@@ -20,7 +20,7 @@ public:
 	};
 
 public:
-	SkinnedMeshModel(Renderer* pRenderer, const std::vector<MeshInfo>& MESHES, const AnimationData& ANIM_DATA);
+	SkinnedMeshModel();
 	~SkinnedMeshModel() { Cleanup(); }
 
 	void Initialize(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS, const AnimationData& ANIM_DATA);
@@ -28,7 +28,7 @@ public:
 	void InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh** ppNewMesh);
 	void InitAnimationData(Renderer* pRenderer, const AnimationData& ANIM_DATA);
 
-	void UpdateAnimation(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
+	void UpdateAnimation(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 	
 	void Render(eRenderPSOType psoSetting) override;
 	void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting) override;
@@ -48,9 +48,9 @@ protected:
 	void initChain();
 
 	void updateChainPosition();
-	void updateJointSpheres(int clipID, int frame);
+	void updateJointSpheres(const int CLIP_ID, const int FRAME);
 
-	void solveCharacterIK(int clipID, int frame, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
+	void solveCharacterIK(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 
 public:
 	TextureHandle* pBoneTransform = nullptr;
@@ -69,7 +69,6 @@ public:
 	physx::PxCapsuleController* pController = nullptr;
 	physx::PxRigidDynamic* pRightFoot = nullptr;
 	physx::PxRigidDynamic* pLeftFoot = nullptr;
-	// physx::PxRigidDynamic* pBoundingCapsule = nullptr;
 
 private:
 	Mesh* m_ppRightArm[4] = { nullptr, }; // right arm - right fore arm - right hand - right hand middle.

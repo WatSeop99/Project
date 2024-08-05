@@ -46,9 +46,6 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		AnimData.BoneParents.resize(totalBoneCount, -1);
 
 		Matrix globalTransform; // Initial transformation.
-		// AnimData.GlobalTransforms.resize(totalBoneCount);
-		// AnimData.InverseGlobalTransforms.resize(totalBoneCount);
-		AnimData.InverseRootGlobalTransform = Matrix(&pSCENE->mRootNode->mTransformation.a1).Transpose();
 		processNode(pSCENE->mRootNode, pSCENE, globalTransform);
 
 		// 애니메이션 정보 읽기.
@@ -56,8 +53,6 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		{
 			readAnimation(pSCENE);
 		}
-
-		// AnimData.AccumulatedRootTransform = AnimData.OffsetMatrices[0];
 
 		updateTangents();
 	}
@@ -134,12 +129,7 @@ const aiNode* ModelLoader::findParent(const aiNode * pNODE)
 
 void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& transform)
 {
-	// 현재 노드의 global transform 계산.
-	Matrix globalTransform(&pNode->mTransformation.a1);
-	globalTransform = globalTransform.Transpose() * transform;
-
-
-	// 사용되는 부모 뼈를 찾아서 부모의 인덱스와 global transform 저장.
+	// 사용되는 부모 뼈를 찾아서 부모의 인덱스 저장.
 	const aiNode* pPARENT = findParent(pNode->mParent);
 	const char* pNODE_NAME = pNode->mName.C_Str();
 	if (pNode->mParent &&
@@ -148,10 +138,12 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 	{
 		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
 		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
-		// AnimData.GlobalTransforms[BONE_ID] = globalTransform;
-		// AnimData.InverseGlobalTransforms[BONE_ID] = globalTransform.Invert();
+
 	}
 
+	// 현재 노드의 global transform 계산.
+	Matrix globalTransform(&pNode->mTransformation.a1);
+	globalTransform = globalTransform.Transpose() * transform;
 
 	for (UINT i = 0; i < pNode->mNumMeshes; ++i)
 	{

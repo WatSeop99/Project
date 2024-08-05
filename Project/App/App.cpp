@@ -187,9 +187,10 @@ void App::initExternalData()
 	{
 		MeshInfo skyboxMeshInfo = INIT_MESH_INFO;
 		MakeBox(&skyboxMeshInfo, 40.0f);
-
 		std::reverse(skyboxMeshInfo.Indices.begin(), skyboxMeshInfo.Indices.end());
-		Model* pSkybox = new Model(this, { skyboxMeshInfo });
+		
+		Model* pSkybox = new Model;
+		pSkybox->Initialize(this, { skyboxMeshInfo });
 		pSkybox->Name = "SkyBox";
 		pSkybox->ModelType = RenderObjectType_SkyboxType;
 		m_RenderObjects.push_back(pSkybox);
@@ -237,7 +238,8 @@ void App::initExternalData()
 		MeshInfo sphere = INIT_MESH_INFO;
 		MakeSphere(&sphere, 1.0f, 20, 20);
 
-		m_LightSpheres[i] = new Model(this, { sphere });
+		m_LightSpheres[i] = new Model;
+		m_LightSpheres[i]->Initialize(this, { sphere });
 		m_LightSpheres[i]->UpdateWorld(Matrix::CreateTranslation(m_Lights[i].Property.Position));
 
 		MaterialConstant& sphereMaterialConstantData = m_LightSpheres[i]->Meshes[0]->MaterialConstantData;
@@ -280,7 +282,8 @@ void App::initExternalData()
 		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
 		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
 
-		pGround = new Model(this, { mesh });
+		pGround = new Model;
+		pGround->Initialize(this, { mesh });
 
 		MaterialConstant& groundMaterialConstantData = pGround->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
@@ -288,8 +291,6 @@ void App::initExternalData()
 		groundMaterialConstantData.MetallicFactor = 0.5f;
 		groundMaterialConstantData.RoughnessFactor = 0.3f;
 
-		// Vector3 position = Vector3(0.0f, -1.0f, 0.0f);
-		// Vector3 position = Vector3(0.0f, -0.5f, 0.0f);
 		Vector3 position = Vector3(0.0f);
 		pGround->UpdateWorld(Matrix::CreateRotationX(DirectX::XM_PI * 0.5f) * Matrix::CreateTranslation(position));
 		pGround->bCastShadow = false; // 바닥은 그림자 만들기 생략.
@@ -323,6 +324,7 @@ void App::initExternalData()
 	// Main Object.
 	{
 		std::wstring path = L"./Assets/";
+		// std::wstring path = L"./Assets/other/";
 		std::vector<std::wstring> clipNames =
 		{
 			L"CatwalkIdleTwistL.fbx", L"CatwalkIdleToWalkForward.fbx",
@@ -331,6 +333,7 @@ void App::initExternalData()
 		AnimationData animationData;
 
 		std::wstring filename = L"Remy.fbx";
+		// std::wstring filename = L"character.fbx";
 		std::vector<MeshInfo> characterMeshInfo;
 		AnimationData characterDefaultAnimData;
 		ReadAnimationFromFile(characterMeshInfo, characterDefaultAnimData, path, filename);
@@ -353,18 +356,19 @@ void App::initExternalData()
 			}
 		}
 
+		m_pCharacter = new SkinnedMeshModel;
 		if (animationData.Clips.size() > 1)
 		{
-			m_pCharacter = new SkinnedMeshModel(this, characterMeshInfo, animationData);
+			m_pCharacter->Initialize(this, characterMeshInfo, animationData);
 		}
 		else
 		{
-			m_pCharacter = new SkinnedMeshModel(this, characterMeshInfo, characterDefaultAnimData);
+			m_pCharacter->Initialize(this, characterMeshInfo, characterDefaultAnimData);
 		}
 
-		// Vector3 center(0.0f, 0.5f, 2.0f);
-		// Vector3 center(0.0f, 1.0f, 5.0f);
-		Vector3 center(0.0f, 0.5f, 5.0f);
+
+		// Vector3 position(0.0f, 0.5f, 2.0f);
+		Vector3 position(0.0f, 0.5f, 5.0f);
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];
@@ -375,9 +379,9 @@ void App::initExternalData()
 		}
 		m_pCharacter->Name = "MainCharacter";
 		m_pCharacter->bIsPickable = true;
-		m_pCharacter->UpdateWorld(Matrix::CreateTranslation(center));
-		m_pCharacter->CharacterAnimationData.Position = center;
-		m_pCharacter->CharacterAnimationData.AccumulatedRootTransform.Translation(center);
+		m_pCharacter->UpdateWorld(Matrix::CreateTranslation(position));
+		m_pCharacter->CharacterAnimationData.Position = position;
+		m_pCharacter->CharacterAnimationData.AccumulatedRootTransform.Translation(position);
 		m_RenderObjects.push_back((Model*)m_pCharacter);
 		m_Characters.push_back(m_pCharacter);
 
@@ -385,15 +389,14 @@ void App::initExternalData()
 		physx::PxControllerManager* pControlManager = m_pPhysicsManager->GetControllerManager();
 		physx::PxCapsuleController* pController = nullptr;
 
-		// capsule 메시랑 동일하게 설정. 단, 여기서는 y값을 0으로 설정해줘야 함.
+		// capsule 메시랑 동일하게 설정.
 		physx::PxCapsuleControllerDesc capsuleDesc;
 		capsuleDesc.height = (m_pCharacter->BoundingSphere.Radius * 1.3f) - 0.4f;
 		capsuleDesc.radius = 0.2f;
 		capsuleDesc.upDirection = physx::PxVec3(0.0f, 1.0f, 0.0f);
-		// float offset = center.y - (capsuleDesc.height + capsuleDesc.radius);
-		// capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, m_pCharacter->CharacterAnimationData.Position.y - 0.4f, m_pCharacter->CharacterAnimationData.Position.z);
-		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, 2.0f * (capsuleDesc.height + capsuleDesc.radius) - center.y - 0.15f, m_pCharacter->CharacterAnimationData.Position.z);
-		capsuleDesc.contactOffset = 0.0009f;
+		capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, m_pCharacter->CharacterAnimationData.Position.y, m_pCharacter->CharacterAnimationData.Position.z);
+		// capsuleDesc.position = physx::PxExtendedVec3(m_pCharacter->CharacterAnimationData.Position.x, 2.0f * (capsuleDesc.height + capsuleDesc.radius) - center.y - 0.15f, m_pCharacter->CharacterAnimationData.Position.z);
+		capsuleDesc.contactOffset = 0.0001f;
 		capsuleDesc.material = m_pPhysicsManager->pCommonMaterial;
 		capsuleDesc.stepOffset = (capsuleDesc.radius + capsuleDesc.height * 0.5f) * 0.2f;
 		capsuleDesc.climbingMode = physx::PxCapsuleClimbingMode::eCONSTRAINED;
@@ -443,20 +446,21 @@ void App::initExternalData()
 		physx::PxTransform transform1;
 		physx::PxTransform transform2;
 		{
-			Matrix correction = Matrix::CreateTranslation(Vector3(-0.23f, 0.0f, 0.0f));
+			// Matrix correction = Matrix::CreateTranslation(Vector3(-0.23f, 0.0f, 0.0f));
 
-			Matrix forTransform1 = (correction * m_pCharacter->RightLeg.BodyChain[3].Correction * m_pCharacter->CharacterAnimationData.Get(m_pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World);
-			Matrix forTransform2 = (correction * m_pCharacter->LeftLeg.BodyChain[3].Correction * m_pCharacter->CharacterAnimationData.Get(m_pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World);
-			
+			// Matrix forTransform1 = (correction * m_pCharacter->RightLeg.BodyChain[3].Correction * m_pCharacter->CharacterAnimationData.Get(m_pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World);
+			// Matrix forTransform2 = (correction * m_pCharacter->LeftLeg.BodyChain[3].Correction * m_pCharacter->CharacterAnimationData.Get(m_pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World);
+			Matrix forTransform1 = (m_pCharacter->CharacterAnimationData.Get(m_pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World);
+			Matrix forTransform2 = (m_pCharacter->CharacterAnimationData.Get(m_pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World);
+
 			Vector3 transform1Pos = forTransform1.Translation();
 			Vector3 transform2Pos = forTransform2.Translation();
 			Quaternion transform1Quat = Quaternion::CreateFromRotationMatrix(forTransform1);
 			Quaternion transform2Quat = Quaternion::CreateFromRotationMatrix(forTransform2);
 
-			transform1 = physx::PxTransform(physx::PxVec3(transform1Pos.x, transform1Pos.y - 0.5f, transform1Pos.z), physx::PxQuat(transform1Quat.x, transform1Quat.y, transform1Quat.z, transform1Quat.w));
-			transform2 = physx::PxTransform(physx::PxVec3(transform2Pos.x, transform2Pos.y - 0.5f, transform2Pos.z), physx::PxQuat(transform2Quat.x, transform2Quat.y, transform2Quat.z, transform2Quat.w));
+			transform1 = physx::PxTransform(physx::PxVec3(transform1Pos.x, transform1Pos.y, transform1Pos.z), physx::PxQuat(transform1Quat.x, transform1Quat.y, transform1Quat.z, transform1Quat.w));
+			transform2 = physx::PxTransform(physx::PxVec3(transform2Pos.x, transform2Pos.y, transform2Pos.z), physx::PxQuat(transform2Quat.x, transform2Quat.y, transform2Quat.z, transform2Quat.w));
 		}
-		// pRightFoot = pPhysics->createRigidDynamic(physx::PxTransform(0.0f, 0.0f, 3.0f));
 		pRightFoot = pPhysics->createRigidDynamic(transform1);
 		if (!pRightFoot)
 		{
@@ -467,7 +471,6 @@ void App::initExternalData()
 		pRightFoot->userData = malloc(sizeof(eCollisionGroup));
 		memcpy(pRightFoot->userData, &type, sizeof(eCollisionGroup));
 
-		// pLeftFoot = pPhysics->createRigidDynamic(physx::PxTransform(0.0f, 0.0f, 3.0f));
 		pLeftFoot = pPhysics->createRigidDynamic(transform2);
 		if (!pLeftFoot)
 		{
@@ -499,7 +502,8 @@ void App::initExternalData()
 		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
 		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
 
-		pSlope = new Model(this, { mesh });
+		pSlope = new Model;
+		pSlope->Initialize(this, { mesh });
 
 		MaterialConstant& groundMaterialConstantData = pSlope->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
@@ -542,7 +546,8 @@ void App::initExternalData()
 		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
 		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
 
-		pStair = new Model(this, { mesh });
+		pStair = new Model;
+		pStair->Initialize(this, { mesh });
 
 		MaterialConstant& groundMaterialConstantData = pStair->Meshes[0]->MaterialConstantData;
 		groundMaterialConstantData.AlbedoFactor = Vector3(0.7f);
@@ -606,6 +611,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 	_ASSERT(pDeltaPos);
 
 	const UINT64 ANIMATION_CLIP_SIZE = pCharacter->CharacterAnimationData.Clips[s_State].Keys[0].size();
+	const Vector3 GRAVITY(0.0f, -9.81f, 0.0f);
 	switch (s_State)
 	{
 		case 0:
@@ -625,9 +631,9 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 
 		case 1:
 		{
-			*pDeltaPos = pCharacter->CharacterAnimationData.Direction * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
+			*pDeltaPos = (pCharacter->CharacterAnimationData.Direction + GRAVITY) * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
 			pCharacter->CharacterAnimationData.Position += *pDeltaPos;
-			(*pDeltaPos).y -= 0.5f;
+			// (*pDeltaPos).y -= 0.5f;
 
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -656,9 +662,9 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 				pCharacter->CharacterAnimationData.Rotation = Quaternion::Concatenate(pCharacter->CharacterAnimationData.Rotation, newRot);
 			}
 
-			*pDeltaPos = pCharacter->CharacterAnimationData.Direction * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
+			*pDeltaPos = (pCharacter->CharacterAnimationData.Direction + GRAVITY) * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
 			m_pCharacter->CharacterAnimationData.Position += *pDeltaPos;
-			(*pDeltaPos).y -= 0.5f;
+			// (*pDeltaPos).y -= 0.5f;
 
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -674,9 +680,9 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 
 		case 3:
 		{
-			*pDeltaPos = pCharacter->CharacterAnimationData.Direction * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
+			*pDeltaPos = (pCharacter->CharacterAnimationData.Direction + GRAVITY) * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
 			pCharacter->CharacterAnimationData.Position += *pDeltaPos;
-			(*pDeltaPos).y -= 0.5f;
+			// (*pDeltaPos).y -= 0.5f;
 
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -700,15 +706,33 @@ void App::updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshMod
 	_ASSERT(pCharacter);
 	_ASSERT(pUpdateInfo);
 
-	Matrix correction = Matrix::CreateTranslation(Vector3(0.23f, 0.0f, 0.0f));
+	// Matrix correction = Matrix::CreateTranslation(Vector3(0.23f, 0.0f, 0.0f));
 
-	physx::PxTransform rightFootPos = pCharacter->pRightFoot->getGlobalPose();
-	physx::PxTransform leftFootPos = pCharacter->pLeftFoot->getGlobalPose();
-	Vector3 rightFootPosVec(rightFootPos.p.x, rightFootPos.p.y, rightFootPos.p.z);
-	Vector3 leftFootPosVec(leftFootPos.p.x, leftFootPos.p.y, leftFootPos.p.z);
+	physx::PxRaycastBuffer hit;
+	physx::PxTransform rightFootTargetPos = pCharacter->pRightFoot->getGlobalPose();
+	physx::PxTransform leftFootTargetPos = pCharacter->pLeftFoot->getGlobalPose();
 
-	rightFootPosVec = Vector3::Transform(rightFootPosVec, correction);
-	leftFootPosVec = Vector3::Transform(leftFootPosVec, correction);
+	// physx::PxVec3 rayOrigin1 = physx::PxVec3(rightFootPos.x, rightFootPos.y - 0.5f, rightFootPos.z);
+	// physx::PxVec3 rayOrigin2 = physx::PxVec3(leftFootPos.x, leftFootPos.y - 0.5f, leftFootPos.z);
+	physx::PxVec3 rayOrigin1 = physx::PxVec3(rightFootTargetPos.p.x, rightFootTargetPos.p.y, rightFootTargetPos.p.z);
+	physx::PxVec3 rayOrigin2 = physx::PxVec3(leftFootTargetPos.p.x, leftFootTargetPos.p.y, leftFootTargetPos.p.z);
+	physx::PxVec3 rayDir(0.0f, -1.0f, 0.0f);
+
+	physx::PxScene* pScene = GetPhysicsManager()->GetScene();
+	if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit))
+	{
+		rightFootTargetPos.p.y = hit.block.position.y;
+	}
+	if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit))
+	{
+		leftFootTargetPos.p.y = hit.block.position.y;
+	}
+
+	Vector3 rightFootPosVec(rightFootTargetPos.p.x, rightFootTargetPos.p.y, rightFootTargetPos.p.z);
+	Vector3 leftFootPosVec(leftFootTargetPos.p.x, leftFootTargetPos.p.y, leftFootTargetPos.p.z);
+
+	// rightFootPosVec = Vector3::Transform(rightFootPosVec, correction);
+	// leftFootPosVec = Vector3::Transform(leftFootPosVec, correction);
 	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPosVec.x, rightFootPosVec.y, rightFootPosVec.z, leftFootPosVec.x, leftFootPosVec.y, leftFootPosVec.z);
@@ -728,8 +752,7 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	const Vector3 GRAVITY(0.0f, -9.81f, 0.0f);
 
 	// 위치 변위.
-	Vector3 plusGravity = DELTA_POS + GRAVITY * DELTA_TIME;
-	physx::PxVec3 displacement = physx::PxVec3(plusGravity.x, plusGravity.y, plusGravity.z);
+	physx::PxVec3 displacement = physx::PxVec3(DELTA_POS.x, DELTA_POS.y, DELTA_POS.z);
 
 	// physx 상에서 캐릭터 이동.
 	physx::PxFilterData filterData;
@@ -748,27 +771,13 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	physx::PxRigidDynamic* pRightFoot = pCharacter->pRightFoot;
 	physx::PxRigidDynamic* pLeftFoot = pCharacter->pLeftFoot;
 
-	Matrix correction = Matrix::CreateTranslation(Vector3(-0.24f, 0.0f, 0.0f));
+	// Matrix correction = Matrix::CreateTranslation(Vector3(-0.24f, 0.0f, 0.0f));
 
-	Vector3 rightFootPos = (correction * pCharacter->RightLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	// Vector3 rightFootPos = (pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	Vector3 leftFootPos = (correction * pCharacter->LeftLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	// Vector3 leftFootPos = (pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	
-	physx::PxRaycastBuffer hit;
-	physx::PxVec3 rayOrigin1 = physx::PxVec3(rightFootPos.x, rightFootPos.y - 0.5f, rightFootPos.z);
-	physx::PxVec3 rayOrigin2 = physx::PxVec3(leftFootPos.x, leftFootPos.y - 0.5f, leftFootPos.z);
-	physx::PxVec3 rayDir(0.0f, -1.0f, 0.0f);
+	// Vector3 rightFootPos = (correction * pCharacter->RightLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	// Vector3 leftFootPos = (correction * pCharacter->LeftLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
 
-	physx::PxScene* pScene = GetPhysicsManager()->GetScene();
-	if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit))
-	{
-		rightFootPos.y = hit.block.position.y + 0.0008f;
-	}
-	if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit))
-	{
-		leftFootPos.y = hit.block.position.y + 0.0008f;
-	}
 	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z, leftFootPos.x, leftFootPos.y, leftFootPos.z);

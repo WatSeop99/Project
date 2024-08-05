@@ -19,8 +19,8 @@ using DirectX::SimpleMath::Matrix;
 ALIGN(16) struct MeshConstant
 {
 	Matrix World = Matrix();
-	Matrix WorldInverseTranspose = Matrix();
-	Matrix WorldInverse = Matrix();
+	Matrix InverseWorldTranspose = Matrix();
+	Matrix InverseWorld = Matrix();
 	BOOL bUseHeightMap = FALSE;
 	float HeightScale = 0.0f;
 	float WindTrunk = 0.0f;

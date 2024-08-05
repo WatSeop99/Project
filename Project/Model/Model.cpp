@@ -5,16 +5,6 @@
 #include "../Util/Utility.h"
 #include "Model.h"
 
-Model::Model(Renderer* pRenderer, std::wstring& basePath, std::wstring& fileName)
-{
-	Initialize(pRenderer, basePath, fileName);
-}
-
-Model::Model(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS)
-{
-	Initialize(pRenderer, MESH_INFOS);
-}
-
 void Model::Initialize(Renderer* pRenderer, std::wstring& basePath, std::wstring& fileName)
 {
 	std::vector<MeshInfo> meshInfos;
@@ -187,7 +177,7 @@ void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh
 	HRESULT hr = S_OK;
 	ResourceManager* pResourceManager = pRenderer->GetResourceManager();
 
-	// vertex buffer.
+	// Create vertex buffer.
 	hr = pResourceManager->CreateVertexBuffer(sizeof(Vertex),
 											  (UINT)MESH_INFO.Vertices.size(),
 											  &pNewMesh->Vertex.VertexBufferView,
@@ -196,7 +186,7 @@ void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh
 	BREAK_IF_FAILED(hr);
 	pNewMesh->Vertex.Count = (UINT)MESH_INFO.Vertices.size();
 
-	// index buffer.
+	// Create index buffer.
 	hr = pResourceManager->CreateIndexBuffer(sizeof(UINT),
 											 (UINT)MESH_INFO.Indices.size(),
 											 &pNewMesh->Index.IndexBufferView,
@@ -209,10 +199,9 @@ void Model::InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh
 void Model::UpdateWorld(const Matrix& WORLD)
 {
 	World = WORLD;
-	InverseWorld = WORLD.Invert();
-	WorldInverseTranspose = WORLD;
-	WorldInverseTranspose.Translation(Vector3(0.0f));
-	WorldInverseTranspose = WorldInverseTranspose.Invert().Transpose();
+	InverseWorldTranspose = WORLD;
+	// WorldInverseTranspose.Translation(Vector3(0.0f));
+	InverseWorldTranspose = InverseWorldTranspose.Invert().Transpose();
 
 	// bounding box, sphere 위치 업데이트.
 	BoundingSphere.Center = World.Translation();
@@ -222,11 +211,11 @@ void Model::UpdateWorld(const Matrix& WORLD)
 	MeshConstant& sphereMeshConstantData = m_pBoundingSphereMesh->MeshConstantData;
 
 	boxMeshConstantData.World = World.Transpose();
-	boxMeshConstantData.WorldInverseTranspose = WorldInverseTranspose.Transpose();
-	boxMeshConstantData.WorldInverse = WorldInverseTranspose;
+	boxMeshConstantData.InverseWorldTranspose = InverseWorldTranspose.Transpose();
+	boxMeshConstantData.InverseWorld = InverseWorldTranspose;
 	sphereMeshConstantData.World = boxMeshConstantData.World;
-	sphereMeshConstantData.WorldInverseTranspose = boxMeshConstantData.WorldInverseTranspose;
-	sphereMeshConstantData.WorldInverse = boxMeshConstantData.WorldInverse;
+	sphereMeshConstantData.InverseWorldTranspose = boxMeshConstantData.InverseWorldTranspose;
+	sphereMeshConstantData.InverseWorld = boxMeshConstantData.InverseWorld;
 
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
 	{
@@ -234,8 +223,8 @@ void Model::UpdateWorld(const Matrix& WORLD)
 		MeshConstant& meshConstantData = pCurMesh->MeshConstantData;
 
 		meshConstantData.World = WORLD.Transpose();
-		meshConstantData.WorldInverseTranspose = WorldInverseTranspose.Transpose();
-		meshConstantData.WorldInverse = WorldInverseTranspose.Transpose();
+		meshConstantData.InverseWorldTranspose = InverseWorldTranspose.Transpose();
+		meshConstantData.InverseWorld = InverseWorldTranspose;
 	}
 }
 

@@ -47,6 +47,7 @@ public:
 
 	Matrix Get(const int BONE_ID);
 	Matrix GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME);
+	Matrix GetGlobalBonePositionMatix(const int BONE_ID);
 
 public:
 	std::unordered_map<std::string, int> BoneNameToID;	// 뼈 이름과 인덱스 정수.
@@ -59,7 +60,6 @@ public:
 	Matrix DefaultTransform;			// normalizing을 위한 변환 행렬 [-1, 1]^3
 	Matrix InverseDefaultTransform;		// 모델 좌표계 복귀 변환 행렬.
 	Matrix AccumulatedRootTransform;	// root 뼈에 적용할 변환 행렬.
-	Matrix InverseRootGlobalTransform;
 	Vector3 PrevKeyPos;					// 이전 clip의 키 데이터 위치.
 	Vector3 Position;					// 캐릭터 위치.
 	Vector3 Direction;					// direction은 회전 방향만 결정.
@@ -98,7 +98,7 @@ public:
 	Matrix* pJointTransform = nullptr; // bone transform.
 
 	Matrix CharacterWorld;	// 캐릭터 world.
-	Matrix Correction;		// world를 위한 보정값.
+	// Matrix Correction;		// world를 위한 보정값.
 };
 class Chain
 {

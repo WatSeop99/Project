@@ -42,7 +42,7 @@ LB_RET:
 
 void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<MeshInfo>& meshes, AnimationData& animData)
 {
-	// 모델의 중심을 원점으로 옮기고 크기를 LONGEST_LENGTH인 박스 형태로.
+	// 모델의 중심을 CENTER로 옮기고 크기를 LONGEST_LENGTH인 박스 형태로.
 	using namespace DirectX;
 
 	// Normalize vertices.
@@ -54,19 +54,18 @@ void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<Me
 		for (UINT64 j = 0, vertSize = curMesh.Vertices.size(); j < vertSize; ++j)
 		{
 			Vertex& v = curMesh.Vertices[j];
-			vMin.x = Min(vMin.x, v.Position.x);
-			vMin.y = Min(vMin.y, v.Position.y);
-			vMin.z = Min(vMin.z, v.Position.z);
-			vMax.x = Max(vMax.x, v.Position.x);
-			vMax.y = Max(vMax.y, v.Position.y);
-			vMax.z = Max(vMax.z, v.Position.z);
+			vMin = Min(vMin, v.Position);
+			vMax = Max(vMax, v.Position);
 		}
 	}
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "vMax: %f, %f, %f and vMin: %f, %f, %f\n", vMax.x, vMax.y, vMax.z, vMin.x, vMin.y, vMin.z);
+		OutputDebugStringA(szDebugString);
+	}
 
-	float dx = vMax.x - vMin.x;
-	float dy = vMax.y - vMin.y;
-	float dz = vMax.z - vMin.z;
-	float scale = LONGEST_LENGTH / Max(Max(dx, dy), dz);
+	Vector3 delta = vMax - vMin;
+	float scale = LONGEST_LENGTH / Max(Max(delta.x, delta.y), delta.z);
 	Vector3 translation = -(vMin + vMax) * 0.5f + CENTER;
 
 	for (UINT64 i = 0, totalMesh = meshes.size(); i < totalMesh; ++i)
@@ -851,182 +850,8 @@ void MakeStair(MeshInfo* pOutDst, const int STEP, const float STEP_WIDTH, const 
 	std::vector<Vertex>& vertices = pOutDst->Vertices;
 	std::vector<UINT>& indices = pOutDst->Indices;
 
-	/*for (int i = 0; i < STEP; ++i)
-	{
-		float y = i * STEP_HEIGHT;
-		float z = i * STEP_DEPTH;
-
-		Vertex v1;
-		Vertex v2;
-		Vertex v3;
-		Vertex v4;
-		Vertex v5;
-		Vertex v6;
-		Vertex v7;
-		Vertex v8;
-		Vertex v9;
-		Vertex v10;
-		Vertex v11;
-		Vertex v12;
-		Vertex v13;
-		Vertex v14;
-		Vertex v15;
-		Vertex v16;
-		int baseIndex = i * 24;
-
-		v1.Position = Vector3(0.0f, y + STEP_HEIGHT, z);
-		v1.Normal = Vector3(0.0f, 1.0f, 0.0f);
-		v1.Texcoord = Vector2(0.0f, 0.0f);
-
-		v2.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z);
-		v2.Normal = Vector3(0.0f, 1.0f, 0.0f);
-		v2.Texcoord = Vector2(1.0f, 0.0f);
-
-		v3.Position = Vector3(0.0f, y + STEP_HEIGHT, z + STEP_DEPTH);
-		v3.Normal = Vector3(0.0f, 1.0f, 0.0f);
-		v3.Texcoord = Vector2(0.0f, 1.0f);
-
-		v4.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z + STEP_DEPTH);
-		v4.Normal = Vector3(0.0f, 1.0f, 0.0f);
-		v4.Texcoord = Vector2(1.0f, 1.0f);
-
-		vertices.push_back(v1);
-		vertices.push_back(v2);
-		vertices.push_back(v3);
-		vertices.push_back(v4);
-
-		indices.push_back(baseIndex);
-		indices.push_back(baseIndex + 2);
-		indices.push_back(baseIndex + 1);
-		indices.push_back(baseIndex + 2);
-		indices.push_back(baseIndex + 3);
-		indices.push_back(baseIndex + 1);
-
-
-		v5.Position = Vector3(0.0f, y, z);
-		v5.Normal = Vector3(0.0f, 0.0f, -1.0f);
-		v5.Texcoord = Vector2(0.0f, 0.0f);
-
-		v6.Position = Vector3(STEP_WIDTH, y, z);
-		v6.Normal = Vector3(0.0f, 0.0f, -1.0f);
-		v6.Texcoord = Vector2(1.0f, 0.0f);
-
-		v7.Position = Vector3(0.0f, y + STEP_HEIGHT, z);
-		v7.Normal = Vector3(0.0f, 0.0f, -1.0f);
-		v7.Texcoord = Vector2(0.0f, 1.0f);
-
-		v8.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z);
-		v8.Normal = Vector3(0.0f, 0.0f, -1.0f);
-		v8.Texcoord = Vector2(1.0f, 1.0f);
-
-		vertices.push_back(v5);
-		vertices.push_back(v6);
-		vertices.push_back(v7);
-		vertices.push_back(v8);
-
-		indices.push_back(baseIndex + 4);
-		indices.push_back(baseIndex + 6);
-		indices.push_back(baseIndex + 5);
-		indices.push_back(baseIndex + 6);
-		indices.push_back(baseIndex + 7);
-		indices.push_back(baseIndex + 5);
-
-
-		v9.Position = Vector3(0.0f, y, z + STEP_DEPTH);
-		v9.Normal = Vector3(-1.0f, 0.0f, 0.0f);
-		v9.Texcoord = Vector2(0.0f, 0.0f);
-
-		v10.Position = Vector3(0.0f, y + STEP_HEIGHT, z + STEP_DEPTH);
-		v10.Normal = Vector3(-1.0f, 0.0f, 0.0f);
-		v10.Texcoord = Vector2(0.0f, 1.0f);
-
-		v11.Position = Vector3(0.0f, y, z);
-		v11.Normal = Vector3(-1.0f, 0.0f, 0.0f);
-		v11.Texcoord = Vector2(1.0f, 0.0f);
-
-		v12.Position = Vector3(0.0f, y + STEP_HEIGHT, z);
-		v12.Normal = Vector3(-1.0f, 0.0f, 0.0f);
-		v12.Texcoord = Vector2(1.0f, 1.0f);
-
-		vertices.push_back(v9);
-		vertices.push_back(v10);
-		vertices.push_back(v11);
-		vertices.push_back(v12);
-
-		indices.push_back(baseIndex + 8);
-		indices.push_back(baseIndex + 10);
-		indices.push_back(baseIndex + 9);
-		indices.push_back(baseIndex + 10);
-		indices.push_back(baseIndex + 11);
-		indices.push_back(baseIndex + 9);
-
-
-		v13.Position = Vector3(STEP_WIDTH, y, z + STEP_DEPTH);
-		v13.Normal = Vector3(1.0f, 0.0f, 0.0f);
-		v13.Texcoord = Vector2(0.0f, 0.0f);
-
-		v14.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z + STEP_DEPTH);
-		v14.Normal = Vector3(1.0f, 0.0f, 0.0f);
-		v14.Texcoord = Vector2(0.0f, 1.0f);
-
-		v15.Position = Vector3(STEP_WIDTH, y, z);
-		v15.Normal = Vector3(1.0f, 0.0f, 0.0f);
-		v15.Texcoord = Vector2(1.0f, 0.0f);
-
-		v16.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z);
-		v16.Normal = Vector3(1.0f, 0.0f, 0.0f);
-		v16.Texcoord = Vector2(1.0f, 1.0f);
-
-		vertices.push_back(v13);
-		vertices.push_back(v14);
-		vertices.push_back(v15);
-		vertices.push_back(v16);
-
-		indices.push_back(baseIndex + 12);
-		indices.push_back(baseIndex + 14);
-		indices.push_back(baseIndex + 13);
-		indices.push_back(baseIndex + 14);
-		indices.push_back(baseIndex + 15);
-		indices.push_back(baseIndex + 13);
-
-
-		if (i < STEP - 1)
-		{
-			Vertex v17;
-			Vertex v18;
-			Vertex v19;
-			Vertex v20;
-
-			v17.Position = Vector3(0.0f, y + STEP_HEIGHT, z + STEP_DEPTH);
-			v17.Normal = Vector3(0.0f, 0.0f, 1.0f);
-			v17.Texcoord = Vector2(0.0f, 0.0f);
-
-			v18.Position = Vector3(STEP_WIDTH, y + STEP_HEIGHT, z + STEP_DEPTH);
-			v18.Normal = Vector3(0.0f, 0.0f, 1.0f);
-			v18.Texcoord = Vector2(1.0f, 0.0f);
-
-			v19.Position = Vector3(0.0f, y + 2.0f * STEP_HEIGHT, z + STEP_DEPTH);
-			v19.Normal = Vector3(0.0f, 0.0f, 1.0f);
-			v19.Texcoord = Vector2(0.0f, 1.0f);
-
-			v20.Position = Vector3(STEP_WIDTH, y + 2.0f * STEP_HEIGHT, z + STEP_DEPTH);
-			v20.Normal = Vector3(0.0f, 0.0f, 1.0f);
-			v20.Texcoord = Vector2(1.0f, 1.0f);
-
-			vertices.push_back(v17);
-			vertices.push_back(v18);
-			vertices.push_back(v19);
-			vertices.push_back(v20);
-
-			indices.push_back(baseIndex + 16);
-			indices.push_back(baseIndex + 18);
-			indices.push_back(baseIndex + 17);
-			indices.push_back(baseIndex + 18);
-			indices.push_back(baseIndex + 19);
-			indices.push_back(baseIndex + 17);
-		}
-	}*/
-
+	vertices.reserve(24 * STEP);
+	indices.reserve(36 * STEP);
 	for (int i = 0; i < STEP; ++i)
 	{
 		float y = i * STEP_HEIGHT;

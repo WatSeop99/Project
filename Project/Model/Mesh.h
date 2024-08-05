@@ -59,6 +59,4 @@ public:
 
 	MeshConstant MeshConstantData;
 	MaterialConstant MaterialConstantData;
-
-	bool bSkinnedMesh = false;
 };

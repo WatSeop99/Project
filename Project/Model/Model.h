@@ -14,8 +14,6 @@ class Model
 {
 public:
 	Model() = default;
-	Model(Renderer* pRenderer, std::wstring& basePath, std::wstring& fileName);
-	Model(Renderer* pRenderer, const std::vector<MeshInfo>& MESH_INFOS);
 	virtual ~Model() { Cleanup(); }
 
 	void Initialize(Renderer* pRenderer, std::wstring& basePath, std::wstring& fileName);
@@ -41,8 +39,7 @@ protected:
 
 public:
 	Matrix World;
-	Matrix InverseWorld;
-	Matrix WorldInverseTranspose;
+	Matrix InverseWorldTranspose;
 
 	std::vector<Mesh*> Meshes;
 

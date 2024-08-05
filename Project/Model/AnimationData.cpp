@@ -74,7 +74,7 @@ void AnimationData::ResetAllUpdateRotationInClip(const int CLIP_ID)
 
 Matrix AnimationData::Get(const int BONE_ID)
 {
-	return (InverseDefaultTransform * OffsetMatrices[BONE_ID] * BoneTransforms[BONE_ID] * InverseRootGlobalTransform * DefaultTransform);
+	return (InverseDefaultTransform * OffsetMatrices[BONE_ID] * BoneTransforms[BONE_ID] * DefaultTransform);
 }
 
 Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME)
@@ -91,7 +91,12 @@ Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, con
 	const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 	AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-	return (InverseDefaultTransform * OffsetMatrices[ROOT_BONE_ID] * Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX * InverseRootGlobalTransform * DefaultTransform);
+	return (InverseDefaultTransform * OffsetMatrices[ROOT_BONE_ID] * Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(Vector3(0.0f)) * PARENT_MATRIX * DefaultTransform);
+}
+
+Matrix AnimationData::GetGlobalBonePositionMatix(const int BONE_ID)
+{
+	return (InverseDefaultTransform * OffsetMatrices[BONE_ID] * BoneTransforms[BONE_ID] * DefaultTransform);
 }
 
 Joint::Joint()
