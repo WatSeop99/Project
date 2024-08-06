@@ -54,6 +54,9 @@ public:
 	std::vector<std::string> BoneIDToNames;				// BoneNameToID의 ID 순서대로 뼈 이름 저장.
 	std::vector<int> BoneParents;					    // 부모 뼈의 인덱스.
 	std::vector<Matrix> OffsetMatrices;					// 뼈와 skin 사이의 변환. 뼈 좌표계에서 mesh의 위치.	
+	std::vector<Matrix> InverseOffsetMatrices;					
+	std::vector<Matrix> AccumulatedNodeTransforms;
+	std::vector<Matrix> NodeTransforms;
 	std::vector<Matrix> BoneTransforms;					// 해당 시점 key data의 움직임에 따른 뼈의 변환 행렬.
 	std::vector<AnimationClip> Clips;					// 애니메이션 동작.
 
@@ -98,7 +101,7 @@ public:
 	Matrix* pJointTransform = nullptr; // bone transform.
 
 	Matrix CharacterWorld;	// 캐릭터 world.
-	// Matrix Correction;		// world를 위한 보정값.
+	Matrix Correction;		// world를 위한 보정값.
 };
 class Chain
 {

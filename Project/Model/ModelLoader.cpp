@@ -2,6 +2,9 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <assimp/material.h>
+
+// #include <fbxsdk.h>
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -13,7 +16,7 @@
 HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _bRevertNormal)
 {
 	HRESULT hr = S_OK;
-
+	
 	if (GetFileExtension(fileName).compare(L".gltf") == 0)
 	{
 		bIsGLTF = true;
@@ -46,6 +49,8 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		AnimData.BoneParents.resize(totalBoneCount, -1);
 
 		Matrix globalTransform; // Initial transformation.
+		AnimData.AccumulatedNodeTransforms.resize(totalBoneCount);
+		AnimData.NodeTransforms.resize(totalBoneCount);
 		processNode(pSCENE->mRootNode, pSCENE, globalTransform);
 
 		// 애니메이션 정보 읽기.
@@ -129,6 +134,10 @@ const aiNode* ModelLoader::findParent(const aiNode * pNODE)
 
 void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& transform)
 {
+	// 현재 노드의 global transform 계산.
+	Matrix globalTransform(&pNode->mTransformation.a1);
+	globalTransform = globalTransform.Transpose() * transform;
+
 	// 사용되는 부모 뼈를 찾아서 부모의 인덱스 저장.
 	const aiNode* pPARENT = findParent(pNode->mParent);
 	const char* pNODE_NAME = pNode->mName.C_Str();
@@ -138,12 +147,9 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 	{
 		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
 		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
-
+		AnimData.AccumulatedNodeTransforms[BONE_ID] = globalTransform;
+		AnimData.NodeTransforms[BONE_ID] = Matrix(&pNode->mTransformation.a1).Transpose();
 	}
-
-	// 현재 노드의 global transform 계산.
-	Matrix globalTransform(&pNode->mTransformation.a1);
-	globalTransform = globalTransform.Transpose() * transform;
 
 	for (UINT i = 0; i < pNode->mNumMeshes; ++i)
 	{
@@ -151,11 +157,11 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 		MeshInfo newMeshInfo;
 
 		processMesh(pMesh, pSCENE, &newMeshInfo);
-		for (UINT64 j = 0, size = newMeshInfo.Vertices.size(); j < size; ++j)
+		/*for (UINT64 j = 0, size = newMeshInfo.Vertices.size(); j < size; ++j)
 		{
 			Vertex& v = newMeshInfo.Vertices[j];
 			v.Position = DirectX::SimpleMath::Vector3::Transform(v.Position, globalTransform);
-		}
+		}*/
 
 		MeshInfos.push_back(newMeshInfo);
 	}
@@ -182,24 +188,27 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 		vertex.Position.y = pMesh->mVertices[i].y;
 		vertex.Position.z = pMesh->mVertices[i].z;
 
-		vertex.Normal.x = pMesh->mNormals[i].x;
-		if (bIsGLTF)
+		if (pMesh->mNormals)
 		{
-			vertex.Normal.y = pMesh->mNormals[i].z;
-			vertex.Normal.z = -pMesh->mNormals[i].y;
-		}
-		else
-		{
-			vertex.Normal.y = pMesh->mNormals[i].y;
-			vertex.Normal.z = pMesh->mNormals[i].z;
-		}
+			vertex.Normal.x = pMesh->mNormals[i].x;
+			if (bIsGLTF)
+			{
+				vertex.Normal.y = pMesh->mNormals[i].z;
+				vertex.Normal.z = -pMesh->mNormals[i].y;
+			}
+			else
+			{
+				vertex.Normal.y = pMesh->mNormals[i].y;
+				vertex.Normal.z = pMesh->mNormals[i].z;
+			}
 
-		if (bRevertNormal)
-		{
-			vertex.Normal *= -1.0f;
-		}
+			if (bRevertNormal)
+			{
+				vertex.Normal *= -1.0f;
+			}
 
-		vertex.Normal.Normalize();
+			vertex.Normal.Normalize();
+		}
 
 		if (pMesh->mTextureCoords[0])
 		{
@@ -226,6 +235,7 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 		
 		const UINT64 TOTAL_BONE = AnimData.BoneNameToID.size();
 		AnimData.OffsetMatrices.resize(TOTAL_BONE);
+		AnimData.InverseOffsetMatrices.resize(TOTAL_BONE);
 		AnimData.BoneTransforms.resize(TOTAL_BONE);
 
 		int count = 0;
@@ -234,8 +244,9 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 			const aiBone* pBONE = pMesh->mBones[i];
 			const UINT BONE_ID = AnimData.BoneNameToID[pBONE->mName.C_Str()];
 
-			AnimData.OffsetMatrices[BONE_ID] = Matrix((float*)&pBONE->mOffsetMatrix).Transpose();
-			
+			AnimData.OffsetMatrices[BONE_ID] = Matrix(&pBONE->mOffsetMatrix.a1).Transpose();
+			AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
+
 			// 이 뼈가 영향을 주는 정점 개수.
 			for (UINT j = 0; j < pBONE->mNumWeights; ++j)
 			{
@@ -344,9 +355,16 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 		{
 			std::vector<AnimationClip::Key>& keys = clip.Keys[boneID];
 			const UINT64 KEY_SIZE = keys.size();
-			if (KEY_SIZE == 0)
+			if (KEY_SIZE == 0 || keys[0].Position == Vector3(0.0f))
 			{
-				keys.push_back(AnimationClip::Key());
+				// keys.push_back(AnimationClip::Key());
+
+				Matrix& nodeTransform = AnimData.NodeTransforms[boneID];
+
+				AnimationClip::Key key;
+				key.Position = nodeTransform.Translation();
+				key.Rotation = Quaternion::CreateFromRotationMatrix(nodeTransform);
+				keys.push_back(key);
 			}
 		}
 	}

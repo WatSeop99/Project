@@ -96,7 +96,7 @@ Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, con
 
 Matrix AnimationData::GetGlobalBonePositionMatix(const int BONE_ID)
 {
-	return (InverseDefaultTransform * OffsetMatrices[BONE_ID] * BoneTransforms[BONE_ID] * DefaultTransform);
+	return (InverseDefaultTransform * BoneTransforms[BONE_ID] * DefaultTransform);
 }
 
 Joint::Joint()

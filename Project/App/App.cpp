@@ -83,7 +83,6 @@ void App::Update(const float DELTA_TIME)
 		SkinnedMeshModel* pCharacter = m_Characters[i];
 		Vector3 deltaPos;
 		updateAnimationState(pCharacter, DELTA_TIME, &state, &frame, &deltaPos);
-		// pCharacter->CharacterAnimationData.Update(state, frame);
 		simulateCharacterContol(pCharacter, deltaPos, DELTA_TIME, state, frame);
 	}
 
@@ -100,6 +99,10 @@ void App::Update(const float DELTA_TIME)
 		pCharacter->UpdateWorld(Matrix::CreateTranslation(m_pCharacter->CharacterAnimationData.Position));
 		pCharacter->UpdateAnimation(state, frame, DELTA_TIME, &updateInfo);
 	}
+	SkinnedMeshModel::JointUpdateInfo updateInfo;
+
+	ZeroMemory(&updateInfo, sizeof(SkinnedMeshModel::JointUpdateInfo));
+	m_pCharacter->UpdateAnimation(state, frame, DELTA_TIME, &updateInfo);
 
 	for (UINT64 i = 0, size = m_RenderObjects.size(); i < size; ++i)
 	{
@@ -281,6 +284,13 @@ void App::initExternalData()
 		mesh.szMetallicTextureFileName = path + L"stringy_marble_Metallic.png";
 		mesh.szNormalTextureFileName = path + L"stringy_marble_Normal-dx.png";
 		mesh.szRoughnessTextureFileName = path + L"stringy_marble_Roughness.png";
+		/*std::wstring path = L"./Assets/Textures/PBR/patterned_wooden_wall_panels_48_05_8K/";
+		mesh.szAlbedoTextureFileName = path + L"patterned_wooden_wall_panels_48_05_diffuse.jpg";
+		mesh.szEmissiveTextureFileName = L"";
+		mesh.szAOTextureFileName = path + L"patterned_wooden_wall_panels_48_05_ao.jpg";
+		mesh.szMetallicTextureFileName = path + L"patterned_wooden_wall_panels_48_05_metallic.jpg";
+		mesh.szNormalTextureFileName = path + L"patterned_wooden_wall_panels_48_05_normal.jpg";
+		mesh.szRoughnessTextureFileName = path + L"patterned_wooden_wall_panels_48_05_roughness.jpg";*/
 
 		pGround = new Model;
 		pGround->Initialize(this, { mesh });
@@ -337,6 +347,7 @@ void App::initExternalData()
 		std::vector<MeshInfo> characterMeshInfo;
 		AnimationData characterDefaultAnimData;
 		ReadAnimationFromFile(characterMeshInfo, characterDefaultAnimData, path, filename);
+		characterDefaultAnimData.Clips[0].Name = "DefaultClip";
 
 		// 애니메이션 클립들.
 		for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
@@ -345,7 +356,7 @@ void App::initExternalData()
 			std::vector<MeshInfo> animationMeshInfo;
 			AnimationData animDataInClip;
 			ReadAnimationFromFile(animationMeshInfo, animDataInClip, path, name);
-
+			animDataInClip.Clips[0].Name.assign(name.begin(), name.end());
 			if (animationData.Clips.empty())
 			{
 				animationData = animDataInClip;

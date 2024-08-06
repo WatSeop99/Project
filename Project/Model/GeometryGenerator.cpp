@@ -11,6 +11,7 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
 	if (FAILED(hr))
 	{
+		__debugbreak();
 		goto LB_RET;
 	}
 
@@ -29,6 +30,7 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
 	if (FAILED(hr))
 	{
+		__debugbreak();
 		goto LB_RET;
 	}
 

@@ -17,6 +17,15 @@ void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInf
 
 	Model::Initialize(pRenderer, MESH_INFOS);
 	InitAnimationData(pRenderer, ANIM_DATA);
+	/*{
+		Matrix spineNode = CharacterAnimationData.NodeTransforms[1];
+		Matrix spineOffset = CharacterAnimationData.OffsetMatrices[1].Invert();
+		Matrix spine1Offset = CharacterAnimationData.OffsetMatrices[2].Invert();
+		Vector3 pos = Vector3::Transform(Vector3(0.0f), spineOffset);
+		Vector3 pos1 = Vector3::Transform(Vector3(0.0f), spine1Offset);
+
+		int a = 0;
+	}*/
 	initBoundingCapsule();
 	initJointSpheres();
 	initChain();
@@ -911,32 +920,32 @@ void SkinnedMeshModel::initChain()
 		"mixamorig:LeftFoot",
 		"mixamorig:LeftToeBase",
 	};
-	//const Matrix BONE_CORRECTION_TRANSFORM[16] =
-	//{
-	//	// right arm.
-	//	Matrix::CreateTranslation(Vector3(0.085f, 0.33f, 0.06f)),
-	//	Matrix::CreateTranslation(Vector3(-0.04f, 0.32f, 0.06f)),
-	//	Matrix::CreateTranslation(Vector3(-0.18f, 0.32f, 0.06f)),
-	//	Matrix::CreateTranslation(Vector3(-0.235f, 0.32f, 0.055f)),
+	const Matrix BONE_CORRECTION_TRANSFORM[16] =
+	{
+		// right arm.
+		Matrix::CreateTranslation(Vector3(0.085f, 0.33f, 0.06f)),
+		Matrix::CreateTranslation(Vector3(-0.04f, 0.32f, 0.06f)),
+		Matrix::CreateTranslation(Vector3(-0.18f, 0.32f, 0.06f)),
+		Matrix::CreateTranslation(Vector3(-0.235f, 0.32f, 0.055f)),
 
-	//	// left arm.
-	//	Matrix::CreateTranslation(Vector3(0.32f, 0.34f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.45f, 0.32f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.59f, 0.32f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.65f, 0.32f, 0.05f)),
+		// left arm.
+		Matrix::CreateTranslation(Vector3(0.32f, 0.34f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.45f, 0.32f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.59f, 0.32f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.65f, 0.32f, 0.05f)),
 
-	//	// right leg.
-	//	Matrix::CreateTranslation(Vector3(0.16f, 0.02f, 0.04f)),
-	//	Matrix::CreateTranslation(Vector3(0.15f, -0.17f, 0.04f)),
-	//	Matrix::CreateTranslation(Vector3(0.16f, -0.39f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.15f, -0.42f, 0.0f)),
+		// right leg.
+		Matrix::CreateTranslation(Vector3(0.16f, 0.02f, 0.04f)),
+		Matrix::CreateTranslation(Vector3(0.15f, -0.17f, 0.04f)),
+		Matrix::CreateTranslation(Vector3(0.16f, -0.39f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.15f, -0.42f, 0.0f)),
 
-	//	// left leg.
-	//	Matrix::CreateTranslation(Vector3(0.26f, 0.025f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.26f, -0.165f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
-	//	Matrix::CreateTranslation(Vector3(0.26f, -0.42f, 0.0f)),
-	//};
+		// left leg.
+		Matrix::CreateTranslation(Vector3(0.26f, 0.025f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.26f, -0.165f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.25f, -0.38f, 0.05f)),
+		Matrix::CreateTranslation(Vector3(0.26f, -0.42f, 0.0f)),
+	};
 	const Vector2 ANGLE_LIMITATION[16][3] =
 	{
 		// right arm
@@ -999,7 +1008,7 @@ void SkinnedMeshModel::initChain()
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
-		// pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
+		pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
 		pJoint->CharacterWorld = World;
 
 		++boneNameIndex;
@@ -1018,7 +1027,7 @@ void SkinnedMeshModel::initChain()
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
-		// pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
+		pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
 		pJoint->CharacterWorld = World;
 
 		++boneNameIndex;
@@ -1037,7 +1046,7 @@ void SkinnedMeshModel::initChain()
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
-		// pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
+		pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
 		pJoint->CharacterWorld = World;
 
 		++boneNameIndex;
@@ -1056,7 +1065,7 @@ void SkinnedMeshModel::initChain()
 		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
 		pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
 		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
-		// pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
+		pJoint->Correction = BONE_CORRECTION_TRANSFORM[boneNameIndex];
 		pJoint->CharacterWorld = World;
 
 		++boneNameIndex;
@@ -1126,19 +1135,15 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 	LeftHandMiddle.Center = m_ppLeftArm[3]->MeshConstantData.World.Transpose().Translation();
 	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
-	/*{
-		Matrix world = Matrix::CreateTranslation(Vector3(0.0f, 0.5f, 5.0f));
-		Matrix modelTransform = CharacterAnimationData.Get(RightArm.BodyChain[3].BoneID);
-		Matrix worldModelTrasform = modelTransform * world;
-		Vector3 modelPos = modelTransform.Translation();
-		Vector3 pos = worldModelTrasform.Translation();
-
+	{
 		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "righthand center in model space: %f, %f, %f\n", modelPos.x, modelPos.y, modelPos.z);
+		sprintf_s(szDebugString, 256, "rightHand center: %f, %f, %f\nleftHand center: %f, %f, %f\nrightFoot center: %f, %f, %f\nleftFoot center: %f, %f, %f\n\n", 
+				  RightHandMiddle.Center.x, RightHandMiddle.Center.y, RightHandMiddle.Center.z,
+				  LeftHandMiddle.Center.x, LeftHandMiddle.Center.y, LeftHandMiddle.Center.z,
+				  RightToe.Center.x, RightToe.Center.y, RightToe.Center.z,
+				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);
 		OutputDebugStringA(szDebugString);
-		sprintf_s(szDebugString, 256, "righthand center: %f, %f, %f\n", pos.x, pos.y, pos.z);
-		OutputDebugStringA(szDebugString);
-	}*/
+	}
 }
 
 void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)
