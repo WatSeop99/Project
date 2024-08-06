@@ -333,8 +333,8 @@ void App::initExternalData()
 
 	// Main Object.
 	{
-		std::wstring path = L"./Assets/";
-		// std::wstring path = L"./Assets/other/";
+		// std::wstring path = L"./Assets/";
+		std::wstring path = L"./Assets/other2/";
 		std::vector<std::wstring> clipNames =
 		{
 			L"CatwalkIdleTwistL.fbx", L"CatwalkIdleToWalkForward.fbx",
@@ -342,8 +342,8 @@ void App::initExternalData()
 		};
 		AnimationData animationData;
 
-		std::wstring filename = L"Remy.fbx";
-		// std::wstring filename = L"character.fbx";
+		// std::wstring filename = L"Remy.fbx";
+		std::wstring filename = L"character.fbx";
 		std::vector<MeshInfo> characterMeshInfo;
 		AnimationData characterDefaultAnimData;
 		ReadAnimationFromFile(characterMeshInfo, characterDefaultAnimData, path, filename);

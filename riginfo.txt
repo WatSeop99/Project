@@ -55,3 +55,6 @@ physx안되면 jolt로 갈아타야함.
 착각한 점 하나. offset matrix는 뼈들 간 위치 offset matrix가 아니다. 뼈와 mesh간 변환 행렬이다. 따라서 gloabl transform을 다시 계산해야 한다.
 내일 blender 설치해서 뼈 위치 정보와 애니메이션 데이터 정보를 보고,
 global transform 적용을 다시 고려해보자.
+=====================================
+fbx ascii 파일 열어보니 정보가 없는게 아님. 있음.
+수요일 fbx sdk 시도해볼것.
