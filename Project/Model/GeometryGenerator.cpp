@@ -27,10 +27,10 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 {
 	HRESULT hr = S_OK;
 
-	/*ModelLoader modelLoader;
-	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
-	FBXModelLoader modelLoader;
+	ModelLoader modelLoader;
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
+	/*FBXModelLoader modelLoader;
+	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
 	if (FAILED(hr))
 	{
 		__debugbreak();

@@ -1,11 +1,5 @@
 // #define FBXSDK_SHARED 
 
-
-//#include <Windows.h>
-//#include <dxgi1_6.h>
-//#include <d3d12.h>
-//#include <directxtk12/SimpleMath.h>
-
 #include "../pch.h"
 #include "AnimationData.h"
 #include "MeshInfo.h"
@@ -192,6 +186,7 @@ void FBXModelLoader::processNode(FbxNode* pNode, const FbxScene* pSCENE)
 
 	FbxNode* pPARENT = pNode->GetParent();
 	FbxNodeAttribute* pNodeAttribute = pNode->GetNodeAttribute();
+	
 	if (pPARENT && pNodeAttribute->GetAttributeType() == FbxNodeAttribute::eSkeleton)
 	{
 		const int BONE_ID = AnimData.BoneNameToID[pNode->GetName()];
@@ -224,52 +219,176 @@ void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInf
 	std::vector<UINT>& indices = pMeshInfo->Indices;
 	std::vector<SkinnedVertex>& skinnedVertices = pMeshInfo->SkinnedVertices;
 
-	FbxGeometryElementNormal* pNormal = pMesh->GetElementNormal(0);
-	FbxGeometryElementUV* pUV = pMesh->GetElementUV(0);
+
+	const int VERTEX_COUNT = pMesh->GetControlPointsCount();
+	FbxVector4* pControlPoints = pMesh->GetControlPoints();
+	Vector3* pPositions = new Vector3[VERTEX_COUNT];
+
+	for (int i = 0; i < VERTEX_COUNT; ++i)
+	{
+		FbxVector4 vertex = pMesh->GetControlPointAt(i);
+		pPositions[i] = {(float)vertex.mData[0], (float)vertex.mData[1], (float)vertex.mData[2]};
+	}
 
 	const int POLYGON_COUNT = pMesh->GetPolygonCount();
+	UINT vertexCount = 0;
 	for (int i = 0; i < POLYGON_COUNT; ++i)
 	{
-		const int VERTEX_COUNT = pMesh->GetPolygonSize(i);
-		if (VERTEX_COUNT != 3)
+		const int VERTEX_COUNT_IN_POLYGON = pMesh->GetPolygonSize(i);
+		if (VERTEX_COUNT_IN_POLYGON != 3)
 		{
 			__debugbreak();
 		}
-		for (int j = 0; j < VERTEX_COUNT; ++j)
+
+		for (int j = 0; j < VERTEX_COUNT_IN_POLYGON; ++j)
 		{
-			int vertIdx = pMesh->GetPolygonVertex(i, j);
-
-			FbxVector4 controlPoint = pMesh->GetControlPointAt(vertIdx);
-			Vertex v;
-			v.Position = { (float)controlPoint.mData[0], (float)controlPoint.mData[1], (float)controlPoint.mData[2] };
+			int vertexIndex = pMesh->GetPolygonVertex(i, j);
 			
-			// normal.
-			pNormal->SetMappingMode(FbxGeometryElement::eByControlPoint);
-			pNormal->SetReferenceMode(FbxGeometryElement::eDirect);
-			FbxLayerElementArrayTemplate<FbxVector4>& normalArray = pNormal->GetDirectArray();
+			Vector3* pPosition = &pPositions[vertexIndex];
 
-			FbxVector4 normal = normalArray.GetAt(vertIdx);
-			v.Normal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
-			if (bRevertNormal)
+			// Normal.
+			const int NORMAL_ELEMENT_COUNT = pMesh->GetElementNormalCount();
+			Vector3 vertexNormal;
+			for (int k = 0; k < NORMAL_ELEMENT_COUNT; ++k)
 			{
-				v.Normal *= -1.0f;
+				FbxGeometryElementNormal* pVertexNormal = pMesh->GetElementNormal(k);
+				switch (pVertexNormal->GetMappingMode())
+				{
+					case FbxGeometryElement::eByControlPoint:
+					{
+						switch (pVertexNormal->GetReferenceMode())
+						{
+							case FbxGeometryElement::eDirect:
+							{
+								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(vertexIndex);
+								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+							}
+							break;
+
+							case FbxGeometryElement::eIndexToDirect:
+							{
+								int index = pVertexNormal->GetIndexArray().GetAt(vertexIndex);
+								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(index);
+								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+							}
+							break;
+
+							default:
+								__debugbreak();
+								break;
+						}
+					}
+					break;
+
+					case FbxGeometryElement::eByPolygonVertex:
+					{
+						switch (pVertexNormal->GetReferenceMode())
+						{
+							case FbxGeometryElement::eDirect:
+							{
+								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(vertexCount);
+								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+							}
+							break;
+
+							case FbxGeometryElement::eIndexToDirect:
+							{
+								int index = pVertexNormal->GetIndexArray().GetAt(vertexCount);
+								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(index);
+								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+							}
+							break;
+
+							default:
+								__debugbreak();
+								break;
+						}
+					}
+					break;
+
+					default:
+						__debugbreak();
+						break;
+				}
 			}
 
-			// texcoord.
-			pUV->SetMappingMode(FbxGeometryElement::eByControlPoint);
-			pUV->SetReferenceMode(FbxGeometryElement::eDirect);
-			FbxLayerElementArrayTemplate<FbxVector2>& uvArray = pUV->GetDirectArray();
+			// Texcoord.
+			int UVIndex = pMesh->GetTextureUVIndex(i, j);
+			const int TEXCOORD_ELEMENT_COUNT = pMesh->GetElementUVCount();
+			Vector2 vertexTexcoord;
+			for (int k = 0; k < TEXCOORD_ELEMENT_COUNT; ++k)
+			{
+				FbxGeometryElementUV* pVertexUV = pMesh->GetElementUV(k);
+				switch (pVertexUV->GetMappingMode())
+				{
+					case FbxGeometryElement::eByControlPoint:
+					{
+						switch (pVertexUV->GetReferenceMode())
+						{
+							case FbxGeometryElement::eDirect:
+							{
+								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(vertexIndex);
+								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+							}
+							break;
 
-			FbxVector2 texcoord = uvArray.GetAt(vertIdx);
-			v.Texcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+							case FbxGeometryElement::eIndexToDirect:
+							{
+								int index = pVertexUV->GetIndexArray().GetAt(vertexIndex);
+								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(index);
+								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+							}
+							break;
+
+							default:
+								__debugbreak();
+								break;
+						}
+					}
+					break;
+
+					case FbxGeometryElement::eByPolygonVertex:
+					{
+						switch (pVertexUV->GetReferenceMode())
+						{
+							case FbxGeometryElement::eDirect:
+							{
+								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(UVIndex);
+								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+							}
+							break;
+
+							case FbxGeometryElement::eIndexToDirect:
+							{
+								int index = pVertexUV->GetIndexArray().GetAt(UVIndex);
+								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(index);
+								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+							}
+							break;
+
+							default:
+								__debugbreak();
+								break;
+						}
+					}
+					break;
+
+					default:
+						__debugbreak();
+						break;
+				}
+			}
+
+			// Insert vertex.
+			Vertex v;
+			v.Position = *pPosition;
+			v.Normal = vertexNormal;
+			v.Texcoord = vertexTexcoord;
 
 			vertices.push_back(v);
+			indices.push_back(vertexCount);
+			++vertexCount;
 		}
-
-		UINT startIndex = (UINT)indices.size();
-		indices.push_back(startIndex);
-		indices.push_back(startIndex + 1);
-		indices.push_back(startIndex + 2);
 	}
 
 
@@ -356,6 +475,8 @@ void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInf
 	{
 
 	}
+
+	delete[] pPositions;
 }
 
 void FBXModelLoader::calculateTangentBitangent(const Vertex& V1, const Vertex& V2, const Vertex& V3, DirectX::XMFLOAT3* pTangent, DirectX::XMFLOAT3* pBitangent)
