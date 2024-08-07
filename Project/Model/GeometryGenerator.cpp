@@ -1,5 +1,6 @@
 #include "../pch.h"
 #include "ModelLoader.h"
+#include "FBXModelLoader.h"
 #include "../Util/Utility.h"
 #include "GeometryGenerator.h"
 
@@ -26,7 +27,9 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 {
 	HRESULT hr = S_OK;
 
-	ModelLoader modelLoader;
+	/*ModelLoader modelLoader;
+	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
+	FBXModelLoader modelLoader;
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
 	if (FAILED(hr))
 	{

@@ -2,9 +2,6 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <assimp/material.h>
-
-// #include <fbxsdk.h>
-
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -119,7 +116,7 @@ void ModelLoader::findDeformingBones(const aiScene* pSCENE)
 	}
 }
 
-const aiNode* ModelLoader::findParent(const aiNode * pNODE)
+const aiNode* ModelLoader::findParent(const aiNode* pNODE)
 {
 	if (!pNODE)
 	{
@@ -450,7 +447,6 @@ void ModelLoader::updateTangents()
 
 void ModelLoader::updateBoneIDs(aiNode* pNode, int* pCounter)
 {
-	static int s_ID = 0;
 	if (pNode)
 	{
 		const char* pNODE_NAME = pNode->mName.C_Str();

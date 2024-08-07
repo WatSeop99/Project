@@ -333,8 +333,8 @@ void App::initExternalData()
 
 	// Main Object.
 	{
-		// std::wstring path = L"./Assets/";
-		std::wstring path = L"./Assets/other2/";
+		std::wstring path = L"./Assets/";
+		// std::wstring path = L"./Assets/other2/";
 		std::vector<std::wstring> clipNames =
 		{
 			L"CatwalkIdleTwistL.fbx", L"CatwalkIdleToWalkForward.fbx",
@@ -342,15 +342,15 @@ void App::initExternalData()
 		};
 		AnimationData animationData;
 
-		// std::wstring filename = L"Remy.fbx";
-		std::wstring filename = L"character.fbx";
+		std::wstring filename = L"Remy.fbx";
+		// std::wstring filename = L"character.fbx";
 		std::vector<MeshInfo> characterMeshInfo;
 		AnimationData characterDefaultAnimData;
 		ReadAnimationFromFile(characterMeshInfo, characterDefaultAnimData, path, filename);
 		characterDefaultAnimData.Clips[0].Name = "DefaultClip";
 
 		// 애니메이션 클립들.
-		for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
+		/*for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
 		{
 			std::wstring& name = clipNames[i];
 			std::vector<MeshInfo> animationMeshInfo;
@@ -365,7 +365,7 @@ void App::initExternalData()
 			{
 				animationData.Clips.push_back(animDataInClip.Clips[0]);
 			}
-		}
+		}*/
 
 		m_pCharacter = new SkinnedMeshModel;
 		if (animationData.Clips.size() > 1)

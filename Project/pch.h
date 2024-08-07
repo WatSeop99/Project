@@ -1,6 +1,17 @@
 #pragma once
 
+// required .lib files
+#pragma comment(lib, "DXGI.lib")
+#pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "D3D12.lib")
+#pragma comment(lib, "D3DCompiler.lib")
+#pragma comment(lib, "libfbxsdk.lib")
+// #pragma comment(lib, "d2d1.lib")
+// #pragma comment(lib, "dwrite.lib")
+
+
 #include <PxPhysicsAPI.h>
+#include <fbxsdk.h>
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
@@ -17,13 +28,6 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 
-// required .lib files
-#pragma comment(lib, "DXGI.lib")
-#pragma comment(lib, "dxguid.lib")
-#pragma comment(lib, "D3D12.lib")
-#pragma comment(lib, "D3DCompiler.lib")
-// #pragma comment(lib, "d2d1.lib")
-// #pragma comment(lib, "dwrite.lib")
 
 #include <Windows.h>
 #include <initguid.h>

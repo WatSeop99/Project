@@ -13,7 +13,7 @@ class ModelLoader
 {
 public:
 	ModelLoader() = default;
-	~ModelLoader() { MeshInfos.clear(); }
+	~ModelLoader() = default;
 
 	HRESULT Load(std::wstring& basePath, std::wstring& fileName, bool _bRevertNormal);
 	HRESULT LoadAnimation(std::wstring& basePath, std::wstring& fileName);
