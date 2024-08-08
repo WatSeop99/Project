@@ -347,10 +347,10 @@ void App::initExternalData()
 		std::vector<MeshInfo> characterMeshInfo;
 		AnimationData characterDefaultAnimData;
 		ReadAnimationFromFile(characterMeshInfo, characterDefaultAnimData, path, filename);
-		characterDefaultAnimData.Clips[0].Name = "DefaultClip";
+		// characterDefaultAnimData.Clips[0].Name = "DefaultClip";
 
 		// 애니메이션 클립들.
-		/*for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
+		for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
 		{
 			std::wstring& name = clipNames[i];
 			std::vector<MeshInfo> animationMeshInfo;
@@ -365,7 +365,7 @@ void App::initExternalData()
 			{
 				animationData.Clips.push_back(animDataInClip.Clips[0]);
 			}
-		}*/
+		}
 
 		m_pCharacter = new SkinnedMeshModel;
 		if (animationData.Clips.size() > 1)
@@ -786,8 +786,8 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 
 	// Vector3 rightFootPos = (correction * pCharacter->RightLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
 	// Vector3 leftFootPos = (correction * pCharacter->LeftLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(clipID, frame, pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
+	Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(clipID, frame, pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
 
 	/*{
 		char szDebugString[256];

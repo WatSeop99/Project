@@ -8,11 +8,14 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 {
 	HRESULT hr = S_OK;
 
-	ModelLoader modelLoader;
+	/*ModelLoader modelLoader;
+	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
+	FBXModelLoader modelLoader;
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
 	if (FAILED(hr))
 	{
 		__debugbreak();
+		hr = E_FAIL;
 		goto LB_RET;
 	}
 
@@ -34,6 +37,7 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 	if (FAILED(hr))
 	{
 		__debugbreak();
+		hr = E_FAIL;
 		goto LB_RET;
 	}
 

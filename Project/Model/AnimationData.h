@@ -47,7 +47,7 @@ public:
 
 	Matrix Get(const int BONE_ID);
 	Matrix GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME);
-	Matrix GetGlobalBonePositionMatix(const int BONE_ID);
+	Matrix GetGlobalBonePositionMatix(const int CLIP_ID, const int FRAME, const int BONE_ID);
 
 public:
 	std::unordered_map<std::string, int> BoneNameToID;	// »À ÀÌ¸§°ú ÀÎµ¦½º Á¤¼ö.

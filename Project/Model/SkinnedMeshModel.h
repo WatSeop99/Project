@@ -47,7 +47,7 @@ protected:
 	void initJointSpheres();
 	void initChain();
 
-	void updateChainPosition();
+	void updateChainPosition(const int CLIP_ID, const int FRAME);
 	void updateJointSpheres(const int CLIP_ID, const int FRAME);
 
 	void solveCharacterIK(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);

@@ -158,7 +158,7 @@ void SkinnedMeshModel::UpdateAnimation(const int CLIP_ID, const int FRAME, const
 	}
 
 	// joint 위치 갱신.
-	updateChainPosition();
+	updateChainPosition(CLIP_ID, FRAME);
 
 	// Update bone transform buffer.
 	BYTE* pBoneTransformMem = nullptr;
@@ -1072,7 +1072,7 @@ void SkinnedMeshModel::initChain()
 	}
 }
 
-void SkinnedMeshModel::updateChainPosition()
+void SkinnedMeshModel::updateChainPosition(const int CLIP_ID, const int FRAME)
 {
 	for (int i = 0; i < 4; ++i)
 	{
@@ -1081,10 +1081,10 @@ void SkinnedMeshModel::updateChainPosition()
 		Joint* pRightLegPart = &RightLeg.BodyChain[i];
 		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
-		pRightArmPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(pRightArmPart->BoneID) * World).Translation();
-		pLeftArmPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(pLeftArmPart->BoneID) * World).Translation();
-		pRightLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(pRightLegPart->BoneID) * World).Translation();
-		pLeftLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(pLeftLegPart->BoneID) * World).Translation();
+		pRightArmPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightArmPart->BoneID) * World).Translation();
+		pLeftArmPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftArmPart->BoneID) * World).Translation();
+		pRightLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightLegPart->BoneID) * World).Translation();
+		pLeftLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftLegPart->BoneID) * World).Translation();
 	}
 }
 
@@ -1125,10 +1125,10 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 		Joint* pRightLegPart = &RightLeg.BodyChain[i];
 		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
-		pRightArmMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(pRightArmPart->BoneID) * World).Transpose();
-		pLeftArmMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(pLeftArmPart->BoneID) * World).Transpose();
-		pRightLegMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(pRightLegPart->BoneID) * World).Transpose();
-		pLeftLegMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(pLeftLegPart->BoneID) * World).Transpose();
+		pRightArmMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightArmPart->BoneID) * World).Transpose();
+		pLeftArmMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftArmPart->BoneID) * World).Transpose();
+		pRightLegMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightLegPart->BoneID) * World).Transpose();
+		pLeftLegMeshConstantData->World = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftLegPart->BoneID) * World).Transpose();
 	}
 
 	RightHandMiddle.Center = m_ppRightArm[3]->MeshConstantData.World.Transpose().Translation();
@@ -1137,11 +1137,15 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
 	{
 		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "rightHand center: %f, %f, %f\nleftHand center: %f, %f, %f\nrightFoot center: %f, %f, %f\nleftFoot center: %f, %f, %f\n\n", 
+		/*sprintf_s(szDebugString, 256, "rightHand center: %f, %f, %f\nleftHand center: %f, %f, %f\nrightFoot center: %f, %f, %f\nleftFoot center: %f, %f, %f\n\n", 
 				  RightHandMiddle.Center.x, RightHandMiddle.Center.y, RightHandMiddle.Center.z,
 				  LeftHandMiddle.Center.x, LeftHandMiddle.Center.y, LeftHandMiddle.Center.z,
 				  RightToe.Center.x, RightToe.Center.y, RightToe.Center.z,
-				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);
+				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);*/
+
+		Matrix mat = CharacterAnimationData.Clips[CLIP_ID].Keys[0][FRAME].GetTransform();
+		Vector3 pos = mat.Translation();
+		sprintf_s(szDebugString, 256, "right hand pos: %f, %f, %f\n\n", pos.x, pos.y, pos.z);
 		OutputDebugStringA(szDebugString);
 	}
 }

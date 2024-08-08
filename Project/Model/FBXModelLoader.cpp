@@ -1,5 +1,3 @@
-// #define FBXSDK_SHARED 
-
 #include "../pch.h"
 #include "AnimationData.h"
 #include "MeshInfo.h"
@@ -77,6 +75,9 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 		Matrix globalTransform; // Initial transformation.
 		AnimData.AccumulatedNodeTransforms.resize(totalBoneCount);
 		AnimData.NodeTransforms.resize(totalBoneCount);
+		AnimData.OffsetMatrices.resize(totalBoneCount);
+		AnimData.InverseOffsetMatrices.resize(totalBoneCount);
+		AnimData.BoneTransforms.resize(totalBoneCount);
 		processNode(pRootNode, pScene);
 
 		// 애니메이션 정보 읽기.
@@ -84,6 +85,16 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 		{
 			readAnimation(pScene);
 		}*/
+		const int ANIM_STACK_COUNT = pScene->GetSrcObjectCount<FbxAnimStack>();
+		AnimData.Clips.resize(ANIM_STACK_COUNT);
+		for (int i = 0; i < ANIM_STACK_COUNT; ++i)
+		{
+			FbxAnimStack* pAnimStack = pScene->GetSrcObject<FbxAnimStack>(i);
+			AnimData.Clips[i].Name = std::string(pAnimStack->GetName());
+			AnimData.Clips[i].Keys.resize(totalBoneCount);
+
+			readAnimationData(pAnimStack, pRootNode, pScene, i);
+		}
 
 		updateTangents();
 	}
@@ -118,8 +129,8 @@ void FBXModelLoader::findDeformingBones(const FbxNode* pNODE)
 		AnimData.BoneNameToID[pNODE->GetName()] = -1;
 	}
 
-	int childCount = pNODE->GetChildCount();
-	for (int i = 0; i < childCount; ++i)
+	const int CHILD_COUNT = pNODE->GetChildCount();
+	for (int i = 0; i < CHILD_COUNT; ++i)
 	{
 		findDeformingBones(pNODE->GetChild(i));
 	}
@@ -177,6 +188,298 @@ void FBXModelLoader::updateBoneIDs(const FbxNode* pNODE, int* pCounter)
 	}
 }
 
+Vector3 FBXModelLoader::readNormal(FbxMesh* pMesh, int vertexIndex, int vertexCount)
+{
+	// Normal.
+	const int NORMAL_ELEMENT_COUNT = pMesh->GetElementNormalCount();
+	Vector3 vertexNormal;
+	for (int k = 0; k < NORMAL_ELEMENT_COUNT; ++k)
+	{
+		FbxGeometryElementNormal* pVertexNormal = pMesh->GetElementNormal(k);
+		switch (pVertexNormal->GetMappingMode())
+		{
+			case FbxGeometryElement::eByControlPoint:
+			{
+				switch (pVertexNormal->GetReferenceMode())
+				{
+					case FbxGeometryElement::eDirect:
+					{
+						FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(vertexIndex);
+						vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+					}
+					break;
+
+					case FbxGeometryElement::eIndexToDirect:
+					{
+						int index = pVertexNormal->GetIndexArray().GetAt(vertexIndex);
+						FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(index);
+						vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+					}
+					break;
+
+					default:
+						__debugbreak();
+						break;
+				}
+			}
+			break;
+
+			case FbxGeometryElement::eByPolygonVertex:
+			{
+				switch (pVertexNormal->GetReferenceMode())
+				{
+					case FbxGeometryElement::eDirect:
+					{
+						FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(vertexCount);
+						vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+					}
+					break;
+
+					case FbxGeometryElement::eIndexToDirect:
+					{
+						int index = pVertexNormal->GetIndexArray().GetAt(vertexCount);
+						FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(index);
+						vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
+					}
+					break;
+
+					default:
+						__debugbreak();
+						break;
+				}
+			}
+			break;
+
+			default:
+				__debugbreak();
+				break;
+		}
+	}
+
+	return vertexNormal;
+}
+
+Vector2 FBXModelLoader::readTexcoord(FbxMesh* pMesh, int vertexIndex, int UVIndex)
+{
+	const int TEXCOORD_ELEMENT_COUNT = pMesh->GetElementUVCount();
+	Vector2 vertexTexcoord;
+	for (int k = 0; k < TEXCOORD_ELEMENT_COUNT; ++k)
+	{
+		FbxGeometryElementUV* pVertexUV = pMesh->GetElementUV(k);
+		switch (pVertexUV->GetMappingMode())
+		{
+			case FbxGeometryElement::eByControlPoint:
+			{
+				switch (pVertexUV->GetReferenceMode())
+				{
+					case FbxGeometryElement::eDirect:
+					{
+						FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(vertexIndex);
+						vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+					}
+					break;
+
+					case FbxGeometryElement::eIndexToDirect:
+					{
+						int index = pVertexUV->GetIndexArray().GetAt(vertexIndex);
+						FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(index);
+						vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+					}
+					break;
+
+					default:
+						__debugbreak();
+						break;
+				}
+			}
+			break;
+
+			case FbxGeometryElement::eByPolygonVertex:
+			{
+				switch (pVertexUV->GetReferenceMode())
+				{
+					case FbxGeometryElement::eDirect:
+					{
+						FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(UVIndex);
+						vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+					}
+					break;
+
+					case FbxGeometryElement::eIndexToDirect:
+					{
+						int index = pVertexUV->GetIndexArray().GetAt(UVIndex);
+						FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(index);
+						vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
+					}
+					break;
+
+					default:
+						__debugbreak();
+						break;
+				}
+			}
+			break;
+
+			default:
+				__debugbreak();
+				break;
+		}
+	}
+
+	return vertexTexcoord;
+}
+
+void FBXModelLoader::readMaterial(FbxProperty& materialProperty, MeshInfo* pMeshInfo, eTextureType type)
+{
+	WCHAR szFileName[256] = { 0, };
+
+	const int LAYERED_TEXTURE_COUNT = materialProperty.GetSrcObjectCount<FbxLayeredTexture>();
+	if (LAYERED_TEXTURE_COUNT > 0)
+	{
+		for (int j = 0; j < LAYERED_TEXTURE_COUNT; ++j)
+		{
+			FbxLayeredTexture* pLayeredTexture = materialProperty.GetSrcObject<FbxLayeredTexture>(j);
+			const int TEXTURE_COUNT = pLayeredTexture->GetSrcObjectCount<FbxTexture>();
+
+			for (int k = 0; k < TEXTURE_COUNT; ++k)
+			{
+				OutputDebugStringA((char*)pLayeredTexture->GetName());
+				mbstowcs(szFileName, pLayeredTexture->GetName(), 256);
+
+				switch (type)
+				{
+					case TextureType_Albedo:
+						pMeshInfo->szAlbedoTextureFileName = std::wstring(szFileName) + L".png";
+						break;
+
+					case TextureType_Emissive:
+						pMeshInfo->szEmissiveTextureFileName = std::wstring(szFileName) + L".png";
+						break;
+
+					case TextureType_Specular:
+						pMeshInfo->szMetallicTextureFileName = std::wstring(szFileName) + L".png";
+						break;
+
+					case TextureType_Ambient:
+						pMeshInfo->szAOTextureFileName = std::wstring(szFileName) + L".png";
+						break;
+
+					case TextureType_Normal:
+						pMeshInfo->szNormalTextureFileName = std::wstring(szFileName) + L".png";
+						break;
+
+					default:
+						break;
+				}
+			}
+		}
+	}
+	else
+	{
+		const int TEXTURE_COUNT = materialProperty.GetSrcObjectCount<FbxTexture>();
+		if (TEXTURE_COUNT <= 0)
+		{
+			return;
+		}
+
+		for (int j = 0; j < TEXTURE_COUNT; ++j)
+		{
+			FbxTexture* pTexture = materialProperty.GetSrcObject<FbxTexture>(j);
+			if (!pTexture)
+			{
+				continue;
+			}
+
+			OutputDebugStringA((char*)pTexture->GetName());
+			mbstowcs(szFileName, pTexture->GetName(), 256);
+
+			switch (type)
+			{
+				case TextureType_Albedo:
+					pMeshInfo->szAlbedoTextureFileName = std::wstring(szFileName);
+					break;
+
+				case TextureType_Emissive:
+					pMeshInfo->szEmissiveTextureFileName = std::wstring(szFileName);
+					break;
+
+				case TextureType_Specular:
+					pMeshInfo->szMetallicTextureFileName = std::wstring(szFileName);
+					break;
+
+				case TextureType_Ambient:
+					pMeshInfo->szAOTextureFileName = std::wstring(szFileName);
+					break;
+
+				case TextureType_Normal:
+					pMeshInfo->szNormalTextureFileName = std::wstring(szFileName);
+					break;
+
+				default:
+					break;
+			}
+		}
+	}
+}
+
+void FBXModelLoader::readAnimationData(FbxAnimStack* pAnimStack, FbxNode* pNode, const FbxScene* pSCENE, int animStackIndex)
+{
+	FbxNodeAttribute* pNodeAttribute = pNode->GetNodeAttribute();
+	if (!pNodeAttribute || pNodeAttribute->GetAttributeType() != FbxNodeAttribute::eSkeleton)
+	{
+		goto LB_CHILD;
+	}
+
+	{
+		const int BONE_ID = AnimData.BoneNameToID[pNode->GetName()];
+
+		FbxTakeInfo* pTakeInfo = pSCENE->GetTakeInfo(pAnimStack->GetName());
+		FbxTime start = pTakeInfo->mLocalTimeSpan.GetStart();
+		FbxTime end = pTakeInfo->mLocalTimeSpan.GetStop();
+
+		FbxTime::EMode timeMode = pSCENE->GetGlobalSettings().GetTimeMode();
+
+		FbxLongLong totalFrame = end.GetFrameCount(timeMode) - start.GetFrameCount(timeMode) + 1;
+		AnimData.Clips[animStackIndex].Keys[BONE_ID].resize(totalFrame);
+		
+		FbxVector4 m0 = { 1.0f, 0.0f, 0.0f, 0.0f };
+		FbxVector4 m1 = { 0.0f, 0.0f, 1.0f, 0.0f };
+		FbxVector4 m2 = { 0.0f, 1.0f, 0.0f, 0.0f };
+		FbxVector4 m3 = { 0.0f, 0.0f, 0.0f, 1.0f };
+		FbxAMatrix reflect;
+		reflect[0] = m0;
+		reflect[1] = m1;
+		reflect[2] = m2;
+		reflect[3] = m3;
+
+		for (FbxLongLong frame = start.GetFrameCount(timeMode), endFrame = end.GetFrameCount(timeMode); frame < endFrame; ++frame)
+		{
+			FbxTime curTime;
+			curTime.SetFrame(frame, timeMode);
+
+			FbxAMatrix keyTransform = pNode->EvaluateGlobalTransform(curTime);
+			// keyTransform = reflect * keyTransform * reflect;
+
+			FbxVector4 pos = keyTransform.GetT();
+			FbxQuaternion rot = keyTransform.GetQ();
+			FbxVector4 scale = keyTransform.GetS();
+
+			AnimationClip::Key& key = AnimData.Clips[animStackIndex].Keys[BONE_ID][frame];
+			key.Position = { (float)pos.mData[0], (float)pos.mData[1],(float)pos.mData[2] };
+			key.Rotation = { (float)rot.mData[0], (float)rot.mData[1],(float)rot.mData[2], (float)rot.mData[3] };
+			key.Scale = { (float)scale.mData[0], (float)scale.mData[1],(float)scale.mData[2] };
+		}
+	}
+
+LB_CHILD:
+	// child.
+	const int CHILD_COUNT = pNode->GetChildCount();
+	for (int i = 0; i < CHILD_COUNT; ++i)
+	{
+		readAnimationData(pAnimStack, pNode->GetChild(i), pSCENE, animStackIndex);
+	}
+}
+
 void FBXModelLoader::processNode(FbxNode* pNode, const FbxScene* pSCENE)
 {
 	if (!pNode)
@@ -192,7 +495,6 @@ void FBXModelLoader::processNode(FbxNode* pNode, const FbxScene* pSCENE)
 		const int BONE_ID = AnimData.BoneNameToID[pNode->GetName()];
 		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->GetName()];
 	}
-
 	if (pNodeAttribute && pNodeAttribute->GetAttributeType() == FbxNodeAttribute::eMesh)
 	{
 		FbxMesh* pMesh = pNode->GetMesh();
@@ -222,12 +524,12 @@ void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInf
 
 	const int VERTEX_COUNT = pMesh->GetControlPointsCount();
 	FbxVector4* pControlPoints = pMesh->GetControlPoints();
-	Vector3* pPositions = new Vector3[VERTEX_COUNT];
 
+	vertices.resize(VERTEX_COUNT);
 	for (int i = 0; i < VERTEX_COUNT; ++i)
 	{
 		FbxVector4 vertex = pMesh->GetControlPointAt(i);
-		pPositions[i] = {(float)vertex.mData[0], (float)vertex.mData[1], (float)vertex.mData[2]};
+		vertices[i].Position = { (float)vertex.mData[0], (float)vertex.mData[1], (float)vertex.mData[2] };
 	}
 
 	const int POLYGON_COUNT = pMesh->GetPolygonCount();
@@ -243,169 +545,92 @@ void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInf
 		for (int j = 0; j < VERTEX_COUNT_IN_POLYGON; ++j)
 		{
 			int vertexIndex = pMesh->GetPolygonVertex(i, j);
-			
-			Vector3* pPosition = &pPositions[vertexIndex];
-
-			// Normal.
-			const int NORMAL_ELEMENT_COUNT = pMesh->GetElementNormalCount();
-			Vector3 vertexNormal;
-			for (int k = 0; k < NORMAL_ELEMENT_COUNT; ++k)
-			{
-				FbxGeometryElementNormal* pVertexNormal = pMesh->GetElementNormal(k);
-				switch (pVertexNormal->GetMappingMode())
-				{
-					case FbxGeometryElement::eByControlPoint:
-					{
-						switch (pVertexNormal->GetReferenceMode())
-						{
-							case FbxGeometryElement::eDirect:
-							{
-								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(vertexIndex);
-								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
-							}
-							break;
-
-							case FbxGeometryElement::eIndexToDirect:
-							{
-								int index = pVertexNormal->GetIndexArray().GetAt(vertexIndex);
-								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(index);
-								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
-							}
-							break;
-
-							default:
-								__debugbreak();
-								break;
-						}
-					}
-					break;
-
-					case FbxGeometryElement::eByPolygonVertex:
-					{
-						switch (pVertexNormal->GetReferenceMode())
-						{
-							case FbxGeometryElement::eDirect:
-							{
-								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(vertexCount);
-								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
-							}
-							break;
-
-							case FbxGeometryElement::eIndexToDirect:
-							{
-								int index = pVertexNormal->GetIndexArray().GetAt(vertexCount);
-								FbxVector4 normal = pVertexNormal->GetDirectArray().GetAt(index);
-								vertexNormal = { (float)normal.mData[0], (float)normal.mData[1], (float)normal.mData[2] };
-							}
-							break;
-
-							default:
-								__debugbreak();
-								break;
-						}
-					}
-					break;
-
-					default:
-						__debugbreak();
-						break;
-				}
-			}
-
-			// Texcoord.
 			int UVIndex = pMesh->GetTextureUVIndex(i, j);
-			const int TEXCOORD_ELEMENT_COUNT = pMesh->GetElementUVCount();
-			Vector2 vertexTexcoord;
-			for (int k = 0; k < TEXCOORD_ELEMENT_COUNT; ++k)
-			{
-				FbxGeometryElementUV* pVertexUV = pMesh->GetElementUV(k);
-				switch (pVertexUV->GetMappingMode())
-				{
-					case FbxGeometryElement::eByControlPoint:
-					{
-						switch (pVertexUV->GetReferenceMode())
-						{
-							case FbxGeometryElement::eDirect:
-							{
-								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(vertexIndex);
-								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
-							}
-							break;
-
-							case FbxGeometryElement::eIndexToDirect:
-							{
-								int index = pVertexUV->GetIndexArray().GetAt(vertexIndex);
-								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(index);
-								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
-							}
-							break;
-
-							default:
-								__debugbreak();
-								break;
-						}
-					}
-					break;
-
-					case FbxGeometryElement::eByPolygonVertex:
-					{
-						switch (pVertexUV->GetReferenceMode())
-						{
-							case FbxGeometryElement::eDirect:
-							{
-								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(UVIndex);
-								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
-							}
-							break;
-
-							case FbxGeometryElement::eIndexToDirect:
-							{
-								int index = pVertexUV->GetIndexArray().GetAt(UVIndex);
-								FbxVector2 texcoord = pVertexUV->GetDirectArray().GetAt(index);
-								vertexTexcoord = { (float)texcoord.mData[0], (float)texcoord.mData[1] };
-							}
-							break;
-
-							default:
-								__debugbreak();
-								break;
-						}
-					}
-					break;
-
-					default:
-						__debugbreak();
-						break;
-				}
-			}
+			
+			Vector3 vertexNormal = readNormal(pMesh, vertexIndex, vertexCount);
+			Vector2 vertexTexcoord = readTexcoord(pMesh, vertexIndex, UVIndex);
 
 			// Insert vertex.
-			Vertex v;
+			/*Vertex v;
 			v.Position = *pPosition;
 			v.Normal = vertexNormal;
-			v.Texcoord = vertexTexcoord;
+			v.Texcoord = vertexTexcoord;*/
 
-			vertices.push_back(v);
-			indices.push_back(vertexCount);
+			/*vertices.push_back(v);
+			indices.push_back(vertexCount);*/
+
+			Vertex& vertex = vertices[vertexIndex];
+			vertex.Normal = vertexNormal;
+			vertex.Texcoord = vertexTexcoord;
+
+			indices.push_back(vertexIndex);
+
 			++vertexCount;
+		}
+	}
+
+
+	FbxNode* pNode = pMesh->GetNode();
+	if (!pNode)
+	{
+		return;
+	}
+
+	const int MATERIAL_COUNT = pNode->GetMaterialCount();
+	for (int i = 0; i < MATERIAL_COUNT; ++i)
+	{
+		FbxSurfaceMaterial* pMaterial = pNode->GetMaterial(i);
+		FbxProperty propertyForMaterial;
+		
+		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sDiffuse);
+		if (propertyForMaterial.IsValid())
+		{
+			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Albedo);
+		}
+
+		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sEmissive);
+		if (propertyForMaterial.IsValid())
+		{
+			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Emissive);
+		}
+
+		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
+		if (propertyForMaterial.IsValid())
+		{
+			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Specular);
+		}
+
+		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sAmbient);
+		if (propertyForMaterial.IsValid())
+		{
+			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Ambient);
+		}
+
+		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sNormalMap);
+		if (propertyForMaterial.IsValid())
+		{
+			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Normal);
 		}
 	}
 
 
 	std::vector<std::vector<float>> boneWeights;
 	std::vector<std::vector<UINT8>> boneIndices;
-	const int DEFORMER_COUNT = pMesh->GetDeformerCount();
-	if (DEFORMER_COUNT > 0)
+	const UINT64 VERTEX_SIZE = vertices.size();
+
+	const int SKIN_COUNT = pMesh->GetDeformerCount(FbxDeformer::eSkin);
+	if (SKIN_COUNT > 0)
 	{
-		const UINT64 VERTEX_SIZE = vertices.size();
 		skinnedVertices.resize(VERTEX_SIZE);
 		boneWeights.resize(VERTEX_SIZE);
 		boneIndices.resize(VERTEX_SIZE);
 	}
-	for (int i = 0; i < DEFORMER_COUNT; ++i)
+	for (int i = 0; i < SKIN_COUNT; ++i)
 	{
 		FbxSkin* pSkin = (FbxSkin*)pMesh->GetDeformer(i, FbxDeformer::eSkin);
-		if (!pSkin)
+		FbxSkin::EType type = pSkin->GetSkinningType();
+
+		if (type != FbxSkin::eRigid && type != FbxSkin::eLinear)
 		{
 			continue;
 		}
@@ -414,21 +639,48 @@ void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInf
 		for (int j = 0; j < CLUSTER_COUNT; ++j)
 		{
 			FbxCluster* pCluster = pSkin->GetCluster(j);
-			int* pVertexIndices = pCluster->GetControlPointIndices();
-			double* pBoneWeights = pCluster->GetControlPointWeights();
-			const int VERTEX_COUNT = pCluster->GetControlPointIndicesCount();
-			
 			const char* szBoneName = pCluster->GetLink()->GetName();
 			const int BONE_ID = AnimData.BoneNameToID[szBoneName];
 
-			for (int k = 0; k < VERTEX_COUNT; ++k)
+			int* pVertexIndices = pCluster->GetControlPointIndices();
+			double* pBoneWeights = pCluster->GetControlPointWeights();
+
+			const int INDEX_COUNT = pCluster->GetControlPointIndicesCount();
+			for (int k = 0; k < INDEX_COUNT; ++k)
 			{
 				boneIndices[pVertexIndices[k]].push_back(BONE_ID);
 				boneWeights[pVertexIndices[k]].push_back((float)pBoneWeights[k]);
 			}
+			
+			FbxVector4 m0 = { 1.0f, 0.0f, 0.0f, 0.0f };
+			FbxVector4 m1 = { 0.0f, 0.0f, 1.0f, 0.0f };
+			FbxVector4 m2 = { 0.0f, 1.0f, 0.0f, 0.0f };
+			FbxVector4 m3 = { 0.0f, 0.0f, 0.0f, 1.0f };
+			FbxAMatrix reflect;
+			reflect[0] = m0;
+			reflect[1] = m1;
+			reflect[2] = m2;
+			reflect[3] = m3;
+
+			FbxAMatrix transform;
+			FbxAMatrix linkTransform;
+			FbxAMatrix boneOffsetMatrix;
+			pCluster->GetTransformMatrix(transform);
+			pCluster->GetTransformLinkMatrix(linkTransform);
+			boneOffsetMatrix = linkTransform.Inverse() * transform;
+			// boneOffsetMatrix = reflect * boneOffsetMatrix * reflect;
+
+			for (int a = 0; a < 4; ++a)
+			{
+				for (int b = 0; b < 4; ++b)
+				{
+					AnimData.OffsetMatrices[BONE_ID](a, b) = (float)boneOffsetMatrix.Get(a, b);
+				}
+			}
+			AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
 		}
 	}
-	for (UINT64 i = 0, VERTEX_SIZE = skinnedVertices.size(); i < VERTEX_SIZE; ++i)
+	for (UINT64 i = 0; i < VERTEX_SIZE; ++i)
 	{
 		skinnedVertices[i].Position = vertices[i].Position;
 		skinnedVertices[i].Normal = vertices[i].Normal;
@@ -441,42 +693,6 @@ void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInf
 			skinnedVertices[i].BoneIndices[j] = boneIndices[i][j];
 		}
 	}
-
-
-	bool bIsAllSame = true;
-	const int MATERIAL_COUNT = pMesh->GetElementMaterialCount();
-	for (int i = 0; i < MATERIAL_COUNT; ++i)
-	{
-		FbxGeometryElementMaterial* pMaterialElement = pMesh->GetElementMaterial(i);
-		if (pMaterialElement->GetMappingMode() == FbxGeometryElement::eByPolygon)
-		{
-			bIsAllSame = false;
-			break;
-		}
-	}
-
-	if (bIsAllSame)
-	{
-		for (int i = 0; i < MATERIAL_COUNT; ++i)
-		{
-			FbxGeometryElementMaterial* pMaterialElement = pMesh->GetElementMaterial(i);
-			if (pMaterialElement->GetMappingMode() == FbxGeometryElement::eAllSame)
-			{
-				FbxSurfaceMaterial* lMaterial = pMesh->GetNode()->GetMaterial(pMaterialElement->GetIndexArray().GetAt(0));
-				int materialID = pMaterialElement->GetIndexArray().GetAt(0);
-				if (materialID >= 0)
-				{
-					FbxSurfaceMaterial::sReflection;
-				}
-			}
-		}
-	}
-	else
-	{
-
-	}
-
-	delete[] pPositions;
 }
 
 void FBXModelLoader::calculateTangentBitangent(const Vertex& V1, const Vertex& V2, const Vertex& V3, DirectX::XMFLOAT3* pTangent, DirectX::XMFLOAT3* pBitangent)

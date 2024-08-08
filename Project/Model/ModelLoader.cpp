@@ -352,12 +352,11 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 		{
 			std::vector<AnimationClip::Key>& keys = clip.Keys[boneID];
 			const UINT64 KEY_SIZE = keys.size();
-			if (KEY_SIZE == 0 || keys[0].Position == Vector3(0.0f))
+			if (KEY_SIZE == 0)
 			{
 				// keys.push_back(AnimationClip::Key());
 
 				Matrix& nodeTransform = AnimData.NodeTransforms[boneID];
-
 				AnimationClip::Key key;
 				key.Position = nodeTransform.Translation();
 				key.Rotation = Quaternion::CreateFromRotationMatrix(nodeTransform);
