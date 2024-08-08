@@ -1143,9 +1143,9 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 				  RightToe.Center.x, RightToe.Center.y, RightToe.Center.z,
 				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);*/
 
-		Matrix mat = CharacterAnimationData.Clips[CLIP_ID].Keys[0][FRAME].GetTransform();
+		Matrix mat = CharacterAnimationData.Clips[CLIP_ID].Keys[RightLeg.BodyChain[3].BoneID][FRAME].GetTransform();
 		Vector3 pos = mat.Translation();
-		sprintf_s(szDebugString, 256, "right hand pos: %f, %f, %f\n\n", pos.x, pos.y, pos.z);
+		sprintf_s(szDebugString, 256, "right toe pos: %f, %f, %f\n\n", pos.x, pos.y, pos.z);
 		OutputDebugStringA(szDebugString);
 	}
 }

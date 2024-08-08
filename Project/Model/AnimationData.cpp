@@ -130,7 +130,7 @@ Matrix AnimationData::GetGlobalBonePositionMatix(const int CLIP_ID, const int FR
 	}
 
 	return (InverseDefaultTransform * ret * DefaultTransform);*/
-	return (InverseDefaultTransform * BoneTransforms[BONE_ID] * DefaultTransform);
+	return (InverseDefaultTransform * BoneTransforms[BONE_ID] * InverseOffsetMatrices[0] * DefaultTransform);
 }
 
 Joint::Joint()
