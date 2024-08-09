@@ -21,7 +21,7 @@ public:
 	virtual void Initialize(Renderer* pRenderer) { }
 	virtual void InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh* pNewMesh);
 
-	void UpdateWorld(const Matrix& WORLD);
+	virtual void UpdateWorld(const Matrix& WORLD);
 	
 	virtual void Render(eRenderPSOType psoSetting);
 	virtual void Render(UINT threadIndex, ID3D12GraphicsCommandList* pCommandList, DynamicDescriptorPool* pDescriptorPool, ConstantBufferManager* pConstantBufferManager, ResourceManager* pManager, int psoSetting);

@@ -24,7 +24,7 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 	szBasePath = std::string(basePath.begin(), basePath.end());
 
 	Assimp::Importer importer;
-	const aiScene* pSCENE = importer.ReadFile(szBasePath + fileNameA, aiProcess_Triangulate | aiProcess_ConvertToLeftHanded);
+	const aiScene* pSCENE = importer.ReadFile(szBasePath + fileNameA, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_ConvertToLeftHanded);
 
 	if (pSCENE)
 	{

@@ -28,6 +28,7 @@ public:
 	void InitMeshBuffers(Renderer* pRenderer, const MeshInfo& MESH_INFO, Mesh** ppNewMesh);
 	void InitAnimationData(Renderer* pRenderer, const AnimationData& ANIM_DATA);
 
+	void UpdateWorld(const Matrix& WORLD) override;
 	void UpdateAnimation(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo);
 	
 	void Render(eRenderPSOType psoSetting) override;

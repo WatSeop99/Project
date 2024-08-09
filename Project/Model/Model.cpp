@@ -200,7 +200,7 @@ void Model::UpdateWorld(const Matrix& WORLD)
 {
 	World = WORLD;
 	InverseWorldTranspose = WORLD;
-	// WorldInverseTranspose.Translation(Vector3(0.0f));
+	// InverseWorldTranspose.Translation(Vector3(0.0f));
 	InverseWorldTranspose = InverseWorldTranspose.Invert().Transpose();
 
 	// bounding box, sphere 위치 업데이트.
