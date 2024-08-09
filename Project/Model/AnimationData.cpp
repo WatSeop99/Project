@@ -55,10 +55,9 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		const UINT64 KEY_SIZE = keys.size();
 
 		const int PARENT_ID = BoneParents[boneID];
-		const Matrix& PARENT_MATRIX = BoneTransforms[PARENT_ID];
 		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-		BoneTransforms[boneID] = key.GetTransform() * PARENT_MATRIX;
+		BoneTransforms[boneID] = key.GetTransform() * BoneTransforms[PARENT_ID];
 	}
 }
 
