@@ -356,6 +356,24 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 			{
 				// keys.push_back(AnimationClip::Key());
 
+				/*const int PARENT_ID = AnimData.BoneParents[boneID];
+				Matrix parentGlobalOffset = AnimData.InverseOffsetMatrices[PARENT_ID];
+				Matrix curBoneGlobalOffset = AnimData.InverseOffsetMatrices[boneID];
+
+				Quaternion parentGlobalRot = Quaternion::CreateFromRotationMatrix(parentGlobalOffset);
+				Quaternion childGlobalRot = Quaternion::CreateFromRotationMatrix(curBoneGlobalOffset);
+				parentGlobalRot.Conjugate();
+
+				Quaternion relativeRot = Quaternion::Concatenate(childGlobalRot, parentGlobalRot);
+
+				Vector3 parentGlobalPos = parentGlobalOffset.Translation();
+				Vector3 childGlobalPos = curBoneGlobalOffset.Translation();
+				Vector3 relativePos = childGlobalPos - parentGlobalPos;
+
+				AnimationClip::Key key;
+				key.Position = relativePos;
+				key.Rotation = relativeRot;*/
+
 				Matrix& nodeTransform = AnimData.NodeTransforms[boneID];
 				AnimationClip::Key key;
 				key.Position = nodeTransform.Translation();

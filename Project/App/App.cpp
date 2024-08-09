@@ -375,7 +375,7 @@ void App::initExternalData()
 
 
 		// Vector3 position(0.0f, 0.5f, 2.0f);
-		Vector3 position(0.0f, 0.5f, 5.0f);
+		Vector3 position(0.0f, 0.47f, 5.0f);
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];

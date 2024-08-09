@@ -23,6 +23,7 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 	dst = modelLoader.MeshInfos;
 
 LB_RET:
+
 	return hr;
 }
 

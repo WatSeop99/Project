@@ -5,8 +5,12 @@
 
 Matrix AnimationClip::Key::GetTransform()
 {
-	Quaternion newRot = Quaternion::Concatenate(Rotation, IKUpdateRotation);
-	IKUpdateRotation = Quaternion();
+	Quaternion newRot = Rotation;
+	if (IKUpdateRotation == Quaternion())
+	{
+		newRot = Quaternion::Concatenate(Rotation, IKUpdateRotation);
+		IKUpdateRotation = Quaternion();
+	}
 	return (Matrix::CreateScale(Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Position));
 }
 
@@ -96,40 +100,40 @@ Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, con
 
 Matrix AnimationData::GetGlobalBonePositionMatix(const int CLIP_ID, const int FRAME, const int BONE_ID)
 {
-	//// std::vector<Matrix> que;
+	// std::vector<Matrix> que;
 
-	//AnimationClip& clip = Clips[CLIP_ID];
-	//std::vector<AnimationClip::Key> keys = clip.Keys[BONE_ID];
-	//UINT64 keySize = keys.size();
-	//AnimationClip::Key key = keys[FRAME % keySize];
+	AnimationClip& clip = Clips[CLIP_ID];
+	std::vector<AnimationClip::Key> keys = clip.Keys[BONE_ID];
+	UINT64 keySize = keys.size();
+	AnimationClip::Key key = keys[FRAME % keySize];
 
-	//Matrix ret = key.GetTransform();
+	Matrix ret = key.GetTransform();
 
-	//int parentID = BoneParents[BONE_ID];
-	//while (parentID != 0)
-	//{
-	//	keys = clip.Keys[parentID];
-	//	keySize = keys.size();
-	//	key = keys[FRAME % keySize];
+	int parentID = BoneParents[BONE_ID];
+	while (parentID != 0)
+	{
+		keys = clip.Keys[parentID];
+		keySize = keys.size();
+		key = keys[FRAME % keySize];
 
-	//	// que.push_back(key.GetTransform());
-	//	ret *= key.GetTransform();
-	//	parentID = BoneParents[parentID];
-	//}
+		// que.push_back(key.GetTransform());
+		ret *= key.GetTransform();
+		parentID = BoneParents[parentID];
+	}
 
-	//keys = clip.Keys[parentID];
-	//keySize = keys.size();
-	//key = keys[FRAME % keySize];
+	keys = clip.Keys[parentID];
+	keySize = keys.size();
+	key = keys[FRAME % keySize];
 
-	//// que.push_back(key.GetTransform());
-	//ret *= key.GetTransform();
+	// que.push_back(key.GetTransform());
+	ret *= key.GetTransform();
 
-	///*for (UINT i = 0, size = que.size(); i < size; ++i)
-	//{
-	//	ret;
-	//}*/
+	/*for (UINT i = 0, size = que.size(); i < size; ++i)
+	{
+		ret;
+	}*/
 
-	//return (InverseDefaultTransform * ret * InverseOffsetMatrices[0] * DefaultTransform);
+	return (InverseDefaultTransform * ret * DefaultTransform);
 	return (InverseDefaultTransform * BoneTransforms[BONE_ID] * InverseOffsetMatrices[0] * DefaultTransform);
 }
 
