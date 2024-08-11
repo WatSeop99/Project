@@ -379,12 +379,10 @@ void App::initExternalData()
 		{
 			// right toe key base È®ÀÎ.
 			Matrix rightToeBaseKeyData = m_pCharacter->CharacterAnimationData.Clips[0].Keys[65][0].GetTransform();
-			Matrix rightFootKeyData = m_pCharacter->CharacterAnimationData.Clips[0].Keys[64][0].GetTransform();
+			rightToeBaseKeyData = m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[65] * rightToeBaseKeyData;
 			Vector3 translationChild = rightToeBaseKeyData.Translation();
-			Vector3 translationParent = rightFootKeyData.Translation();
 			Quaternion rotationChild = Quaternion::CreateFromRotationMatrix(rightToeBaseKeyData);
-			Quaternion RotationParent = Quaternion::CreateFromRotationMatrix(rightFootKeyData);
-			
+
 			int a = 0;
 		}
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)

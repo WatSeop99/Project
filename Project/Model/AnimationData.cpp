@@ -125,7 +125,7 @@ Matrix AnimationData::GetGlobalBonePositionMatix(const int CLIP_ID, const int FR
 	key = keys[FRAME % keySize];
 
 	// que.push_back(key.GetTransform());
-	ret *= key.GetTransform();
+	ret *= key.GetTransform() * AccumulatedRootTransform;
 
 	/*for (UINT i = 0, size = que.size(); i < size; ++i)
 	{
