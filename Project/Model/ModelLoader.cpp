@@ -374,10 +374,11 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 				key.Position = relativePos;
 				key.Rotation = relativeRot;*/
 
-				Matrix& nodeTransform = AnimData.NodeTransforms[boneID];
+				Matrix nodeTransform = AnimData.NodeTransforms[boneID];
 				AnimationClip::Key key;
 				key.Position = nodeTransform.Translation();
 				key.Rotation = Quaternion::CreateFromRotationMatrix(nodeTransform);
+
 				keys.push_back(key);
 			}
 		}

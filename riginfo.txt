@@ -31,8 +31,11 @@ https://assimp.sourceforge.net/lib_html/structai_bone.html
 https://github.com/assimp/assimp/pull/1803
 
 physx 샘플 코드는 별 다른게 없음..
-낼 뭐 해보면서 만들어야 할듯..
+낼 뭐 해보면서 만들어야 할듯
+=========================================
 
+블렌더에서 왼쪽에서 이동 옵션으로 바꾼 뒤, 애니메이션 프레임 설정 후 오른쪽 bone 프로프티에 선택하면 나옴.
+근데 여기 transform 값은 부모노드에 상대적인것 같음.
 
 
 
