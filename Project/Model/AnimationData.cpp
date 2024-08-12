@@ -24,9 +24,9 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		const int ROOT_BONE_ID = 0;
 		std::vector<AnimationClip::Key>& keys = clip.Keys[ROOT_BONE_ID];
 		const UINT64 KEY_SIZE = keys.size();
-
-		const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
+		
+		// const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 
 		//if (FRAME != 0)
 		//{
@@ -45,6 +45,7 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		// Quaternion newRot = Quaternion::Concatenate(key.Rotation, key.IKUpdateRotation);
 		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(key.Scale) * Matrix::CreateFromQuaternion(key.Rotation);
 		key.IKUpdateRotation = Quaternion();
+		// BoneTransforms[ROOT_BONE_ID] = key.GetTransform();
 	}
 
 	// 나머지 bone transform 업데이트.
@@ -75,10 +76,10 @@ void AnimationData::UpdateVelocity(const int CLIP_ID, const int FRAME)
 	{
 		posDelta = key.Position - PrevKeyPos;
 	}
-	/*else
+	else
 	{
 		posDelta = key.Position;
-	}*/
+	}
 	posDelta = Vector3::Transform(posDelta, DefaultTransform);
 	Velocity = posDelta.Length();
 	PrevKeyPos = key.Position;
@@ -150,6 +151,25 @@ Matrix AnimationData::GetGlobalBonePositionMatix(const int CLIP_ID, const int FR
 	//// ret *= key.GetTransform();
 
 	//return (InverseDefaultTransform * ret * DefaultTransform);
+
+
+	AnimationClip& clip = Clips[CLIP_ID];
+	UINT64 keySize = clip.Keys[BONE_ID].size();
+	AnimationClip::Key& key = clip.Keys[BONE_ID][FRAME % keySize];
+	Matrix ret = key.GetTransform();
+	int parentID = BoneParents[BONE_ID];
+
+	while (parentID > 0)
+	{
+		keySize = clip.Keys[parentID].size();
+		ret *= clip.Keys[parentID][FRAME % keySize].GetTransform();
+		parentID = BoneParents[parentID];
+	}
+	keySize = clip.Keys[parentID].size();
+	AnimationClip::Key& rootBoneKey = clip.Keys[parentID][FRAME % keySize];
+	ret *= Matrix::CreateScale(rootBoneKey.Scale) * Matrix::CreateFromQuaternion(rootBoneKey.Rotation);
+
+	return (InverseDefaultTransform * ret * InverseOffsetMatrices[0] * DefaultTransform);
 	return (InverseDefaultTransform * BoneTransforms[BONE_ID] * InverseOffsetMatrices[0] * DefaultTransform);
 }
 

@@ -378,16 +378,28 @@ void App::initExternalData()
 		// Vector3 position(0.0f, 0.5f, 2.0f);
 		Vector3 position(0.0f, 0.47f, 5.0f);
 		{
-			const int BONE_ID = 65;
-			const int PARENT_ID = m_pCharacter->CharacterAnimationData.BoneParents[BONE_ID];
-			Matrix parentBoneGlobal = m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[PARENT_ID];
+			const int BONE_ID = 64;
 			// Matrix parentBoneGlobal = m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];
 			Matrix boneGlobal = m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[BONE_ID];
-			Matrix keyTransform = m_pCharacter->CharacterAnimationData.BoneTransforms[BONE_ID];
-			keyTransform = keyTransform * m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];
+			/*Matrix keyTransform = m_pCharacter->CharacterAnimationData.BoneTransforms[BONE_ID];
+			keyTransform = keyTransform * m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];*/
+
+			int parentID = m_pCharacter->CharacterAnimationData.BoneParents[BONE_ID];
+			Matrix keyTransform = m_pCharacter->CharacterAnimationData.Clips[0].Keys[BONE_ID][0].GetTransform();
 			
+			while (parentID > 0)
+			{
+				keyTransform *= m_pCharacter->CharacterAnimationData.Clips[0].Keys[parentID][0].GetTransform();
+				parentID = m_pCharacter->CharacterAnimationData.BoneParents[parentID];
+			}
+			keyTransform *= Matrix::CreateScale(m_pCharacter->CharacterAnimationData.Clips[0].Keys[parentID][0].Scale) * Matrix::CreateFromQuaternion(m_pCharacter->CharacterAnimationData.Clips[0].Keys[parentID][0].Rotation);
+			keyTransform *= m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];
+
 			Vector3 originPos = boneGlobal.Translation();
 			Vector3 keyPos = keyTransform.Translation();
+
+			Vector3 pos = originPos + Vector3(0.000006f, -0.000002f, -0.000004f);
+
 			Quaternion originRot = Quaternion::CreateFromRotationMatrix(boneGlobal);
 			Quaternion keyRot = Quaternion::CreateFromRotationMatrix(keyTransform);
 
