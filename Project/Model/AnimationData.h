@@ -42,6 +42,7 @@ public:
 	~AnimationData() = default;
 
 	void Update(const int CLIP_ID, const int FRAME);
+	void UpdateVelocity(const int CLIP_ID, const int FRAME);
 
 	void ResetAllUpdateRotationInClip(const int CLIP_ID);
 

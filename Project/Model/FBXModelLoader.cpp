@@ -54,8 +54,8 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 	bStatus = pImporter->Import(pScene);
 	if (bStatus)
 	{
-		FbxGeometryConverter converter(pFbxSdkManager);
-		converter.Triangulate(pScene, true);
+		/*FbxGeometryConverter converter(pFbxSdkManager);
+		converter.Triangulate(pScene, true);*/
 
 		FbxNode* pRootNode = pScene->GetRootNode();
 		int totalBoneCount = 0;
@@ -78,6 +78,24 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 		AnimData.OffsetMatrices.resize(totalBoneCount);
 		AnimData.InverseOffsetMatrices.resize(totalBoneCount);
 		AnimData.BoneTransforms.resize(totalBoneCount);
+
+		{
+			pScene->FillAnimStackNameArray(AnimNames);
+
+			const int ANIM_COUNT = AnimNames.GetCount();
+			AnimData.Clips.resize(ANIM_COUNT);
+			for (int i = 0; i < ANIM_COUNT; ++i)
+			{
+				FbxAnimStack* pAnimStack = pScene->FindMember<FbxAnimStack>(AnimNames[i]->Buffer());
+				if (!pAnimStack)
+				{
+					continue;
+				}
+
+				AnimData.Clips[i].Keys.resize(totalBoneCount);
+			}
+		}
+
 		processNode(pRootNode, pScene);
 
 		// 애니메이션 정보 읽기.
@@ -85,7 +103,7 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 		{
 			readAnimation(pScene);
 		}*/
-		const int ANIM_STACK_COUNT = pScene->GetSrcObjectCount<FbxAnimStack>();
+		/*const int ANIM_STACK_COUNT = pScene->GetSrcObjectCount<FbxAnimStack>();
 		AnimData.Clips.resize(ANIM_STACK_COUNT);
 		for (int i = 0; i < ANIM_STACK_COUNT; ++i)
 		{
@@ -94,9 +112,9 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 			AnimData.Clips[i].Keys.resize(totalBoneCount);
 
 			readAnimationData(pAnimStack, pRootNode, pScene, i);
-		}
+		}*/
 
-		updateTangents();
+		// updateTangents();
 	}
 	else
 	{
@@ -442,10 +460,10 @@ void FBXModelLoader::readAnimationData(FbxAnimStack* pAnimStack, FbxNode* pNode,
 		FbxLongLong totalFrame = end.GetFrameCount(timeMode) - start.GetFrameCount(timeMode) + 1;
 		AnimData.Clips[animStackIndex].Keys[BONE_ID].resize(totalFrame);
 		
-		FbxVector4 m0 = { 1.0f, 0.0f, 0.0f, 0.0f };
-		FbxVector4 m1 = { 0.0f, 0.0f, 1.0f, 0.0f };
-		FbxVector4 m2 = { 0.0f, 1.0f, 0.0f, 0.0f };
-		FbxVector4 m3 = { 0.0f, 0.0f, 0.0f, 1.0f };
+		const FbxVector4 m0 = { 1.0f, 0.0f, 0.0f, 0.0f };
+		const FbxVector4 m1 = { 0.0f, 0.0f, 1.0f, 0.0f };
+		const FbxVector4 m2 = { 0.0f, 1.0f, 0.0f, 0.0f };
+		const FbxVector4 m3 = { 0.0f, 0.0f, 0.0f, 1.0f };
 		FbxAMatrix reflect;
 		reflect[0] = m0;
 		reflect[1] = m1;
@@ -457,8 +475,8 @@ void FBXModelLoader::readAnimationData(FbxAnimStack* pAnimStack, FbxNode* pNode,
 			FbxTime curTime;
 			curTime.SetFrame(frame, timeMode);
 
-			FbxAMatrix keyTransform = pNode->EvaluateGlobalTransform(curTime);
-			// keyTransform = reflect * keyTransform * reflect;
+			FbxAMatrix keyTransform = pNode->EvaluateLocalTransform(curTime);
+			keyTransform = reflect * keyTransform * reflect;
 
 			FbxVector4 pos = keyTransform.GetT();
 			FbxQuaternion rot = keyTransform.GetQ();
@@ -480,7 +498,88 @@ LB_CHILD:
 	}
 }
 
-void FBXModelLoader::processNode(FbxNode* pNode, const FbxScene* pSCENE)
+void FBXModelLoader::readBoneOffset(FbxCluster* pCluster, const FbxAMatrix& NODE_TRANSFORM, const int BONE_ID)
+{
+	FbxAMatrix clusterTransform;
+	FbxAMatrix clusterLinkTransform;
+	// The transformation of the mesh at binding time 
+	pCluster->GetTransformMatrix(clusterTransform);
+	// The transformation of the cluster(joint) at binding time from joint space to world space 
+	pCluster->GetTransformLinkMatrix(clusterLinkTransform);
+
+	const FbxVector4 V0 = { 1.0f, 0.0f, 0.0f, 0.0f };
+	const FbxVector4 V1 = { 0.0f, 0.0f, 1.0f, 0.0f };
+	const FbxVector4 V2 = { 0.0f, 1.0f, 0.0f, 0.0f };
+	const FbxVector4 V3 = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+	FbxAMatrix reflection;
+	reflection[0] = V0;
+	reflection[1] = V1;
+	reflection[2] = V2;
+	reflection[3] = V3;
+
+	FbxAMatrix offset;
+	offset = clusterLinkTransform.Inverse() * clusterTransform;
+	offset = reflection * offset * reflection;
+	// offset = offset.Transpose();
+
+	Matrix& originOffset = AnimData.OffsetMatrices[BONE_ID];
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			originOffset.m[i][j] = (float)offset.mData[i][j];
+		}
+	}
+	// AnimData.OffsetMatrices[BONE_ID] = offset.Transpose();
+}
+
+void FBXModelLoader::readKeyframe(const int ANIM_INDEX, FbxNode* pNode, FbxCluster* pCluster, FbxScene* pScene, const FbxAMatrix& NODE_TRANSFORM, const int BONE_ID)
+{
+	const FbxVector4 v1 = { 1.0f, 0.0f, 0.0f, 0.0f };
+	const FbxVector4 v2 = { 0.0f, 0.0f, 1.0f, 0.0f };
+	const FbxVector4 v3 = { 0.0f, 1.0f, 0.0f, 0.0f };
+	const FbxVector4 v4 = { 0.0f, 0.0f, 0.0f, 1.0f };
+	FbxAMatrix	reflection;
+	reflection.mData[0] = v1;
+	reflection.mData[1] = v2;
+	reflection.mData[2] = v3;
+	reflection.mData[3] = v4;
+
+	FbxAnimStack* pAnimStack = pScene->FindMember<FbxAnimStack>(AnimNames[ANIM_INDEX]->Buffer());
+	pScene->SetCurrentAnimationStack(pAnimStack);
+
+	FbxTakeInfo* pTakeInfo = pScene->GetTakeInfo(pAnimStack->GetName());
+	FbxTime::EMode timeMode = pScene->GetGlobalSettings().GetTimeMode();
+
+	FbxLongLong startFrame = pTakeInfo->mLocalTimeSpan.GetStart().GetFrameCount(timeMode);
+	FbxLongLong endFrame = pTakeInfo->mLocalTimeSpan.GetStop().GetFrameCount(timeMode);
+
+	AnimationClip& clip = AnimData.Clips[ANIM_INDEX];
+	std::vector<AnimationClip::Key>& keys = clip.Keys[BONE_ID];
+	keys.resize(endFrame - startFrame + 1);
+
+	for (FbxLongLong frame = startFrame; frame < endFrame; frame++)
+	{
+		FbxTime fbxTime = 0;
+
+		fbxTime.SetFrame(frame, timeMode);
+
+		FbxAMatrix gloablTransform = pNode->EvaluateGlobalTransform(fbxTime);
+		FbxAMatrix transform = gloablTransform.Inverse() * pCluster->GetLink()->EvaluateGlobalTransform(fbxTime);
+		transform = reflection * transform * reflection;
+
+		FbxVector4 translation = transform.GetR();
+		FbxQuaternion rotation = transform.GetQ();
+		FbxVector4 scale = transform.GetS();
+
+		keys[frame].Position = Vector3((float)translation.mData[0], (float)translation.mData[1], (float)translation.mData[2]);
+		keys[frame].Rotation = Quaternion((float)rotation.mData[0], (float)rotation.mData[1], (float)rotation.mData[2], (float)rotation.mData[3]);
+		keys[frame].Scale = Vector3((float)scale.mData[0], (float)scale.mData[1], (float)scale.mData[2]);
+	}
+}
+
+void FBXModelLoader::processNode(FbxNode* pNode, FbxScene* pScene)
 {
 	if (!pNode)
 	{
@@ -499,198 +598,238 @@ void FBXModelLoader::processNode(FbxNode* pNode, const FbxScene* pSCENE)
 	{
 		FbxMesh* pMesh = pNode->GetMesh();
 		MeshInfo meshInfo = INIT_MESH_INFO;
-		processMesh(pMesh, pSCENE, &meshInfo);
-		MeshInfos.push_back(meshInfo);
+		processMesh(pMesh, pScene, &meshInfo);
+		// MeshInfos.push_back(meshInfo);
 	}
 
 	int childNodeCount = pNode->GetChildCount();
 	for (int i = 0; i < childNodeCount; ++i)
 	{
-		processNode(pNode->GetChild(i), pSCENE);
+		processNode(pNode->GetChild(i), pScene);
 	}
 }
 
-void FBXModelLoader::processMesh(FbxMesh* pMesh, const FbxScene* pSCENE, MeshInfo* pMeshInfo)
+void FBXModelLoader::processMesh(FbxMesh* pMesh, FbxScene* pScene, MeshInfo* pMeshInfo)
 {
 	if (!pMesh)
 	{
 		return;
 	}
 
-	std::vector<Vertex>& vertices = pMeshInfo->Vertices;
-	std::vector<UINT>& indices = pMeshInfo->Indices;
-	std::vector<SkinnedVertex>& skinnedVertices = pMeshInfo->SkinnedVertices;
+	//std::vector<Vertex>& vertices = pMeshInfo->Vertices;
+	//std::vector<UINT>& indices = pMeshInfo->Indices;
+	//std::vector<SkinnedVertex>& skinnedVertices = pMeshInfo->SkinnedVertices;
 
 
-	const int VERTEX_COUNT = pMesh->GetControlPointsCount();
-	FbxVector4* pControlPoints = pMesh->GetControlPoints();
+	//const int VERTEX_COUNT = pMesh->GetControlPointsCount();
+	//FbxVector4* pControlPoints = pMesh->GetControlPoints();
 
-	vertices.resize(VERTEX_COUNT);
-	for (int i = 0; i < VERTEX_COUNT; ++i)
-	{
-		FbxVector4 vertex = pMesh->GetControlPointAt(i);
-		vertices[i].Position = { (float)vertex.mData[0], (float)vertex.mData[1], (float)vertex.mData[2] };
-	}
+	//vertices.resize(VERTEX_COUNT);
+	//for (int i = 0; i < VERTEX_COUNT; ++i)
+	//{
+	//	FbxVector4 vertex = pMesh->GetControlPointAt(i);
+	//	vertices[i].Position = { (float)vertex.mData[0], (float)vertex.mData[1], (float)vertex.mData[2] };
+	//}
 
-	const int POLYGON_COUNT = pMesh->GetPolygonCount();
-	UINT vertexCount = 0;
-	for (int i = 0; i < POLYGON_COUNT; ++i)
-	{
-		const int VERTEX_COUNT_IN_POLYGON = pMesh->GetPolygonSize(i);
-		if (VERTEX_COUNT_IN_POLYGON != 3)
-		{
-			__debugbreak();
-		}
+	//const int POLYGON_COUNT = pMesh->GetPolygonCount();
+	//UINT vertexCount = 0;
+	//for (int i = 0; i < POLYGON_COUNT; ++i)
+	//{
+	//	const int VERTEX_COUNT_IN_POLYGON = pMesh->GetPolygonSize(i);
+	//	if (VERTEX_COUNT_IN_POLYGON != 3)
+	//	{
+	//		__debugbreak();
+	//	}
 
-		for (int j = 0; j < VERTEX_COUNT_IN_POLYGON; ++j)
-		{
-			int vertexIndex = pMesh->GetPolygonVertex(i, j);
-			int UVIndex = pMesh->GetTextureUVIndex(i, j);
-			
-			Vector3 vertexNormal = readNormal(pMesh, vertexIndex, vertexCount);
-			Vector2 vertexTexcoord = readTexcoord(pMesh, vertexIndex, UVIndex);
+	//	for (int j = 0; j < VERTEX_COUNT_IN_POLYGON; ++j)
+	//	{
+	//		int vertexIndex = pMesh->GetPolygonVertex(i, j);
+	//		int UVIndex = pMesh->GetTextureUVIndex(i, j);
+	//		
+	//		Vector3 vertexNormal = readNormal(pMesh, vertexIndex, vertexCount);
+	//		Vector2 vertexTexcoord = readTexcoord(pMesh, vertexIndex, UVIndex);
 
-			// Insert vertex.
-			/*Vertex v;
-			v.Position = *pPosition;
-			v.Normal = vertexNormal;
-			v.Texcoord = vertexTexcoord;*/
+	//		// Insert vertex.
+	//		/*Vertex v;
+	//		v.Position = *pPosition;
+	//		v.Normal = vertexNormal;
+	//		v.Texcoord = vertexTexcoord;*/
 
-			/*vertices.push_back(v);
-			indices.push_back(vertexCount);*/
+	//		/*vertices.push_back(v);
+	//		indices.push_back(vertexCount);*/
 
-			Vertex& vertex = vertices[vertexIndex];
-			vertex.Normal = vertexNormal;
-			vertex.Texcoord = vertexTexcoord;
+	//		Vertex& vertex = vertices[vertexIndex];
+	//		vertex.Normal = vertexNormal;
+	//		vertex.Texcoord = vertexTexcoord;
 
-			indices.push_back(vertexIndex);
+	//		indices.push_back(vertexIndex);
 
-			++vertexCount;
-		}
-	}
+	//		++vertexCount;
+	//	}
+	//}
 
 
-	FbxNode* pNode = pMesh->GetNode();
-	if (!pNode)
+	//FbxNode* pNode = pMesh->GetNode();
+	//if (!pNode)
+	//{
+	//	return;
+	//}
+
+	//const int MATERIAL_COUNT = pNode->GetMaterialCount();
+	//for (int i = 0; i < MATERIAL_COUNT; ++i)
+	//{
+	//	FbxSurfaceMaterial* pMaterial = pNode->GetMaterial(i);
+	//	FbxProperty propertyForMaterial;
+	//	
+	//	propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sDiffuse);
+	//	if (propertyForMaterial.IsValid())
+	//	{
+	//		readMaterial(propertyForMaterial, pMeshInfo, TextureType_Albedo);
+	//	}
+
+	//	propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sEmissive);
+	//	if (propertyForMaterial.IsValid())
+	//	{
+	//		readMaterial(propertyForMaterial, pMeshInfo, TextureType_Emissive);
+	//	}
+
+	//	propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
+	//	if (propertyForMaterial.IsValid())
+	//	{
+	//		readMaterial(propertyForMaterial, pMeshInfo, TextureType_Specular);
+	//	}
+
+	//	propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sAmbient);
+	//	if (propertyForMaterial.IsValid())
+	//	{
+	//		readMaterial(propertyForMaterial, pMeshInfo, TextureType_Ambient);
+	//	}
+
+	//	propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sNormalMap);
+	//	if (propertyForMaterial.IsValid())
+	//	{
+	//		readMaterial(propertyForMaterial, pMeshInfo, TextureType_Normal);
+	//	}
+	//}
+
+
+	//std::vector<std::vector<float>> boneWeights;
+	//std::vector<std::vector<UINT8>> boneIndices;
+	//const UINT64 VERTEX_SIZE = vertices.size();
+
+	//const int SKIN_COUNT = pMesh->GetDeformerCount(FbxDeformer::eSkin);
+	//if (SKIN_COUNT > 0)
+	//{
+	//	skinnedVertices.resize(VERTEX_SIZE);
+	//	boneWeights.resize(VERTEX_SIZE);
+	//	boneIndices.resize(VERTEX_SIZE);
+	//}
+	//for (int i = 0; i < SKIN_COUNT; ++i)
+	//{
+	//	FbxSkin* pSkin = (FbxSkin*)pMesh->GetDeformer(i, FbxDeformer::eSkin);
+	//	FbxSkin::EType type = pSkin->GetSkinningType();
+
+	//	if (type != FbxSkin::eRigid && type != FbxSkin::eLinear)
+	//	{
+	//		continue;
+	//	}
+
+	//	const int CLUSTER_COUNT = pSkin->GetClusterCount();
+	//	for (int j = 0; j < CLUSTER_COUNT; ++j)
+	//	{
+	//		FbxCluster* pCluster = pSkin->GetCluster(j);
+	//		const char* szBoneName = pCluster->GetLink()->GetName();
+	//		const int BONE_ID = AnimData.BoneNameToID[szBoneName];
+
+	//		int* pVertexIndices = pCluster->GetControlPointIndices();
+	//		double* pBoneWeights = pCluster->GetControlPointWeights();
+
+	//		const int INDEX_COUNT = pCluster->GetControlPointIndicesCount();
+	//		for (int k = 0; k < INDEX_COUNT; ++k)
+	//		{
+	//			boneIndices[pVertexIndices[k]].push_back(BONE_ID);
+	//			boneWeights[pVertexIndices[k]].push_back((float)pBoneWeights[k]);
+	//		}
+	//		
+	//		FbxVector4 m0 = { 1.0f, 0.0f, 0.0f, 0.0f };
+	//		FbxVector4 m1 = { 0.0f, 0.0f, 1.0f, 0.0f };
+	//		FbxVector4 m2 = { 0.0f, 1.0f, 0.0f, 0.0f };
+	//		FbxVector4 m3 = { 0.0f, 0.0f, 0.0f, 1.0f };
+	//		FbxAMatrix reflect;
+	//		reflect[0] = m0;
+	//		reflect[1] = m1;
+	//		reflect[2] = m2;
+	//		reflect[3] = m3;
+
+	//		FbxAMatrix transform;
+	//		FbxAMatrix linkTransform;
+	//		FbxAMatrix boneOffsetMatrix;
+	//		pCluster->GetTransformMatrix(transform);
+	//		pCluster->GetTransformLinkMatrix(linkTransform);
+	//		boneOffsetMatrix = linkTransform.Inverse() * transform;
+	//		// boneOffsetMatrix = reflect * boneOffsetMatrix * reflect;
+
+	//		for (int a = 0; a < 4; ++a)
+	//		{
+	//			for (int b = 0; b < 4; ++b)
+	//			{
+	//				AnimData.OffsetMatrices[BONE_ID](a, b) = (float)boneOffsetMatrix.Get(a, b);
+	//			}
+	//		}
+	//		AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
+	//	}
+	//}
+	//for (UINT64 i = 0; i < VERTEX_SIZE; ++i)
+	//{
+	//	skinnedVertices[i].Position = vertices[i].Position;
+	//	skinnedVertices[i].Normal = vertices[i].Normal;
+	//	skinnedVertices[i].Texcoord = vertices[i].Texcoord;
+	//	skinnedVertices[i].Tangent = vertices[i].Tangent;
+
+	//	for (UINT64 j = 0, curBoneWeightsSize = boneWeights[i].size(); j < curBoneWeightsSize; ++j)
+	//	{
+	//		skinnedVertices[i].BlendWeights[j] = boneWeights[i][j];
+	//		skinnedVertices[i].BoneIndices[j] = boneIndices[i][j];
+	//	}
+	//}
+
+	const int SKIN_COUNT = pMesh->GetDeformerCount(FbxDeformer::eSkin);
+	if (SKIN_COUNT == 0)
 	{
 		return;
 	}
 
-	const int MATERIAL_COUNT = pNode->GetMaterialCount();
-	for (int i = 0; i < MATERIAL_COUNT; ++i)
-	{
-		FbxSurfaceMaterial* pMaterial = pNode->GetMaterial(i);
-		FbxProperty propertyForMaterial;
-		
-		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sDiffuse);
-		if (propertyForMaterial.IsValid())
-		{
-			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Albedo);
-		}
-
-		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sEmissive);
-		if (propertyForMaterial.IsValid())
-		{
-			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Emissive);
-		}
-
-		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
-		if (propertyForMaterial.IsValid())
-		{
-			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Specular);
-		}
-
-		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sAmbient);
-		if (propertyForMaterial.IsValid())
-		{
-			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Ambient);
-		}
-
-		propertyForMaterial = pMaterial->FindProperty(FbxSurfaceMaterial::sNormalMap);
-		if (propertyForMaterial.IsValid())
-		{
-			readMaterial(propertyForMaterial, pMeshInfo, TextureType_Normal);
-		}
-	}
-
-
-	std::vector<std::vector<float>> boneWeights;
-	std::vector<std::vector<UINT8>> boneIndices;
-	const UINT64 VERTEX_SIZE = vertices.size();
-
-	const int SKIN_COUNT = pMesh->GetDeformerCount(FbxDeformer::eSkin);
-	if (SKIN_COUNT > 0)
-	{
-		skinnedVertices.resize(VERTEX_SIZE);
-		boneWeights.resize(VERTEX_SIZE);
-		boneIndices.resize(VERTEX_SIZE);
-	}
 	for (int i = 0; i < SKIN_COUNT; ++i)
 	{
 		FbxSkin* pSkin = (FbxSkin*)pMesh->GetDeformer(i, FbxDeformer::eSkin);
-		FbxSkin::EType type = pSkin->GetSkinningType();
-
-		if (type != FbxSkin::eRigid && type != FbxSkin::eLinear)
+		if (!pSkin)
 		{
 			continue;
 		}
 
-		const int CLUSTER_COUNT = pSkin->GetClusterCount();
-		for (int j = 0; j < CLUSTER_COUNT; ++j)
+		FbxSkin::EType type = pSkin->GetSkinningType();
+		if (type == FbxSkin::eRigid || type == FbxSkin::eLinear)
 		{
-			FbxCluster* pCluster = pSkin->GetCluster(j);
-			const char* szBoneName = pCluster->GetLink()->GetName();
-			const int BONE_ID = AnimData.BoneNameToID[szBoneName];
-
-			int* pVertexIndices = pCluster->GetControlPointIndices();
-			double* pBoneWeights = pCluster->GetControlPointWeights();
-
-			const int INDEX_COUNT = pCluster->GetControlPointIndicesCount();
-			for (int k = 0; k < INDEX_COUNT; ++k)
+			const int CLUSTER_COUNT = pSkin->GetClusterCount();
+			for (int j = 0; j < CLUSTER_COUNT; ++j)
 			{
-				boneIndices[pVertexIndices[k]].push_back(BONE_ID);
-				boneWeights[pVertexIndices[k]].push_back((float)pBoneWeights[k]);
-			}
-			
-			FbxVector4 m0 = { 1.0f, 0.0f, 0.0f, 0.0f };
-			FbxVector4 m1 = { 0.0f, 0.0f, 1.0f, 0.0f };
-			FbxVector4 m2 = { 0.0f, 1.0f, 0.0f, 0.0f };
-			FbxVector4 m3 = { 0.0f, 0.0f, 0.0f, 1.0f };
-			FbxAMatrix reflect;
-			reflect[0] = m0;
-			reflect[1] = m1;
-			reflect[2] = m2;
-			reflect[3] = m3;
-
-			FbxAMatrix transform;
-			FbxAMatrix linkTransform;
-			FbxAMatrix boneOffsetMatrix;
-			pCluster->GetTransformMatrix(transform);
-			pCluster->GetTransformLinkMatrix(linkTransform);
-			boneOffsetMatrix = linkTransform.Inverse() * transform;
-			// boneOffsetMatrix = reflect * boneOffsetMatrix * reflect;
-
-			for (int a = 0; a < 4; ++a)
-			{
-				for (int b = 0; b < 4; ++b)
+				FbxCluster* pCluster = pSkin->GetCluster(j);
+				if (!pCluster)
 				{
-					AnimData.OffsetMatrices[BONE_ID](a, b) = (float)boneOffsetMatrix.Get(a, b);
+					continue;
+				}
+
+				const int BONE_ID = AnimData.BoneNameToID[pCluster->GetLink()->GetName()];
+				FbxNode* pNode = pMesh->GetNode();
+				FbxAMatrix nodeTransform = getTransform(pNode);
+				readBoneOffset(pCluster, nodeTransform, BONE_ID);
+				
+				const int ANIM_COUNT = AnimNames.Size();
+				for (int k = 0; k < ANIM_COUNT; ++k)
+				{
+					readKeyframe(k, pNode, pCluster, pScene, nodeTransform, BONE_ID);
 				}
 			}
-			AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
-		}
-	}
-	for (UINT64 i = 0; i < VERTEX_SIZE; ++i)
-	{
-		skinnedVertices[i].Position = vertices[i].Position;
-		skinnedVertices[i].Normal = vertices[i].Normal;
-		skinnedVertices[i].Texcoord = vertices[i].Texcoord;
-		skinnedVertices[i].Tangent = vertices[i].Tangent;
-
-		for (UINT64 j = 0, curBoneWeightsSize = boneWeights[i].size(); j < curBoneWeightsSize; ++j)
-		{
-			skinnedVertices[i].BlendWeights[j] = boneWeights[i][j];
-			skinnedVertices[i].BoneIndices[j] = boneIndices[i][j];
 		}
 	}
 }
@@ -725,4 +864,12 @@ void FBXModelLoader::calculateTangentBitangent(const Vertex& V1, const Vertex& V
 	pBitangent->x = pBitangent->x / length;
 	pBitangent->y = pBitangent->y / length;
 	pBitangent->z = pBitangent->z / length;
+}
+
+FbxAMatrix FBXModelLoader::getTransform(FbxNode* pNode)
+{
+	const FbxVector4 TRANSLATION = pNode->GetGeometricTranslation(FbxNode::eSourcePivot);
+	const FbxVector4 ROTATION = pNode->GetGeometricRotation(FbxNode::eSourcePivot);
+	const FbxVector4 SCALING = pNode->GetGeometricScaling(FbxNode::eSourcePivot);
+	return FbxAMatrix(TRANSLATION, ROTATION, SCALING);
 }

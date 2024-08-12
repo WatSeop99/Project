@@ -8,10 +8,10 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 {
 	HRESULT hr = S_OK;
 
-	/*ModelLoader modelLoader;
-	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
-	FBXModelLoader modelLoader;
+	ModelLoader modelLoader;
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
+	/*FBXModelLoader modelLoader;
+	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
 	if (FAILED(hr))
 	{
 		__debugbreak();
@@ -43,7 +43,7 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 	}
 
 	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
-	meshInfos = modelLoader.MeshInfos;
+	// meshInfos = modelLoader.MeshInfos;
 	animData = modelLoader.AnimData;
 
 LB_RET:
@@ -67,11 +67,6 @@ void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<Me
 			vMin = Min(vMin, v.Position);
 			vMax = Max(vMax, v.Position);
 		}
-	}
-	{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "vMax: %f, %f, %f and vMin: %f, %f, %f\n", vMax.x, vMax.y, vMax.z, vMin.x, vMin.y, vMin.z);
-		OutputDebugStringA(szDebugString);
 	}
 
 	Vector3 delta = vMax - vMin;

@@ -61,3 +61,6 @@ fbx ascii 파일 열어보니 정보가 없는게 아님. 있음.
 근데 여기 transform 값은 부모노드에 상대적인것 같음.
 
 https://stackoverflow.com/questions/73494194/assimp-animation-data-gives-unexpected-values 참조할것.
+
+===========================================
+https://github.com/imeamangryang

@@ -24,7 +24,7 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 	szBasePath = std::string(basePath.begin(), basePath.end());
 
 	Assimp::Importer importer;
-	const aiScene* pSCENE = importer.ReadFile(szBasePath + fileNameA, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_ConvertToLeftHanded);
+	const aiScene* pSCENE = importer.ReadFile(szBasePath + fileNameA, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_ConvertToLeftHanded);
 
 	if (pSCENE)
 	{
@@ -49,6 +49,8 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 		AnimData.AccumulatedNodeTransforms.resize(totalBoneCount);
 		AnimData.NodeTransforms.resize(totalBoneCount);
 		processNode(pSCENE->mRootNode, pSCENE, globalTransform);
+		/*AnimData.NodeTransforms[0] = AnimData.InverseOffsetMatrices[0];
+		AnimData.AccumulatedNodeTransforms[0] = AnimData.InverseOffsetMatrices[0];*/
 
 		// 애니메이션 정보 읽기.
 		if (pSCENE->HasAnimations())
@@ -80,7 +82,7 @@ HRESULT ModelLoader::LoadAnimation(std::wstring& basePath, std::wstring& fileNam
 	szBasePath = std::string(basePath.begin(), basePath.end());
 
 	Assimp::Importer importer;
-	const aiScene* pSCENE = importer.ReadFile(szBasePath + fileNameA, aiProcess_Triangulate | aiProcess_ConvertToLeftHanded);
+	const aiScene* pSCENE = importer.ReadFile(szBasePath + fileNameA, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_ConvertToLeftHanded);
 
 	if (pSCENE && pSCENE->HasAnimations())
 	{
@@ -136,11 +138,11 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 	globalTransform = globalTransform.Transpose() * transform;
 
 	// 사용되는 부모 뼈를 찾아서 부모의 인덱스 저장.
+	// const aiNode* pPARENT = findParent(pNode->mParent);
 	const aiNode* pPARENT = findParent(pNode->mParent);
 	const char* pNODE_NAME = pNode->mName.C_Str();
-	if (pNode->mParent &&
-		AnimData.BoneNameToID.count(pNODE_NAME) > 0 &&
-		pPARENT)
+	if (pPARENT &&
+		AnimData.BoneNameToID.count(pNODE_NAME) > 0)
 	{
 		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
 		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
@@ -154,11 +156,11 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 		MeshInfo newMeshInfo;
 
 		processMesh(pMesh, pSCENE, &newMeshInfo);
-		/*for (UINT64 j = 0, size = newMeshInfo.Vertices.size(); j < size; ++j)
+		for (UINT64 j = 0, size = newMeshInfo.Vertices.size(); j < size; ++j)
 		{
 			Vertex& v = newMeshInfo.Vertices[j];
 			v.Position = DirectX::SimpleMath::Vector3::Transform(v.Position, globalTransform);
-		}*/
+		}
 
 		MeshInfos.push_back(newMeshInfo);
 	}
@@ -473,6 +475,7 @@ void ModelLoader::updateBoneIDs(aiNode* pNode, int* pCounter)
 			AnimData.BoneNameToID[pNODE_NAME] = *pCounter;
 			*pCounter += 1;
 		}
+
 		for (UINT i = 0; i < pNode->mNumChildren; ++i)
 		{
 			updateBoneIDs(pNode->mChildren[i], pCounter);
