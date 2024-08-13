@@ -23,7 +23,9 @@ protected:
 	const aiNode* findParent(const aiNode* pNODE);
 
 	void processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& transform);
+	void processNodeForAnimation(aiNode* pNode, const aiScene* pSCENE);
 	void processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pMeshInfo);
+	void processMeshForAnimation(aiMesh* pMesh, const aiScene* pSCENE);
 
 	void readAnimation(const aiScene* pSCENE);
 	HRESULT readTextureFileName(const aiScene* pSCENE, aiMaterial* pMaterial, aiTextureType type, std::wstring* pDst);

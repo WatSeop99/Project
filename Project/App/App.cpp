@@ -82,6 +82,7 @@ void App::Update(const float DELTA_TIME)
 	{
 		SkinnedMeshModel* pCharacter = m_Characters[i];
 		Vector3 deltaPos;
+
 		updateAnimationState(pCharacter, DELTA_TIME, &state, &frame, &deltaPos);
 		simulateCharacterContol(pCharacter, deltaPos, DELTA_TIME, state, frame);
 	}
@@ -330,6 +331,8 @@ void App::initExternalData()
 
 	// Main Object.
 	{
+		HRESULT hr = S_OK;
+
 		std::wstring path = L"./Assets/";
 		// std::wstring path = L"./Assets/other2/";
 		std::vector<std::wstring> clipNames =
@@ -337,74 +340,36 @@ void App::initExternalData()
 			L"CatwalkIdleTwistL.fbx", L"CatwalkIdleToWalkForward.fbx",
 			L"CatwalkWalkForward.fbx", L"CatwalkWalkStopTwistL.fbx",
 		};
-		AnimationData animationData;
 
 		std::wstring filename = L"Remy.fbx";
 		// std::wstring filename = L"character.fbx";
 		std::vector<MeshInfo> characterMeshInfo;
 		AnimationData characterDefaultAnimData;
-		ReadFromFile(characterMeshInfo, path, filename);
-		// characterDefaultAnimData.Clips[0].Name = "DefaultClip";
+		hr = ReadFromFile(characterMeshInfo, &characterDefaultAnimData, path, filename);
+		BREAK_IF_FAILED(hr);
 
 		// 애니메이션 클립들.
+		if (clipNames.size() > 0)
+		{
+			characterDefaultAnimData.Clips.clear();
+		}
 		for (UINT64 i = 0, size = clipNames.size(); i < size; ++i)
 		{
 			std::wstring& name = clipNames[i];
-			std::vector<MeshInfo> animationMeshInfo;
 			AnimationData animDataInClip;
-			ReadAnimationFromFile(animationMeshInfo, animDataInClip, path, name);
+
+			hr = ReadAnimationFromFile(&animDataInClip, path, name);
+			BREAK_IF_FAILED(hr);
+
 			animDataInClip.Clips[0].Name.assign(name.begin(), name.end());
-			if (animationData.Clips.empty())
-			{
-				animationData = animDataInClip;
-			}
-			else
-			{
-				animationData.Clips.push_back(animDataInClip.Clips[0]);
-			}
+			characterDefaultAnimData.Clips.push_back(animDataInClip.Clips[0]);
 		}
 
 		m_pCharacter = new SkinnedMeshModel;
-		if (animationData.Clips.size() > 1)
-		{
-			m_pCharacter->Initialize(this, characterMeshInfo, animationData);
-		}
-		else
-		{
-			m_pCharacter->Initialize(this, characterMeshInfo, characterDefaultAnimData);
-		}
-
+		m_pCharacter->Initialize(this, characterMeshInfo, characterDefaultAnimData);
 
 		// Vector3 position(0.0f, 0.5f, 2.0f);
-		Vector3 position(0.0f, 0.47f, 5.0f);
-		{
-			const int BONE_ID = 64;
-			// Matrix parentBoneGlobal = m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];
-			Matrix boneGlobal = m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[BONE_ID];
-			/*Matrix keyTransform = m_pCharacter->CharacterAnimationData.BoneTransforms[BONE_ID];
-			keyTransform = keyTransform * m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];*/
-
-			int parentID = m_pCharacter->CharacterAnimationData.BoneParents[BONE_ID];
-			Matrix keyTransform = m_pCharacter->CharacterAnimationData.Clips[0].Keys[BONE_ID][0].GetTransform();
-			
-			while (parentID > 0)
-			{
-				keyTransform *= m_pCharacter->CharacterAnimationData.Clips[0].Keys[parentID][0].GetTransform();
-				parentID = m_pCharacter->CharacterAnimationData.BoneParents[parentID];
-			}
-			keyTransform *= Matrix::CreateScale(m_pCharacter->CharacterAnimationData.Clips[0].Keys[parentID][0].Scale) * Matrix::CreateFromQuaternion(m_pCharacter->CharacterAnimationData.Clips[0].Keys[parentID][0].Rotation);
-			keyTransform *= m_pCharacter->CharacterAnimationData.InverseOffsetMatrices[0];
-
-			Vector3 originPos = boneGlobal.Translation();
-			Vector3 keyPos = keyTransform.Translation();
-
-			Vector3 pos = originPos + Vector3(0.000006f, -0.000002f, -0.000004f);
-
-			Quaternion originRot = Quaternion::CreateFromRotationMatrix(boneGlobal);
-			Quaternion keyRot = Quaternion::CreateFromRotationMatrix(keyTransform);
-
-			int a = 0;
-		}
+		Vector3 position(0.0f, 0.5f, 5.0f);
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];
@@ -465,9 +430,12 @@ void App::initExternalData()
 		// end-effector 충돌체 설정.
 		physx::PxRigidDynamic* pRightFoot = nullptr;
 		physx::PxRigidDynamic* pLeftFoot = nullptr;
-		physx::PxBoxGeometry boundingBoxGeom(0.025f, 0.025f, 0.025f);
-		physx::PxShape* pBoxShape = pPhysics->createShape(boundingBoxGeom, *(m_pPhysicsManager->pCommonMaterial));
-		if (!pBoxShape)
+		physx::PxRigidDynamic* pRightFootTarget = nullptr;
+		physx::PxRigidDynamic* pLeftFootTarget = nullptr;
+		// physx::PxBoxGeometry boundingBoxGeom(0.025f, 0.025f, 0.025f);
+		physx::PxSphereGeometry sphereGeom(0.025f);
+		physx::PxShape* pSphereShape = pPhysics->createShape(sphereGeom, *(m_pPhysicsManager->pCommonMaterial));
+		if (!pSphereShape)
 		{
 			__debugbreak();
 		}
@@ -475,8 +443,8 @@ void App::initExternalData()
 		eCollisionGroup type = CollisionGroup_EndEffector;
 		physx::PxFilterData endEffectorFilter = {};
 		endEffectorFilter.word0 = type;
-		pBoxShape->setSimulationFilterData(endEffectorFilter);
-		pBoxShape->setQueryFilterData(endEffectorFilter);
+		pSphereShape->setSimulationFilterData(endEffectorFilter);
+		pSphereShape->setQueryFilterData(endEffectorFilter);
 
 		physx::PxTransform transform1;
 		physx::PxTransform transform2;
@@ -485,8 +453,8 @@ void App::initExternalData()
 
 			// Matrix forTransform1 = (correction * m_pCharacter->RightLeg.BodyChain[3].Correction * m_pCharacter->CharacterAnimationData.Get(m_pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World);
 			// Matrix forTransform2 = (correction * m_pCharacter->LeftLeg.BodyChain[3].Correction * m_pCharacter->CharacterAnimationData.Get(m_pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World);
-			Matrix forTransform1 = (m_pCharacter->CharacterAnimationData.Get(m_pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World);
-			Matrix forTransform2 = (m_pCharacter->CharacterAnimationData.Get(m_pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World);
+			Matrix forTransform1 = (m_pCharacter->CharacterAnimationData.Get(0, 0, m_pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World);
+			Matrix forTransform2 = (m_pCharacter->CharacterAnimationData.Get(0, 0, m_pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World);
 
 			Vector3 transform1Pos = forTransform1.Translation();
 			Vector3 transform2Pos = forTransform2.Translation();
@@ -502,9 +470,19 @@ void App::initExternalData()
 			__debugbreak();
 		}
 		pRightFoot->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
-		pRightFoot->attachShape(*pBoxShape);
+		pRightFoot->attachShape(*pSphereShape);
 		pRightFoot->userData = malloc(sizeof(eCollisionGroup));
 		memcpy(pRightFoot->userData, &type, sizeof(eCollisionGroup));
+
+		pRightFootTarget = pPhysics->createRigidDynamic(transform1);
+		if (!pRightFootTarget)
+		{
+			__debugbreak();
+		}
+		pRightFootTarget->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
+		pRightFootTarget->attachShape(*pSphereShape);
+		pRightFootTarget->userData = malloc(sizeof(eCollisionGroup));
+		memcpy(pRightFootTarget->userData, &type, sizeof(eCollisionGroup));
 
 		pLeftFoot = pPhysics->createRigidDynamic(transform2);
 		if (!pLeftFoot)
@@ -512,15 +490,29 @@ void App::initExternalData()
 			__debugbreak();
 		}
 		pLeftFoot->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
-		pLeftFoot->attachShape(*pBoxShape);
+		pLeftFoot->attachShape(*pSphereShape);
 		pLeftFoot->userData = malloc(sizeof(eCollisionGroup));
 		memcpy(pLeftFoot->userData, &type, sizeof(eCollisionGroup));
 
+		pLeftFootTarget = pPhysics->createRigidDynamic(transform2);
+		if (!pLeftFootTarget)
+		{
+			__debugbreak();
+		}
+		pLeftFootTarget->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
+		pLeftFootTarget->attachShape(*pSphereShape);
+		pLeftFootTarget->userData = malloc(sizeof(eCollisionGroup));
+		memcpy(pLeftFootTarget->userData, &type, sizeof(eCollisionGroup));
+
 		m_pPhysicsManager->AddActor(pRightFoot);
 		m_pPhysicsManager->AddActor(pLeftFoot);
+		m_pPhysicsManager->AddActor(pRightFootTarget);
+		m_pPhysicsManager->AddActor(pLeftFootTarget);
 		m_pCharacter->pController = pController;
 		m_pCharacter->pRightFoot = pRightFoot;
 		m_pCharacter->pLeftFoot = pLeftFoot;
+		m_pCharacter->pRightFootTarget = pRightFootTarget;
+		m_pCharacter->pLeftFootTarget = pLeftFootTarget;
 	}
 
 	// 경사면
@@ -634,6 +626,9 @@ void App::initExternalData()
 
 void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, Vector3* pDeltaPos)
 {
+	_ASSERT(pCharacter);
+	_ASSERT(pDeltaPos);
+
 	// States
 	// 0: idle
 	// 1: idle to walk
@@ -642,33 +637,34 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 	static int s_State = 0;
 	static int s_FrameCount = 0;
 
-	_ASSERT(pCharacter);
-	_ASSERT(pDeltaPos);
-
 	const UINT64 ANIMATION_CLIP_SIZE = pCharacter->CharacterAnimationData.Clips[s_State].Keys[0].size();
 	const Vector3 GRAVITY(0.0f, -9.81f, 0.0f);
-
-	pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 
 	switch (s_State)
 	{
 		case 0:
+		{
+			// pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
+
 			if (m_Keyboard.bPressed[VK_UP])
 			{
-				// reset all update rot.
-				// pCharacter->CharacterAnimationData.ResetAllUpdateRotationInClip(s_State);
-
-				s_State = 1;
+				// s_State = 1;
+				s_State = 2;
 				s_FrameCount = 0;
+				pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 			}
 			else if (s_FrameCount == ANIMATION_CLIP_SIZE || m_Keyboard.bPressed[VK_UP]) // 재생이 다 끝난다면.
 			{
 				s_FrameCount = 0; // 상태 변화 없이 반복.
+				pCharacter->CharacterAnimationData.TimeSinceLoaded = 0.0f;
 			}
-			break;
+		}
+		break;
 
 		case 1:
 		{
+			pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
+			
 			*pDeltaPos = (pCharacter->CharacterAnimationData.Direction + GRAVITY) * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
 			pCharacter->CharacterAnimationData.Position += *pDeltaPos;
 
@@ -676,14 +672,13 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			{
 				s_State = 2;
 				s_FrameCount = 0;
+				pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 			}
 		}
 		break;
 
 		case 2:
 		{
-			Vector3 deltaPos;
-
 			// moveinfo.direction과 moveinfo.rotation을 오른쪽으로 같이 회전.
 			if (m_Keyboard.bPressed[VK_RIGHT])
 			{
@@ -698,6 +693,8 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 				pCharacter->CharacterAnimationData.Direction = Vector3::TransformNormal(pCharacter->CharacterAnimationData.Direction, Matrix::CreateFromQuaternion(newRot));
 				pCharacter->CharacterAnimationData.Rotation = Quaternion::Concatenate(pCharacter->CharacterAnimationData.Rotation, newRot);
 			}
+			
+			pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 
 			*pDeltaPos = (pCharacter->CharacterAnimationData.Direction + GRAVITY) * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
 			m_pCharacter->CharacterAnimationData.Position += *pDeltaPos;
@@ -705,18 +702,21 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			// 방향키를 누르고 있지 않으면 정지. (누르고 있으면 계속 걷기)
 			if (!m_Keyboard.bPressed[VK_UP])
 			{
-				s_State = 3;
+				// s_State = 3;
+				s_State = 0;
 			}
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
-				
 				s_FrameCount = 0;
+				pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 			}
 		}
 		break;
 
 		case 3:
 		{
+			pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
+
 			*pDeltaPos = (pCharacter->CharacterAnimationData.Direction + GRAVITY) * pCharacter->CharacterAnimationData.Velocity * DELTA_TIME;
 			pCharacter->CharacterAnimationData.Position += *pDeltaPos;
 
@@ -724,17 +724,25 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			{
 				s_State = 0;
 				s_FrameCount = 0;
+				pCharacter->CharacterAnimationData.TimeSinceLoaded = 0.0f;
+				pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 			}
 		}
 		break;
 
 		default:
+			__debugbreak();
 			break;
 	}
 
 	*pState = s_State;
 	*pFrame = s_FrameCount;
 	++s_FrameCount;
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "Velocity: %f\n", pCharacter->CharacterAnimationData.Velocity);
+		OutputDebugStringA(szDebugString);
+	}
 }
 
 void App::updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo)
@@ -742,33 +750,28 @@ void App::updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshMod
 	_ASSERT(pCharacter);
 	_ASSERT(pUpdateInfo);
 
-	// Matrix correction = Matrix::CreateTranslation(Vector3(0.23f, 0.0f, 0.0f));
-
 	physx::PxRaycastBuffer hit;
 	physx::PxTransform rightFootTargetPos = pCharacter->pRightFoot->getGlobalPose();
 	physx::PxTransform leftFootTargetPos = pCharacter->pLeftFoot->getGlobalPose();
 
-	// physx::PxVec3 rayOrigin1 = physx::PxVec3(rightFootPos.x, rightFootPos.y - 0.5f, rightFootPos.z);
-	// physx::PxVec3 rayOrigin2 = physx::PxVec3(leftFootPos.x, leftFootPos.y - 0.5f, leftFootPos.z);
 	physx::PxVec3 rayOrigin1 = physx::PxVec3(rightFootTargetPos.p.x, rightFootTargetPos.p.y, rightFootTargetPos.p.z);
 	physx::PxVec3 rayOrigin2 = physx::PxVec3(leftFootTargetPos.p.x, leftFootTargetPos.p.y, leftFootTargetPos.p.z);
 	physx::PxVec3 rayDir(0.0f, -1.0f, 0.0f);
 
 	physx::PxScene* pScene = GetPhysicsManager()->GetScene();
-	if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit))
+	if (pScene->raycast(rayOrigin1, rayDir, 5.0f, hit))
 	{
 		rightFootTargetPos.p.y = hit.block.position.y;
 	}
-	if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit))
+	if (pScene->raycast(rayOrigin2, rayDir, 5.0f, hit))
 	{
 		leftFootTargetPos.p.y = hit.block.position.y;
 	}
+	pCharacter->pRightFootTarget->setGlobalPose(rightFootTargetPos);
+	pCharacter->pLeftFootTarget->setGlobalPose(leftFootTargetPos);
 
-	Vector3 rightFootPosVec(rightFootTargetPos.p.x, rightFootTargetPos.p.y, rightFootTargetPos.p.z);
-	Vector3 leftFootPosVec(leftFootTargetPos.p.x, leftFootTargetPos.p.y, leftFootTargetPos.p.z);
-
-	// rightFootPosVec = Vector3::Transform(rightFootPosVec, correction);
-	// leftFootPosVec = Vector3::Transform(leftFootPosVec, correction);
+	Vector3 rightFootPosVec(rightFootTargetPos.p.x, rightFootTargetPos.p.y - 0.03f, rightFootTargetPos.p.z);
+	Vector3 leftFootPosVec(leftFootTargetPos.p.x, leftFootTargetPos.p.y - 0.03f, leftFootTargetPos.p.z);
 	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPosVec.x, rightFootPosVec.y, rightFootPosVec.z, leftFootPosVec.x, leftFootPosVec.y, leftFootPosVec.z);
@@ -785,8 +788,6 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 {
 	_ASSERT(pCharacter);
 
-	const Vector3 GRAVITY(0.0f, -9.81f, 0.0f);
-
 	// 위치 변위.
 	physx::PxVec3 displacement = physx::PxVec3(DELTA_POS.x, DELTA_POS.y, DELTA_POS.z);
 
@@ -800,28 +801,14 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	filters.mFilterData = &filterData;
 	filters.mFilterCallback = &filterCallback;
 
-	/*{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "Velocity: %f\n", pCharacter->CharacterAnimationData.Velocity);
-		OutputDebugStringA(szDebugString);
-	}*/
 	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, filters);
-	pCharacter->CharacterAnimationData.Update(clipID, frame);
+	pCharacter->CharacterAnimationData.Update(clipID, frame, DELTA_TIME);
 
 	// 말단위치(end-effector) 이동.
 	physx::PxRigidDynamic* pRightFoot = pCharacter->pRightFoot;
 	physx::PxRigidDynamic* pLeftFoot = pCharacter->pLeftFoot;
-
-	// Matrix correction = Matrix::CreateTranslation(Vector3(-0.24f, 0.0f, 0.0f));
-
-	const Matrix CHARACTER_WORLD = Matrix::CreateTranslation(pCharacter->CharacterAnimationData.Position);
-	// Vector3 rightFootPos = (correction * pCharacter->RightLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->RightLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	// Vector3 leftFootPos = (correction * pCharacter->LeftLeg.BodyChain[3].Correction * pCharacter->CharacterAnimationData.Get(pCharacter->LeftLeg.BodyChain[3].BoneID) * pCharacter->World).Translation();
-	Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(clipID, frame, pCharacter->RightLeg.BodyChain[3].BoneID) * CHARACTER_WORLD).Translation();
-	Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(clipID, frame, pCharacter->LeftLeg.BodyChain[3].BoneID) * CHARACTER_WORLD).Translation();
-	/*Vector3 rightFootPos = pCharacter->RightLeg.BodyChain[3].Position;
-	Vector3 leftFootPos = pCharacter->LeftLeg.BodyChain[3].Position;*/
-
+	Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(clipID, frame, pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
+	Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(clipID, frame, pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
 	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z, leftFootPos.x, leftFootPos.y, leftFootPos.z);
@@ -835,7 +822,7 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 
 
 	physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
-	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
+	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y - 0.03f, (float)nextPos.z);
 	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "pos: %f, %f, %f\n", nextPosVec.x, nextPosVec.y, nextPosVec.z);
@@ -844,5 +831,4 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	
 	// 받아온 위치 기반 캐릭터 위치 갱신.
 	pCharacter->CharacterAnimationData.Position = nextPosVec;
-	// pCharacter->CharacterAnimationData.Position.y += 0.5f;
 }

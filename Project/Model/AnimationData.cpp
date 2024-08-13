@@ -5,18 +5,22 @@
 
 Matrix AnimationClip::Key::GetTransform()
 {
-	Quaternion newRot = Rotation;
-	if (IKUpdateRotation == Quaternion())
+	Quaternion adjustedRot = Rotation;
+	if (IKUpdateRotation != Quaternion())
 	{
-		newRot = Quaternion::Concatenate(Rotation, IKUpdateRotation);
+		adjustedRot = Quaternion::Concatenate(Rotation, IKUpdateRotation);
 		IKUpdateRotation = Quaternion();
 	}
-	return (Matrix::CreateScale(Scale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(Position));
+	return (Matrix::CreateScale(Scale) * Matrix::CreateFromQuaternion(adjustedRot) * Matrix::CreateTranslation(Position));
 }
 
-void AnimationData::Update(const int CLIP_ID, const int FRAME)
+void AnimationData::Update(const int CLIP_ID, const int FRAME, const float DELTA_TIME)
 {
+	TimeSinceLoaded += DELTA_TIME;
+
 	AnimationClip& clip = Clips[CLIP_ID];
+	float timeInTicks = (float)(TimeSinceLoaded * clip.TicksPerSec);
+	float animationTimeTicks = fmod(timeInTicks, (float)clip.Duration);
 
 	// root bone id은 0(아닐 수 있음).
 	// root bone에 대한 bone transform update.
@@ -25,8 +29,6 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		std::vector<AnimationClip::Key>& keys = clip.Keys[ROOT_BONE_ID];
 		const UINT64 KEY_SIZE = keys.size();
 		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
-		
-		// const Matrix& PARENT_MATRIX = AccumulatedRootTransform;
 
 		//if (FRAME != 0)
 		//{
@@ -42,10 +44,26 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		//	AccumulatedRootTransform.Translation(Position);
 		//}
 
-		// Quaternion newRot = Quaternion::Concatenate(key.Rotation, key.IKUpdateRotation);
-		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(key.Scale) * Matrix::CreateFromQuaternion(key.Rotation);
-		key.IKUpdateRotation = Quaternion();
-		// BoneTransforms[ROOT_BONE_ID] = key.GetTransform();
+		/*Quaternion adjustedRot = key.Rotation;
+		if (key.IKUpdateRotation != Quaternion())
+		{
+			adjustedRot = Quaternion::Concatenate(key.Rotation, key.IKUpdateRotation);
+			key.IKUpdateRotation = Quaternion();
+		}
+		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(key.Scale) * Matrix::CreateFromQuaternion(adjustedRot);*/
+		
+		Vector3 interpolatedPos;
+		Vector3 interpolatedScale;
+		Quaternion interpolatedRot;
+		interpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, 0, animationTimeTicks);
+		
+		Quaternion adjustedRot = interpolatedRot;
+		if (key.IKUpdateRotation != Quaternion())
+		{
+			adjustedRot = Quaternion::Concatenate(interpolatedRot, key.IKUpdateRotation);
+			key.IKUpdateRotation = Quaternion();
+		}
+		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(adjustedRot);
 	}
 
 	// 나머지 bone transform 업데이트.
@@ -58,12 +76,31 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME)
 		const int PARENT_ID = BoneParents[boneID];
 		AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-		BoneTransforms[boneID] = key.GetTransform() * BoneTransforms[PARENT_ID];
+		// BoneTransforms[boneID] = key.GetTransform() * BoneTransforms[PARENT_ID];
+
+		Vector3 interpolatedPos;
+		Vector3 interpolatedScale;
+		Quaternion interpolatedRot;
+		interpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, (const int)boneID, animationTimeTicks);
+
+		Quaternion adjustedRot = interpolatedRot;
+		if (key.IKUpdateRotation != Quaternion())
+		{
+			adjustedRot = Quaternion::Concatenate(interpolatedRot, key.IKUpdateRotation);
+			key.IKUpdateRotation = Quaternion();
+		}
+		BoneTransforms[boneID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(adjustedRot) * Matrix::CreateTranslation(interpolatedPos) * BoneTransforms[PARENT_ID];
 	}
 }
 
 void AnimationData::UpdateVelocity(const int CLIP_ID, const int FRAME)
 {
+	if (CLIP_ID == 0)
+	{
+		Velocity = 0.0f;
+		return;
+	}
+
 	AnimationClip& clip = Clips[CLIP_ID];
 
 	const int ROOT_BONE_ID = 0;
@@ -71,36 +108,20 @@ void AnimationData::UpdateVelocity(const int CLIP_ID, const int FRAME)
 	const UINT64 KEY_SIZE = keys.size();
 	AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-	Vector3 posDelta;
 	if (FRAME != 0)
 	{
-		posDelta = key.Position - PrevKeyPos;
+		Vector3 posDelta = key.Position - PrevKeyPos;
+		posDelta = Vector3::Transform(posDelta, DefaultTransform);
+		Velocity = posDelta.Length();
 	}
 	else
 	{
-		posDelta = key.Position;
+		Velocity = 0.0f;
 	}
-	posDelta = Vector3::Transform(posDelta, DefaultTransform);
-	Velocity = posDelta.Length();
 	PrevKeyPos = key.Position;
 }
 
-void AnimationData::ResetAllUpdateRotationInClip(const int CLIP_ID)
-{
-	for (UINT64 i = 0, totalBone = BoneIDToNames.size(); i < totalBone; ++i)
-	{
-		std::vector<AnimationClip::Key>& keys = Clips[CLIP_ID].Keys[i];
-		const UINT64 KEY_SIZE = keys.size();
-
-		for (UINT j = 0; j < KEY_SIZE; ++j)
-		{
-			AnimationClip::Key& key = keys[j];
-			key.IKUpdateRotation = Quaternion();
-		}
-	}
-}
-
-Matrix AnimationData::Get(const int BONE_ID)
+Matrix AnimationData::Get(const int CLIP_ID, const int FRAME, const int BONE_ID)
 {
 	return (InverseDefaultTransform * OffsetMatrices[BONE_ID] * BoneTransforms[BONE_ID] * InverseOffsetMatrices[0] * DefaultTransform);
 }
@@ -118,59 +139,84 @@ Matrix AnimationData::GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, con
 	const int PARENT_ID = BoneParents[ROOT_BONE_ID];
 	AnimationClip::Key& key = keys[FRAME % KEY_SIZE];
 
-	Matrix ret = Matrix::CreateScale(key.Scale);
+	Matrix ret = Matrix::CreateScale(key.Scale) * Matrix::CreateTranslation(key.Position);
 
-	return (InverseDefaultTransform * ret * DefaultTransform);
+	return (InverseDefaultTransform * OffsetMatrices[0] * ret * InverseOffsetMatrices[0] * DefaultTransform);
 }
 
 Matrix AnimationData::GetGlobalBonePositionMatix(const int CLIP_ID, const int FRAME, const int BONE_ID)
 {
-	//AnimationClip& clip = Clips[CLIP_ID];
-	//std::vector<AnimationClip::Key> keys = clip.Keys[BONE_ID];
-	//UINT64 keySize = keys.size();
-	//AnimationClip::Key key = keys[FRAME % keySize];
+	return (InverseDefaultTransform * OffsetMatrices[0] * BoneTransforms[BONE_ID] * InverseOffsetMatrices[0] * DefaultTransform);
+}
 
-	//Matrix ret = key.GetTransform();
+void AnimationData::interpolateKeyData(Vector3* pOutPosition, Quaternion* pOutRotation, Vector3* pOutScale, AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK)
+{
+	_ASSERT(pOutScale);
+	_ASSERT(pClip);
 
-	//int parentID = BoneParents[BONE_ID];
-	//while (parentID != 0)
-	//{
-	//	keys = clip.Keys[parentID];
-	//	keySize = keys.size();
-	//	key = keys[FRAME % keySize];
+	std::vector<AnimationClip::Key>& keys = pClip->Keys[BONE_ID];
+	const UINT64 KEY_SIZE = keys.size();
 
-	//	ret *= key.GetTransform();
-	//	parentID = BoneParents[parentID];
-	//}
-
-	//keys = clip.Keys[parentID];
-	//keySize = keys.size();
-	//key = keys[FRAME % keySize];
-
-	////Quaternion newRot = Quaternion::Concatenate(key.Rotation, Rotation);
-	//// ret *= key.GetTransform();
-
-	//return (InverseDefaultTransform * ret * DefaultTransform);
-
-
-	AnimationClip& clip = Clips[CLIP_ID];
-	UINT64 keySize = clip.Keys[BONE_ID].size();
-	AnimationClip::Key& key = clip.Keys[BONE_ID][FRAME % keySize];
-	Matrix ret = key.GetTransform();
-	int parentID = BoneParents[BONE_ID];
-
-	while (parentID > 0)
+	if (KEY_SIZE == 1)
 	{
-		keySize = clip.Keys[parentID].size();
-		ret *= clip.Keys[parentID][FRAME % keySize].GetTransform();
-		parentID = BoneParents[parentID];
+		AnimationClip::Key& key = keys[0];
+		*pOutPosition = key.Position;
+		*pOutRotation = key.Rotation;
+		*pOutScale = key.Scale;
+		
+		return;
 	}
-	keySize = clip.Keys[parentID].size();
-	AnimationClip::Key& rootBoneKey = clip.Keys[parentID][FRAME % keySize];
-	ret *= Matrix::CreateScale(rootBoneKey.Scale) * Matrix::CreateFromQuaternion(rootBoneKey.Rotation);
 
-	return (InverseDefaultTransform * ret * InverseOffsetMatrices[0] * DefaultTransform);
-	return (InverseDefaultTransform * BoneTransforms[BONE_ID] * InverseOffsetMatrices[0] * DefaultTransform);
+	UINT positionIndex = findIndex(pClip, BONE_ID, ANIMATION_TIME_TICK);
+	UINT nextPositionIndex = positionIndex + 1;
+	_ASSERT(nextPositionIndex < KEY_SIZE);
+
+	AnimationClip::Key& curKey = keys[positionIndex];
+	AnimationClip::Key& nextKey = keys[nextPositionIndex];
+
+	float t1 = (float)curKey.Time;
+	float t2 = (float)nextKey.Time;
+	float deltaTime = t2 - t1;
+	float factor = (ANIMATION_TIME_TICK - t1) / deltaTime;
+
+	// Get position data.
+	const Vector3& START_POS = curKey.Position;
+	const Vector3& END_POS = nextKey.Position;
+	Vector3 deltaPos = END_POS - START_POS;
+	*pOutPosition = START_POS + factor * deltaPos;
+
+	// Get rotation data.
+	const Quaternion& START_ROT = curKey.Rotation;
+	const Quaternion& END_ROT = nextKey.Rotation;
+	Quaternion interporlated = DirectX::XMQuaternionSlerp(START_ROT, END_ROT, factor);
+	interporlated.Normalize();
+	*pOutRotation = interporlated;
+
+	// Get scale data.
+	const Vector3& START_SCALE = curKey.Scale;
+	const Vector3& END_SCALE = nextKey.Scale;
+	Vector3 deltaScale = END_SCALE - START_SCALE;
+	*pOutScale = START_SCALE + factor * deltaScale;
+}
+
+UINT AnimationData::findIndex(AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK)
+{
+	_ASSERT(pClip);
+
+	UINT ret = 0;
+
+	std::vector<AnimationClip::Key>& keys = pClip->Keys[BONE_ID];
+	for (UINT64 i = 0, end = keys.size() - 1; i < end; ++i)
+	{
+		float t = (float)keys[i + 1].Time;
+		if (ANIMATION_TIME_TICK < t)
+		{
+			ret = (UINT)i;
+			break;
+		}
+	}
+
+	return ret;
 }
 
 Joint::Joint()

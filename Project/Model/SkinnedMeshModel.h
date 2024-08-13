@@ -70,6 +70,8 @@ public:
 	physx::PxCapsuleController* pController = nullptr;
 	physx::PxRigidDynamic* pRightFoot = nullptr;
 	physx::PxRigidDynamic* pLeftFoot = nullptr;
+	physx::PxRigidDynamic* pRightFootTarget = nullptr;
+	physx::PxRigidDynamic* pLeftFootTarget = nullptr;
 
 private:
 	Mesh* m_ppRightArm[4] = { nullptr, }; // right arm - right fore arm - right hand - right hand middle.

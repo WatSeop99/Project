@@ -25,12 +25,12 @@ struct AnimationClip
 		Vector3 Scale = Vector3(1.0f);
 		Quaternion Rotation;
 		Quaternion IKUpdateRotation;
+		double Time = 0.0f;
 	};
 
 	std::string Name;					 // Name of this animation clip.
 	std::vector<std::vector<Key>> Keys;  // Keys[boneID][frame].
 	int NumChannels;					 // Number of bones.
-	int NumKeys;						 // Number of frames of this animation clip.
 	double Duration;					 // Duration of animation in ticks.
 	double TicksPerSec;					 // Frames per second.
 };
@@ -41,33 +41,37 @@ public:
 	AnimationData() = default;
 	~AnimationData() = default;
 
-	void Update(const int CLIP_ID, const int FRAME);
+	void Update(const int CLIP_ID, const int FRAME, const float DELTA_TIME);
 	void UpdateVelocity(const int CLIP_ID, const int FRAME);
 
-	void ResetAllUpdateRotationInClip(const int CLIP_ID);
-
-	Matrix Get(const int BONE_ID);
+	Matrix Get(const int CLIP_ID, const int FRAME, const int BONE_ID);
 	Matrix GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME);
 	Matrix GetGlobalBonePositionMatix(const int CLIP_ID, const int FRAME, const int BONE_ID);
+
+protected:
+	void interpolateKeyData(Vector3* pOutPosition, Quaternion* pOutRotation, Vector3* pOutScale, AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK);
+
+	UINT findIndex(AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK);
 
 public:
 	std::unordered_map<std::string, int> BoneNameToID;	// 뼈 이름과 인덱스 정수.
 	std::vector<std::string> BoneIDToNames;				// BoneNameToID의 ID 순서대로 뼈 이름 저장.
 	std::vector<int> BoneParents;					    // 부모 뼈의 인덱스.
 	std::vector<Matrix> OffsetMatrices;					// 뼈와 skin 사이의 변환. 뼈 좌표계에서 mesh의 위치.	
-	std::vector<Matrix> InverseOffsetMatrices;					
-	std::vector<Matrix> AccumulatedNodeTransforms;
+	std::vector<Matrix> InverseOffsetMatrices;		
 	std::vector<Matrix> NodeTransforms;
 	std::vector<Matrix> BoneTransforms;					// 해당 시점 key data의 움직임에 따른 뼈의 변환 행렬.
 	std::vector<AnimationClip> Clips;					// 애니메이션 동작.
 
 	Matrix DefaultTransform;			// normalizing을 위한 변환 행렬 [-1, 1]^3
 	Matrix InverseDefaultTransform;		// 모델 좌표계 복귀 변환 행렬.
-	Matrix AccumulatedRootTransform;	// root 뼈에 적용할 변환 행렬.
 	Vector3 PrevKeyPos;					// 이전 clip의 키 데이터 위치.
 	Vector3 Position;					// 캐릭터 위치.
 	Vector3 Direction;					// direction은 회전 방향만 결정.
 	Quaternion Rotation;				// 회전 정보.
+
+	double TimeSinceLoaded = 0.25f;
+	float NormalizingScale = 1.0f;
 	float Velocity = 0.0f;
 };
 

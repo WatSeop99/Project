@@ -17,15 +17,6 @@ void SkinnedMeshModel::Initialize(Renderer* pRenderer, const std::vector<MeshInf
 
 	Model::Initialize(pRenderer, MESH_INFOS);
 	InitAnimationData(pRenderer, ANIM_DATA);
-	/*{
-		Matrix spineNode = CharacterAnimationData.NodeTransforms[1];
-		Matrix spineOffset = CharacterAnimationData.OffsetMatrices[1].Invert();
-		Matrix spine1Offset = CharacterAnimationData.OffsetMatrices[2].Invert();
-		Vector3 pos = Vector3::Transform(Vector3(0.0f), spineOffset);
-		Vector3 pos1 = Vector3::Transform(Vector3(0.0f), spine1Offset);
-
-		int a = 0;
-	}*/
 	initBoundingCapsule();
 	initJointSpheres();
 	initChain();
@@ -143,7 +134,6 @@ void SkinnedMeshModel::InitAnimationData(Renderer* pRenderer, const AnimationDat
 void SkinnedMeshModel::UpdateWorld(const Matrix& WORLD)
 {
 	World = WORLD;
-	// InverseWorldTranspose.Translation(Vector3(0.0f));
 	InverseWorldTranspose = WORLD.Invert().Transpose();
 
 	for (UINT64 i = 0, size = Meshes.size(); i < size; ++i)
@@ -171,7 +161,7 @@ void SkinnedMeshModel::UpdateAnimation(const int CLIP_ID, const int FRAME, const
 	if (CLIP_ID == 0)
 	{
 		solveCharacterIK(CLIP_ID, FRAME, DELTA_TIME, pUpdateInfo);
-		CharacterAnimationData.Update(CLIP_ID, FRAME);
+		CharacterAnimationData.Update(CLIP_ID, FRAME, DELTA_TIME);
 	}
 
 	// joint 위치 갱신.
@@ -185,7 +175,7 @@ void SkinnedMeshModel::UpdateAnimation(const int CLIP_ID, const int FRAME, const
 	Matrix* pDest = (Matrix*)pBoneTransformMem;
 	for (UINT64 i = 0, size = CharacterAnimationData.Clips[CLIP_ID].Keys.size(); i < size; ++i)
 	{
-		pDest[i] = CharacterAnimationData.Get((int)i).Transpose();
+		pDest[i] = CharacterAnimationData.Get(CLIP_ID, FRAME, (int)i).Transpose();
 	}
 
 	pBoneTransform->pTextureResource->Unmap(0, nullptr);
@@ -809,6 +799,12 @@ void SkinnedMeshModel::Cleanup()
 		return;
 	}
 
+	pController = nullptr;
+	pRightFoot = nullptr;
+	pLeftFoot = nullptr;
+	pRightFootTarget = nullptr;
+	pLeftFootTarget = nullptr;
+
 	if (pBoneTransform)
 	{
 		TextureManager* pTextureManager = m_pRenderer->GetTextureManager();
@@ -1152,7 +1148,7 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
 	{
-		char szDebugString[256];
+		// char szDebugString[256];
 		/*sprintf_s(szDebugString, 256, "rightHand center: %f, %f, %f\nleftHand center: %f, %f, %f\nrightFoot center: %f, %f, %f\nleftFoot center: %f, %f, %f\n\n", 
 				  RightHandMiddle.Center.x, RightHandMiddle.Center.y, RightHandMiddle.Center.z,
 				  LeftHandMiddle.Center.x, LeftHandMiddle.Center.y, LeftHandMiddle.Center.z,

@@ -8,7 +8,7 @@
 void Model::Initialize(Renderer* pRenderer, std::wstring& basePath, std::wstring& fileName)
 {
 	std::vector<MeshInfo> meshInfos;
-	ReadFromFile(meshInfos, basePath, fileName);
+	ReadFromFile(meshInfos, nullptr, basePath, fileName);
 	Initialize(pRenderer, meshInfos);
 }
 
@@ -200,7 +200,6 @@ void Model::UpdateWorld(const Matrix& WORLD)
 {
 	World = WORLD;
 	InverseWorldTranspose = WORLD;
-	// InverseWorldTranspose.Translation(Vector3(0.0f));
 	InverseWorldTranspose = InverseWorldTranspose.Invert().Transpose();
 
 	// bounding box, sphere 위치 업데이트.
@@ -722,7 +721,6 @@ void Model::initBoundingBox(const std::vector<MeshInfo>& MESH_INFOS)
 	}
 
 	MeshInfo meshData = INIT_MESH_INFO;
-	// MakeWireBox(&meshData, BoundingBox.Center, Vector3(BoundingBox.Extents) + Vector3(1e-3f));
 	MakeWireBox(&meshData, Vector3(0.0f), Vector3(BoundingBox.Extents) + Vector3(1e-3f));
 	
 	m_pBoundingBoxMesh = new Mesh;
@@ -744,7 +742,7 @@ void Model::initBoundingSphere(const std::vector<MeshInfo>& MESH_INFOS)
 		}
 	}
 
-	maxRadius += 1e-2f; // 살짝 크게 설정.
+	// maxRadius += 1e-2f; // 살짝 크게 설정.
 	BoundingSphere = DirectX::BoundingSphere(BoundingBox.Center, maxRadius);
 
 	MeshInfo meshData = INIT_MESH_INFO;

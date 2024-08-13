@@ -211,10 +211,9 @@ void Renderer::Cleanup()
 	cleanShaderResources();
 	cleanDepthStencils();
 	cleanRenderTargets();
-	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE nullSRV(m_pResourceManager->NullSRVDescriptor);
-		m_pSRVUAVAllocator->FreeDescriptorHandle(nullSRV);
-	}
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE nullSRV(m_pResourceManager->NullSRVDescriptor);
+	m_pSRVUAVAllocator->FreeDescriptorHandle(nullSRV);
 
 	m_pRenderObjects = nullptr;
 	m_pLights = nullptr;
@@ -247,8 +246,6 @@ void Renderer::Cleanup()
 		delete m_pRTVAllocator;
 		m_pRTVAllocator = nullptr;
 	}
-	/*m_DynamicDescriptorPool.Cleanup();
-	m_ConstantBufferManager.Cleanup();*/
 
 	if (m_pResourceManager)
 	{
@@ -295,11 +292,7 @@ void Renderer::Cleanup()
 		m_pTextureManager = nullptr;
 	}
 
-	/*for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-	{
-		SAFE_RELEASE(m_ppCommandList[i]);
-		SAFE_RELEASE(m_ppCommandAllocator[i]);
-	}*/
+
 	SAFE_RELEASE(m_pSwapChain);
 	SAFE_RELEASE(m_pCommandQueue);
 
@@ -573,7 +566,7 @@ void Renderer::initDirect3D()
 	}
 #endif
 
-	const D3D_FEATURE_LEVEL FEATURE_LEVELS[] =
+	const D3D_FEATURE_LEVEL FEATURE_LEVELS[5] =
 	{
 		D3D_FEATURE_LEVEL_12_2,
 		D3D_FEATURE_LEVEL_12_1,
@@ -581,14 +574,13 @@ void Renderer::initDirect3D()
 		D3D_FEATURE_LEVEL_11_1,
 		D3D_FEATURE_LEVEL_11_0,
 	};
-	UINT numFeatureLevels = _countof(FEATURE_LEVELS);
 	IDXGIFactory5* pFactory5 = nullptr;
 	IDXGIAdapter3* pAdapter3 = nullptr;
 
 	hr = CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&pFactory5));
 	BREAK_IF_FAILED(hr);
 
-	for (UINT featureLevelIndex = 0; featureLevelIndex < numFeatureLevels; ++featureLevelIndex)
+	for (UINT featureLevelIndex = 0; featureLevelIndex < 5; ++featureLevelIndex)
 	{
 		UINT adapterIndex = 0;
 		while (pFactory5->EnumAdapters1(adapterIndex, (IDXGIAdapter1**)(&pAdapter3)) != DXGI_ERROR_NOT_FOUND)
@@ -665,28 +657,6 @@ LB_EXIT:
 		m_FrameIndex = m_pSwapChain->GetCurrentBackBufferIndex();
 	}
 
-	// create command list
-	{
-		//for (UINT i = 0; i < SWAP_CHAIN_FRAME_COUNT; ++i)
-		//{
-		//	WCHAR debugName[256];
-
-		//	hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_ppCommandAllocator[i]));
-		//	BREAK_IF_FAILED(hr);
-		//	swprintf_s(debugName, 256, L"CommandAllocator%u", i);
-		//	m_ppCommandAllocator[i]->SetName(debugName);
-
-		//	hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_ppCommandAllocator[i], nullptr, IID_PPV_ARGS(&m_ppCommandList[i]));
-		//	BREAK_IF_FAILED(hr);
-		//	swprintf_s(debugName, 256, L"CommandList%u", i);
-		//	m_ppCommandList[i]->SetName(debugName);
-
-		//	// Command lists are created in the recording state, but there is nothing
-		//	// to record yet. The main loop expects it to be closed, so close it now.
-		//	m_ppCommandList[i]->Close();
-		//}
-	}
-
 	// create render queue and command list pool, descriptor pool
 	{
 		for (int i = 0; i < RenderPass_RenderPassCount; ++i)
@@ -723,28 +693,6 @@ LB_EXIT:
 		m_hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	}
 
-
-	//CommandListPool* pCurCommandListPool1 = m_pppCommandListPool[m_FrameIndex][0];
-	//CommandListPool* pCurCommandListPool2 = m_pppCommandListPool[(m_FrameIndex + 1) % SWAP_CHAIN_FRAME_COUNT][0];
-	//ID3D12CommandAllocator* ppAllocators[SWAP_CHAIN_FRAME_COUNT] =
-	//{
-	//	pCurCommandListPool1->GetCurrentCommandAllocator(), 
-	//	pCurCommandListPool2->GetCurrentCommandAllocator()
-	//};
-	//ID3D12GraphicsCommandList* ppCommandList[SWAP_CHAIN_FRAME_COUNT] =
-	//{
-	//	pCurCommandListPool1->GetCurrentCommandList(), 
-	//	pCurCommandListPool2->GetCurrentCommandList()
-	//};
-	//ResourceManager::InitialData initData = 
-	//{ 
-	//	m_pDevice, m_pCommandQueue, 
-	//	ppAllocators,
-	//	ppCommandList,
-	//	&m_DynamicDescriptorPool, 
-	//	&m_ConstantBufferManager, 
-	//	m_hFenceEvent, m_pFence, &m_FrameIndex, &m_FenceValue, m_LastFenceValues 
-	//};
 	m_pResourceManager = new ResourceManager;
 	m_pResourceManager->Initialize(this);
 
@@ -759,9 +707,6 @@ LB_EXIT:
 
 	m_pSRVUAVAllocator = new DescriptorAllocator;
 	m_pSRVUAVAllocator->Initialize(m_pDevice, 4096, D3D12_DESCRIPTOR_HEAP_FLAG_NONE, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	
-	/*m_DynamicDescriptorPool.Initialize(m_pDevice, 1024);
-	m_ConstantBufferManager.Initialize(m_pDevice, 4096);*/
 
 #ifdef USE_MULTI_THREAD
 	// create thread and event
@@ -859,11 +804,11 @@ void Renderer::initRenderTargets()
 	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
 	HRESULT hr = m_pDevice->CreateCommittedResource(&heapProps,
-											D3D12_HEAP_FLAG_NONE,
-											&resourceDesc,
-											D3D12_RESOURCE_STATE_COMMON,
-											nullptr,
-											IID_PPV_ARGS(&m_pFloatBuffer));
+													D3D12_HEAP_FLAG_NONE,
+													&resourceDesc,
+													D3D12_RESOURCE_STATE_COMMON,
+													nullptr,
+													IID_PPV_ARGS(&m_pFloatBuffer));
 	BREAK_IF_FAILED(hr);
 	m_pFloatBuffer->SetName(L"FloatBuffer");
 
@@ -1689,7 +1634,7 @@ void Renderer::endRender()
 	
 #else
 
-	ID3D12GraphicsCommandList * pCommandList = GetCommandList();
+	ID3D12GraphicsCommandList* pCommandList = GetCommandList();
 	const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
 	
 	pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
@@ -1958,14 +1903,6 @@ void Renderer::processMouseControl(const float DELTA_TIME)
 			translation = meshConstantData.World.Transpose().Translation() + dragTranslation;
 			m_PickedTranslation = translation;
 
-			/*{
-				std::string debugString = std::string("dragTranslation: ") + std::to_string(dragTranslation.x) + std::string(", ") + std::to_string(dragTranslation.y) + std::string(", ") + std::to_string(dragTranslation.z) + std::string("\n");
-				OutputDebugStringA(debugString.c_str());
-
-				debugString = std::string("translation: ") + std::to_string(translation.x) + std::string(", ") + std::to_string(translation.y) + std::string(", ") + std::to_string(translation.z) + std::string("\n");
-				OutputDebugStringA(debugString.c_str());
-			}*/
-			
 			SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)s_pActiveModel;
 			switch (s_EndEffectorType)
 			{

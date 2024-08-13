@@ -4,14 +4,12 @@
 #include "../Util/Utility.h"
 #include "GeometryGenerator.h"
 
-HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::wstring& fileName, bool bRevertNormals)
+HRESULT ReadFromFile(std::vector<MeshInfo>& dst, AnimationData* pAnimData, std::wstring& basePath, std::wstring& fileName, bool bRevertNormals)
 {
 	HRESULT hr = S_OK;
 
 	ModelLoader modelLoader;
 	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
-	/*FBXModelLoader modelLoader;
-	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
 	if (FAILED(hr))
 	{
 		__debugbreak();
@@ -21,20 +19,21 @@ HRESULT ReadFromFile(std::vector<MeshInfo>& dst, std::wstring& basePath, std::ws
 
 	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
 	dst = modelLoader.MeshInfos;
+	if (pAnimData)
+	{
+		*pAnimData = modelLoader.AnimData;
+	}
 
 LB_RET:
-
 	return hr;
 }
 
-HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& animData, std::wstring& basePath, std::wstring& fileName, bool bRevertNormals)
+HRESULT ReadAnimationFromFile(AnimationData* pAnimData, std::wstring& basePath, std::wstring& fileName, bool bRevertNormals)
 {
 	HRESULT hr = S_OK;
 
 	ModelLoader modelLoader;
-	hr = modelLoader.Load(basePath, fileName, bRevertNormals);
-	/*FBXModelLoader modelLoader;
-	hr = modelLoader.Load(basePath, fileName, bRevertNormals);*/
+	hr = modelLoader.LoadAnimation(basePath, fileName);
 	if (FAILED(hr))
 	{
 		__debugbreak();
@@ -42,9 +41,10 @@ HRESULT ReadAnimationFromFile(std::vector<MeshInfo>& meshInfos, AnimationData& a
 		goto LB_RET;
 	}
 
-	Normalize(Vector3(0.0f), 1.0f, modelLoader.MeshInfos, modelLoader.AnimData);
-	// meshInfos = modelLoader.MeshInfos;
-	animData = modelLoader.AnimData;
+	if (pAnimData)
+	{
+		*pAnimData = modelLoader.AnimData;
+	}
 
 LB_RET:
 	return hr;
@@ -91,6 +91,7 @@ void Normalize(const Vector3& CENTER, const float LONGEST_LENGTH, std::vector<Me
 	// 애니메이션 데이터 보정에 사용.
 	animData.DefaultTransform = Matrix::CreateTranslation(translation) * Matrix::CreateScale(scale);
 	animData.InverseDefaultTransform = animData.DefaultTransform.Invert();
+	animData.NormalizingScale = scale;
 }
 
 void MakeSquare(MeshInfo* pOutDst, const float SCALE, const Vector2 TEX_SCALE)

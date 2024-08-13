@@ -73,7 +73,6 @@ HRESULT FBXModelLoader::Load(std::wstring& basePath, std::wstring& fileName, boo
 		AnimData.BoneParents.resize(totalBoneCount, -1);
 
 		Matrix globalTransform; // Initial transformation.
-		AnimData.AccumulatedNodeTransforms.resize(totalBoneCount);
 		AnimData.NodeTransforms.resize(totalBoneCount);
 		AnimData.OffsetMatrices.resize(totalBoneCount);
 		AnimData.InverseOffsetMatrices.resize(totalBoneCount);

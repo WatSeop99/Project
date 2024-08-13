@@ -42,15 +42,14 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 			AnimData.BoneIDToNames[iter->second] = iter->first;
 		}
 
-		// 각 뼈마다 부모 인덱스를 저장할 준비.
 		AnimData.BoneParents.resize(totalBoneCount, -1);
+		AnimData.NodeTransforms.resize(totalBoneCount);
+		AnimData.OffsetMatrices.resize(totalBoneCount);
+		AnimData.InverseOffsetMatrices.resize(totalBoneCount);
+		AnimData.BoneTransforms.resize(totalBoneCount);
 
 		Matrix globalTransform; // Initial transformation.
-		AnimData.AccumulatedNodeTransforms.resize(totalBoneCount);
-		AnimData.NodeTransforms.resize(totalBoneCount);
 		processNode(pSCENE->mRootNode, pSCENE, globalTransform);
-		/*AnimData.NodeTransforms[0] = AnimData.InverseOffsetMatrices[0];
-		AnimData.AccumulatedNodeTransforms[0] = AnimData.InverseOffsetMatrices[0];*/
 
 		// 애니메이션 정보 읽기.
 		if (pSCENE->HasAnimations())
@@ -64,7 +63,6 @@ HRESULT ModelLoader::Load(std::wstring& basePath, std::wstring& fileName, bool _
 	{
 		const char* pErrorDescription = importer.GetErrorString();
 		char szDebugString[256];
-
 		sprintf_s(szDebugString, 256, "Failed to read file: %s\nAssimp error: %s\n", (szBasePath + fileNameA).c_str(), pErrorDescription);
 		OutputDebugStringA(szDebugString);
 
@@ -86,13 +84,34 @@ HRESULT ModelLoader::LoadAnimation(std::wstring& basePath, std::wstring& fileNam
 
 	if (pSCENE && pSCENE->HasAnimations())
 	{
+		// 모든 메쉬에 대해, 정점에 영향 주는 뼈들의 목록을 생성.
+		findDeformingBones(pSCENE);
+
+		// 트리 구조를 따라, 업데이트 순서대로 뼈들의 인덱스를 결정.
+		int totalBoneCount = 0;
+		updateBoneIDs(pSCENE->mRootNode, &totalBoneCount);
+
+		// 업데이트 순서대로 뼈 이름 저장. (pBoneIDToNames)
+		AnimData.BoneIDToNames.resize(totalBoneCount);
+		for (auto iter = AnimData.BoneNameToID.begin(), endIter = AnimData.BoneNameToID.end(); iter != endIter; ++iter)
+		{
+			AnimData.BoneIDToNames[iter->second] = iter->first;
+		}
+
+		AnimData.BoneParents.resize(totalBoneCount, -1);
+		AnimData.NodeTransforms.resize(totalBoneCount);
+		AnimData.OffsetMatrices.resize(totalBoneCount);
+		AnimData.InverseOffsetMatrices.resize(totalBoneCount);
+		AnimData.BoneTransforms.resize(totalBoneCount);
+
+		processNodeForAnimation(pSCENE->mRootNode, pSCENE);
+
 		readAnimation(pSCENE);
 	}
 	else
 	{
 		const char* pErrorDescription = importer.GetErrorString();
 		char szDebugString[256];
-
 		sprintf_s(szDebugString, 256, "Failed to read animation from file: %s\n Assimp error: %s\n", (szBasePath + fileNameA).c_str(), pErrorDescription);
 		OutputDebugStringA(szDebugString);
 
@@ -128,17 +147,13 @@ const aiNode* ModelLoader::findParent(const aiNode* pNODE)
 	{
 		return pNODE;
 	}
+
 	return findParent(pNODE->mParent);
 }
 
 void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& transform)
 {
-	// 현재 노드의 global transform 계산.
-	Matrix globalTransform(&pNode->mTransformation.a1);
-	globalTransform = globalTransform.Transpose() * transform;
-
 	// 사용되는 부모 뼈를 찾아서 부모의 인덱스 저장.
-	// const aiNode* pPARENT = findParent(pNode->mParent);
 	const aiNode* pPARENT = findParent(pNode->mParent);
 	const char* pNODE_NAME = pNode->mName.C_Str();
 	if (pPARENT &&
@@ -146,28 +161,49 @@ void ModelLoader::processNode(aiNode* pNode, const aiScene* pSCENE, Matrix& tran
 	{
 		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
 		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
-		AnimData.AccumulatedNodeTransforms[BONE_ID] = globalTransform;
 		AnimData.NodeTransforms[BONE_ID] = Matrix(&pNode->mTransformation.a1).Transpose();
 	}
+
+	// 현재 노드의 global transform 계산.
+	Matrix globalTransform(&pNode->mTransformation.a1);
+	globalTransform = globalTransform.Transpose() * transform;
 
 	for (UINT i = 0; i < pNode->mNumMeshes; ++i)
 	{
 		aiMesh* pMesh = pSCENE->mMeshes[pNode->mMeshes[i]];
 		MeshInfo newMeshInfo;
-
 		processMesh(pMesh, pSCENE, &newMeshInfo);
-		for (UINT64 j = 0, size = newMeshInfo.Vertices.size(); j < size; ++j)
-		{
-			Vertex& v = newMeshInfo.Vertices[j];
-			v.Position = DirectX::SimpleMath::Vector3::Transform(v.Position, globalTransform);
-		}
-
 		MeshInfos.push_back(newMeshInfo);
 	}
 
 	for (UINT i = 0; i < pNode->mNumChildren; ++i)
 	{
 		processNode(pNode->mChildren[i], pSCENE, globalTransform);
+	}
+}
+
+void ModelLoader::processNodeForAnimation(aiNode* pNode, const aiScene* pSCENE)
+{
+	// 사용되는 부모 뼈를 찾아서 부모의 인덱스 저장.
+	const aiNode* pPARENT = findParent(pNode->mParent);
+	const char* pNODE_NAME = pNode->mName.C_Str();
+	if (pPARENT &&
+		AnimData.BoneNameToID.count(pNODE_NAME) > 0)
+	{
+		const int BONE_ID = AnimData.BoneNameToID[pNODE_NAME];
+		AnimData.BoneParents[BONE_ID] = AnimData.BoneNameToID[pPARENT->mName.C_Str()];
+		AnimData.NodeTransforms[BONE_ID] = Matrix(&pNode->mTransformation.a1).Transpose();
+	}
+
+	for (UINT i = 0; i < pNode->mNumMeshes; ++i)
+	{
+		aiMesh* pMesh = pSCENE->mMeshes[pNode->mMeshes[i]];
+		processMeshForAnimation(pMesh, pSCENE);
+	}
+
+	for (UINT i = 0; i < pNode->mNumChildren; ++i)
+	{
+		processNodeForAnimation(pNode->mChildren[i], pSCENE);
 	}
 }
 
@@ -183,9 +219,11 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 	{
 		Vertex& vertex = vertices[i];
 
-		vertex.Position.x = pMesh->mVertices[i].x;
-		vertex.Position.y = pMesh->mVertices[i].y;
-		vertex.Position.z = pMesh->mVertices[i].z;
+		if (pMesh->mVertices)
+		{
+			const aiVector3D& V = pMesh->mVertices[i];
+			vertex.Position = { V.x, V.y, V.z };
+		}
 
 		if (pMesh->mNormals)
 		{
@@ -211,76 +249,18 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 
 		if (pMesh->mTextureCoords[0])
 		{
-			vertex.Texcoord.x = (float)(pMesh->mTextureCoords[0][i].x);
-			vertex.Texcoord.y = (float)(pMesh->mTextureCoords[0][i].y);
+			const aiVector3D& TEXCOORD = pMesh->mTextureCoords[0][i];
+			vertex.Texcoord = { (float)TEXCOORD.x, (float)TEXCOORD.y };
 		}
 	}
 
 	indices.reserve(pMesh->mNumFaces);
 	for (UINT i = 0; i < pMesh->mNumFaces; ++i)
 	{
-		aiFace face = pMesh->mFaces[i];
-		for (UINT j = 0; j < face.mNumIndices; ++j)
+		const aiFace& FACE = pMesh->mFaces[i];
+		for (UINT j = 0; j < FACE.mNumIndices; ++j)
 		{
-			indices.push_back(face.mIndices[j]);
-		}
-	}
-
-	if (pMesh->HasBones())
-	{
-		const UINT64 VERT_SIZE = vertices.size();
-		std::vector<std::vector<float>> boneWeights(VERT_SIZE);
-		std::vector<std::vector<UINT8>> boneIndices(VERT_SIZE);
-		
-		const UINT64 TOTAL_BONE = AnimData.BoneNameToID.size();
-		AnimData.OffsetMatrices.resize(TOTAL_BONE);
-		AnimData.InverseOffsetMatrices.resize(TOTAL_BONE);
-		AnimData.BoneTransforms.resize(TOTAL_BONE);
-
-		int count = 0;
-		for (UINT i = 0; i < pMesh->mNumBones; ++i)
-		{
-			const aiBone* pBONE = pMesh->mBones[i];
-			const UINT BONE_ID = AnimData.BoneNameToID[pBONE->mName.C_Str()];
-
-			AnimData.OffsetMatrices[BONE_ID] = Matrix(&pBONE->mOffsetMatrix.a1).Transpose();
-			AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
-
-			// 이 뼈가 영향을 주는 정점 개수.
-			for (UINT j = 0; j < pBONE->mNumWeights; ++j)
-			{
-				aiVertexWeight weight = pBONE->mWeights[j];
-				_ASSERT(weight.mVertexId < boneIndices.size());
-
-				boneIndices[weight.mVertexId].push_back(BONE_ID);
-				boneWeights[weight.mVertexId].push_back(weight.mWeight);
-			}
-		}
-
-		int maxBones = 0;
-		for (UINT64 i = 0, boneWeightSize = boneWeights.size(); i < boneWeightSize; ++i)
-		{
-			maxBones = Max(maxBones, (int)(boneWeights[i].size()));
-		}
-
-		{
-			char debugString[256];
-			sprintf_s(debugString, "Max number of influencing bones per vertex = %d\n", maxBones);
-			OutputDebugStringA(debugString);
-		}
-
-		skinnedVertices.resize(VERT_SIZE);
-		for (UINT64 i = 0; i < VERT_SIZE; ++i)
-		{
-			skinnedVertices[i].Position = vertices[i].Position;
-			skinnedVertices[i].Normal = vertices[i].Normal;
-			skinnedVertices[i].Texcoord = vertices[i].Texcoord;
-
-			for (UINT64 j = 0, curBoneWeightsSize = boneWeights[i].size(); j < curBoneWeightsSize; ++j)
-			{
-				skinnedVertices[i].BlendWeights[j] = boneWeights[i][j];
-				skinnedVertices[i].BoneIndices[j] = boneIndices[i][j];
-			}
+			indices.push_back(FACE.mIndices[j]);
 		}
 	}
 
@@ -310,6 +290,73 @@ void ModelLoader::processMesh(aiMesh* pMesh, const aiScene* pSCENE, MeshInfo* pM
 			WCHAR szDebugString[256];
 			swprintf_s(szDebugString, 256, L"%s\nOpacity %s\n", pMeshInfo->szAlbedoTextureFileName.c_str(), pMeshInfo->szOpacityTextureFileName.c_str());
 			OutputDebugStringW(szDebugString);
+		}
+	}
+
+	if (pMesh->HasBones())
+	{
+		const UINT64 VERT_SIZE = vertices.size();
+		std::vector<std::vector<float>> boneWeights(VERT_SIZE);
+		std::vector<std::vector<UINT8>> boneIndices(VERT_SIZE);
+
+		for (UINT i = 0; i < pMesh->mNumBones; ++i)
+		{
+			const aiBone* pBONE = pMesh->mBones[i];
+			const UINT BONE_ID = AnimData.BoneNameToID[pBONE->mName.C_Str()];
+
+			AnimData.OffsetMatrices[BONE_ID] = Matrix(&pBONE->mOffsetMatrix.a1).Transpose();
+			AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
+
+			// 이 뼈가 영향을 주는 정점 개수.
+			for (UINT j = 0; j < pBONE->mNumWeights; ++j)
+			{
+				aiVertexWeight weight = pBONE->mWeights[j];
+				_ASSERT(weight.mVertexId < boneIndices.size());
+
+				boneIndices[weight.mVertexId].push_back(BONE_ID);
+				boneWeights[weight.mVertexId].push_back(weight.mWeight);
+			}
+		}
+
+#ifdef _DEBUG
+		int maxBones = 0;
+		for (UINT64 i = 0, boneWeightSize = boneWeights.size(); i < boneWeightSize; ++i)
+		{
+			maxBones = Max(maxBones, (int)(boneWeights[i].size()));
+		}
+
+		char debugString[256];
+		sprintf_s(debugString, "Max number of influencing bones per vertex = %d\n", maxBones);
+		OutputDebugStringA(debugString);
+#endif
+
+		skinnedVertices.resize(VERT_SIZE);
+		for (UINT64 i = 0; i < VERT_SIZE; ++i)
+		{
+			skinnedVertices[i].Position = vertices[i].Position;
+			skinnedVertices[i].Normal = vertices[i].Normal;
+			skinnedVertices[i].Texcoord = vertices[i].Texcoord;
+
+			for (UINT64 j = 0, curBoneWeightsSize = boneWeights[i].size(); j < curBoneWeightsSize; ++j)
+			{
+				skinnedVertices[i].BlendWeights[j] = boneWeights[i][j];
+				skinnedVertices[i].BoneIndices[j] = boneIndices[i][j];
+			}
+		}
+	}
+}
+
+void ModelLoader::processMeshForAnimation(aiMesh* pMesh, const aiScene* pSCENE)
+{
+	if (pMesh->HasBones())
+	{
+		for (UINT i = 0; i < pMesh->mNumBones; ++i)
+		{
+			const aiBone* pBONE = pMesh->mBones[i];
+			const UINT BONE_ID = AnimData.BoneNameToID[pBONE->mName.C_Str()];
+
+			AnimData.OffsetMatrices[BONE_ID] = Matrix(&pBONE->mOffsetMatrix.a1).Transpose();
+			AnimData.InverseOffsetMatrices[BONE_ID] = AnimData.OffsetMatrices[BONE_ID].Invert();
 		}
 	}
 }
@@ -346,6 +393,7 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 				key.Position = Vector3(POS.x, POS.y, POS.z);
 				key.Rotation = Quaternion(ROTATION.x, ROTATION.y, ROTATION.z, ROTATION.w);
 				key.Scale = Vector3(SCALE.x, SCALE.y, SCALE.z);
+				key.Time = pNODE_ANIM->mPositionKeys[k].mTime; // rotation, scale은 동일.
 			}
 		}
 
@@ -356,26 +404,6 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 			const UINT64 KEY_SIZE = keys.size();
 			if (KEY_SIZE == 0)
 			{
-				// keys.push_back(AnimationClip::Key());
-
-				/*const int PARENT_ID = AnimData.BoneParents[boneID];
-				Matrix parentGlobalOffset = AnimData.InverseOffsetMatrices[PARENT_ID];
-				Matrix curBoneGlobalOffset = AnimData.InverseOffsetMatrices[boneID];
-
-				Quaternion parentGlobalRot = Quaternion::CreateFromRotationMatrix(parentGlobalOffset);
-				Quaternion childGlobalRot = Quaternion::CreateFromRotationMatrix(curBoneGlobalOffset);
-				parentGlobalRot.Conjugate();
-
-				Quaternion relativeRot = Quaternion::Concatenate(childGlobalRot, parentGlobalRot);
-
-				Vector3 parentGlobalPos = parentGlobalOffset.Translation();
-				Vector3 childGlobalPos = curBoneGlobalOffset.Translation();
-				Vector3 relativePos = childGlobalPos - parentGlobalPos;
-
-				AnimationClip::Key key;
-				key.Position = relativePos;
-				key.Rotation = relativeRot;*/
-
 				Matrix nodeTransform = AnimData.NodeTransforms[boneID];
 				AnimationClip::Key key;
 				key.Position = nodeTransform.Translation();
@@ -391,7 +419,12 @@ HRESULT ModelLoader::readTextureFileName(const aiScene* pSCENE, aiMaterial* pMat
 {
 	HRESULT hr = S_OK;
 
-	if (pMaterial->GetTextureCount(type) > 0)
+	if (pMaterial->GetTextureCount(type) <= 0)
+	{
+		hr = E_FAIL;
+		goto LB_RET;
+	}
+
 	{
 		aiString filePath;
 		pMaterial->GetTexture(type, 0, &filePath);
@@ -426,11 +459,8 @@ HRESULT ModelLoader::readTextureFileName(const aiScene* pSCENE, aiMaterial* pMat
 			*pDst = std::wstring(fullPath.begin(), fullPath.end());
 		}
 	}
-	else
-	{
-		hr = E_FAIL;
-	}
 
+LB_RET:
 	return hr;
 }
 
@@ -467,19 +497,21 @@ void ModelLoader::updateTangents()
 
 void ModelLoader::updateBoneIDs(aiNode* pNode, int* pCounter)
 {
-	if (pNode)
+	if (!pNode)
 	{
-		const char* pNODE_NAME = pNode->mName.C_Str();
-		if (AnimData.BoneNameToID.count(pNODE_NAME))
-		{
-			AnimData.BoneNameToID[pNODE_NAME] = *pCounter;
-			*pCounter += 1;
-		}
+		return;
+	}
 
-		for (UINT i = 0; i < pNode->mNumChildren; ++i)
-		{
-			updateBoneIDs(pNode->mChildren[i], pCounter);
-		}
+	const char* pNODE_NAME = pNode->mName.C_Str();
+	if (AnimData.BoneNameToID.count(pNODE_NAME))
+	{
+		AnimData.BoneNameToID[pNODE_NAME] = *pCounter;
+		*pCounter += 1;
+	}
+
+	for (UINT i = 0; i < pNode->mNumChildren; ++i)
+	{
+		updateBoneIDs(pNode->mChildren[i], pCounter);
 	}
 }
 
