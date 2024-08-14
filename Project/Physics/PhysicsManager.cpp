@@ -9,15 +9,15 @@ PxFilterFlags PhysicsManager::IgnoreCharacterControllerAndEndEffector(PxFilterOb
 {
 	if (filterData0.word0 == CollisionGroup_KinematicBody && filterData1.word0 == CollisionGroup_EndEffector)
 	{
-		return PxFilterFlag::eSUPPRESS;
+		return PxFilterFlag::eKILL;
 	}
 	if (filterData0.word0 == CollisionGroup_EndEffector && filterData1.word0 == CollisionGroup_KinematicBody)
 	{
-		return PxFilterFlag::eSUPPRESS;
+		return PxFilterFlag::eKILL;
 	}
 	if (filterData0.word0 == CollisionGroup_EndEffector && filterData1.word0 == CollisionGroup_EndEffector)
 	{
-		return PxFilterFlag::eSUPPRESS;
+		return PxFilterFlag::eKILL;
 	}
 
 	pairFlags = PxPairFlag::eCONTACT_DEFAULT | PxPairFlag::eTRIGGER_DEFAULT | PxPairFlag::eNOTIFY_CONTACT_POINTS;

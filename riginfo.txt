@@ -65,3 +65,4 @@ https://stackoverflow.com/questions/73494194/assimp-animation-data-gives-unexpec
 ===========================================
 https://github.com/imeamangryang
 https://sketchfab.com/feed
+https://github.com/guillaumeblanc/ozz-animation

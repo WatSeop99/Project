@@ -12,6 +12,7 @@
 
 #include <PxPhysicsAPI.h>
 #include <fbxsdk.h>
+#include <Eigen/Dense>
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC

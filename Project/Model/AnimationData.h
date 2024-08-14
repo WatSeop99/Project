@@ -5,6 +5,15 @@
 #include <vector>
 #include <string>
 
+//namespace Eigen
+//{
+//	/*template <typename T0, typename T1>
+//	class MatrixXf<T0, T1>;*/
+//
+//	/*template <typename T>
+//	class VectorXf<T>;*/
+//}
+
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Quaternion;
 using DirectX::SimpleMath::Vector3;
@@ -24,12 +33,13 @@ struct AnimationClip
 		Vector3 Position;
 		Vector3 Scale = Vector3(1.0f);
 		Quaternion Rotation;
-		Quaternion IKUpdateRotation;
+		// Quaternion IKUpdateRotation;
 		double Time = 0.0f;
 	};
 
 	std::string Name;					 // Name of this animation clip.
-	std::vector<std::vector<Key>> Keys;  // Keys[boneID][frame].
+	std::vector<std::vector<Key>> Keys;  // Keys[boneID][frame or time].
+	std::vector<Quaternion> IKRotations;
 	int NumChannels;					 // Number of bones.
 	double Duration;					 // Duration of animation in ticks.
 	double TicksPerSec;					 // Frames per second.
@@ -81,7 +91,7 @@ public:
 	Joint();
 	~Joint() = default;
 
-	void Update(float deltaX, float deltaY, float deltaZ, std::vector<AnimationClip>* pClips, Matrix* pDefaultTransform, Matrix* pInverseDefaultTransform, int clipID, int frame);
+	void ApplyJacobian(float deltaX, float deltaY, float deltaZ, std::vector<AnimationClip>* pClips, int clipID, int frame);
 
 	void JacobianX(Vector3* pOutput, Vector3& parentPos);
 	void JacobianY(Vector3* pOutput, Vector3& parentPos);
@@ -106,7 +116,6 @@ public:
 	Matrix* pJointTransform = nullptr; // bone transform.
 
 	Matrix CharacterWorld;	// 캐릭터 world.
-	Matrix Correction;		// world를 위한 보정값.
 };
 class Chain
 {
@@ -114,11 +123,17 @@ public:
 	Chain() = default;
 	~Chain() = default;
 
-	void SolveIK(Vector3& targetPos, int clipID, int frame, const float DELTA_TIME);
+	void Initialize(const int BODY_CHAIN_SIZE);
+
+	void Reset();
+
+	void SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME);
 
 public:
 	std::vector<Joint> BodyChain; // root ~ child.
-	std::vector<AnimationClip>* pAnimationClips = nullptr;
-	Matrix DefaultTransform;
-	Matrix InverseDefaultTransform;
+
+private:
+	Eigen::MatrixXf m_JacobianMatrix;
+	Eigen::MatrixXf m_DeltaPos;
+	Eigen::VectorXf m_DeltaTheta;
 };

@@ -20,5 +20,15 @@ PxQueryHitType::Enum CustomFilterCallback::preFilter(const PxFilterData& filterD
 
 PxQueryHitType::Enum CustomFilterCallback::postFilter(const PxFilterData& filterData, const PxQueryHit& hit, const PxShape* shape, const PxRigidActor* actor)
 {
+	const PxRigidDynamic* pRigidDynamic = actor->is<PxRigidDynamic>();
+	if (pRigidDynamic)
+	{
+		int* pActorType = (int*)(actor->userData);
+		if (*pActorType == CollisionGroup_EndEffector)
+		{
+			return PxQueryHitType::eNONE;
+		}
+	}
+
 	return PxQueryHitType::eBLOCK;
 }

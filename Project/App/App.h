@@ -23,9 +23,9 @@ public:
 protected:
 	void initExternalData();
 
-	void updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, Vector3* pDeltapos);
+	void updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_TIME, int* pState, int* pFrame, Vector3* pDeltapos, bool* pEndEffectorUpdateFlag);
 	void updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshModel::JointUpdateInfo* pUpdateInfo);
-	void simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& DELTA_POS, const float DELTA_TIME, int clipID, int frame);
+	void simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& DELTA_POS, const float DELTA_TIME, const int CLIP_ID, const int FRAME, bool* pEndEffectorUpdateFlag);
 
 private:
 	// data

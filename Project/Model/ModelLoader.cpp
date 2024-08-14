@@ -374,6 +374,7 @@ void ModelLoader::readAnimation(const aiScene* pSCENE)
 		clip.Duration = pANIM->mDuration;
 		clip.TicksPerSec = pANIM->mTicksPerSecond;
 		clip.Keys.resize(TOTAL_BONES);
+		clip.IKRotations.resize(TOTAL_BONES);
 		clip.NumChannels = pANIM->mNumChannels;
 
 		for (UINT c = 0; c < pANIM->mNumChannels; ++c)
