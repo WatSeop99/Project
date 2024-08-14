@@ -1198,7 +1198,7 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 			columnIndex += 3;
 		}
 
-		CharacterAnimationData.Update(CLIP_ID, FRAME, DELTA_TIME);
+		CharacterAnimationData.Update(CLIP_ID, FRAME, 0.0f);
 
 		// Update joint position.
 		for (int i = 0; i < 4; ++i)
