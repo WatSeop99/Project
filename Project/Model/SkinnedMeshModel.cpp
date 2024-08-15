@@ -1167,6 +1167,7 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 
 
 	// 두 다리만 한다고 가정.
+	float deltaTime = DELTA_TIME;
 	Vector3 targetPosRightLeg(pUpdateInfo->EndEffectorTargetPoses[JointPart_RightLeg]);
 	Vector3 targetPosLeftLeg(pUpdateInfo->EndEffectorTargetPoses[JointPart_LeftLeg]);
 
@@ -1175,30 +1176,26 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 
 	RightLeg.Reset();
 	LeftLeg.Reset();
+
+	// IK 업데이트가 안돼고 있음. 이부분의 로직이 문제인지 자세한 것은 나중에 봐야할 듯.
 	for (int step = 0; step < 30; ++step)
 	{
-		RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, DELTA_TIME);
-		LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, DELTA_TIME);
+		RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+		LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
 
 		int columnIndex = 0;
-		// Adjust right leg delta thetas.
+		// Adjust right and left leg delta thetas.
 		for (int i = 0; i < 4; ++i)
 		{
-			Joint* pJoint = &RightLeg.BodyChain[i];
-			pJoint->ApplyJacobian(rightLegDeltaThetas[columnIndex], rightLegDeltaThetas[columnIndex + 1], rightLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
+			Joint* pRightJoint = &RightLeg.BodyChain[i];
+			Joint* pLeftJoint = &LeftLeg.BodyChain[i];
+
+			pRightJoint->ApplyJacobian(rightLegDeltaThetas[columnIndex], rightLegDeltaThetas[columnIndex + 1], rightLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
+			pLeftJoint->ApplyJacobian(leftLegDeltaThetas[columnIndex], leftLegDeltaThetas[columnIndex + 1], leftLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
 			columnIndex += 3;
 		}
 
-		columnIndex = 0;
-		// Adjust left leg delta thetas.
-		for (int i = 0; i < 4; ++i)
-		{
-			Joint* pJoint = &LeftLeg.BodyChain[i];
-			pJoint->ApplyJacobian(leftLegDeltaThetas[columnIndex], leftLegDeltaThetas[columnIndex + 1], leftLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
-			columnIndex += 3;
-		}
-
-		CharacterAnimationData.Update(CLIP_ID, FRAME, 0.0f);
+		CharacterAnimationData.UpdateForIK(CLIP_ID, FRAME);
 
 		// Update joint position.
 		for (int i = 0; i < 4; ++i)
@@ -1209,6 +1206,7 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 			pLeftLegJoint->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftLegJoint->BoneID) * World).Translation();
 		}
 
+		deltaTime = 1.0f;
 		ZeroMemory(rightLegDeltaThetas, sizeof(float) * 12);
 		ZeroMemory(leftLegDeltaThetas, sizeof(float) * 12);
 	}

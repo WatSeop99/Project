@@ -57,20 +57,20 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME, const float DELTA
 		Quaternion interpolatedRot;
 		interpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, 0, animationTimeTicks);
 		
-		Quaternion adjustedRot = interpolatedRot;
-		if (clip.IKRotations[ROOT_BONE_ID] != Quaternion())
-		{
-			adjustedRot = Quaternion::Concatenate(interpolatedRot, clip.IKRotations[ROOT_BONE_ID]);
-			// adjustedRot = clip.IKRotations[ROOT_BONE_ID];
-			clip.IKRotations[ROOT_BONE_ID] = Quaternion();
-			OutputDebugStringA("Ik update for root!\n");
-		}
-		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(adjustedRot);
+		//Quaternion adjustedRot = interpolatedRot;
+		//if (clip.IKRotations[ROOT_BONE_ID] != Quaternion())
+		//{
+		//	adjustedRot = Quaternion::Concatenate(interpolatedRot, clip.IKRotations[ROOT_BONE_ID]);
+		//	// adjustedRot = clip.IKRotations[ROOT_BONE_ID];
+		//	clip.IKRotations[ROOT_BONE_ID] = Quaternion();
+		//	OutputDebugStringA("Ik update for root!\n");
+		//}
+		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot);
 	}
 
 	// 나머지 bone transform 업데이트.
 	// bone id가 부모->자식 순으로 선형적으로 저장되어 있기에 가능함.
-	for (UINT64 boneID = 1, totalTransformSize = BoneTransforms.size(); boneID < totalTransformSize; ++boneID)
+	for (UINT64 boneID = 1, totalBone = BoneTransforms.size(); boneID < totalBone; ++boneID)
 	{
 		// std::vector<AnimationClip::Key>& keys = clip.Keys[boneID];
 		// const UINT64 KEY_SIZE = keys.size();
@@ -85,15 +85,48 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME, const float DELTA
 		Quaternion interpolatedRot;
 		interpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, (const int)boneID, animationTimeTicks);
 
-		Quaternion adjustedRot = interpolatedRot;
-		if (clip.IKRotations[boneID] != Quaternion())
-		{
-			adjustedRot = Quaternion::Concatenate(interpolatedRot, clip.IKRotations[boneID]);
-			// adjustedRot = clip.IKRotations[boneID];
-			clip.IKRotations[boneID] = Quaternion();
-			OutputDebugStringA("Ik update!\n");
-		}
-		BoneTransforms[boneID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(adjustedRot) * Matrix::CreateTranslation(interpolatedPos) * BoneTransforms[PARENT_ID];
+		//Quaternion adjustedRot = interpolatedRot;
+		//if (clip.IKRotations[boneID] != Quaternion())
+		//{
+		//	adjustedRot = Quaternion::Concatenate(interpolatedRot, clip.IKRotations[boneID]);
+		//	// adjustedRot = clip.IKRotations[boneID];
+		//	clip.IKRotations[boneID] = Quaternion();
+		//	OutputDebugStringA("Ik update!\n");
+		//}
+		BoneTransforms[boneID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot) * Matrix::CreateTranslation(interpolatedPos) * BoneTransforms[PARENT_ID];
+	}
+}
+
+void AnimationData::UpdateForIK(const int CLIP_ID, const int FRAME)
+{
+	AnimationClip& clip = Clips[CLIP_ID];
+	float timeInTicks = (float)(TimeSinceLoaded * clip.TicksPerSec);
+	float animationTimeTicks = fmod(timeInTicks, (float)clip.Duration);
+
+
+	{
+		const int ROOT_BONE_ID = 0;
+
+		Vector3 interpolatedPos;
+		Vector3 interpolatedScale;
+		Quaternion interpolatedRot;
+		interpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, 0, animationTimeTicks);
+
+
+
+		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot);
+	}
+
+	for (UINT64 boneID = 1, totalBone = BoneTransforms.size(); boneID < totalBone; ++boneID)
+	{
+		const int PARENT_ID = BoneParents[boneID];
+
+		Vector3 interpolatedPos;
+		Vector3 interpolatedScale;
+		Quaternion interpolatedRot;
+		interpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, (const int)boneID, animationTimeTicks);
+
+		BoneTransforms[boneID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot) * Matrix::CreateTranslation(interpolatedPos) * BoneTransforms[PARENT_ID];
 	}
 }
 
@@ -123,6 +156,15 @@ void AnimationData::UpdateVelocity(const int CLIP_ID, const int FRAME)
 		Velocity = 0.0f;
 	}
 	PrevKeyPos = key.Position;
+}
+
+void AnimationData::ResetAllIKRotations(const int CLIP_ID)
+{
+	AnimationClip& clip = Clips[CLIP_ID];
+	for (UINT64 i = 0, end = clip.IKRotations.size(); i < end; ++i)
+	{
+		clip.IKRotations[i] = Quaternion();
+	}
 }
 
 Matrix AnimationData::Get(const int CLIP_ID, const int FRAME, const int BONE_ID)

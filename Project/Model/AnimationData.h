@@ -52,7 +52,10 @@ public:
 	~AnimationData() = default;
 
 	void Update(const int CLIP_ID, const int FRAME, const float DELTA_TIME);
+	void UpdateForIK(const int CLIP_ID, const int FRAME);
 	void UpdateVelocity(const int CLIP_ID, const int FRAME);
+
+	void ResetAllIKRotations(const int CLIP_ID);
 
 	Matrix Get(const int CLIP_ID, const int FRAME, const int BONE_ID);
 	Matrix GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME);
