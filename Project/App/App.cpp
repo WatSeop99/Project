@@ -369,8 +369,7 @@ void App::initExternalData()
 		m_pCharacter = new SkinnedMeshModel;
 		m_pCharacter->Initialize(this, characterMeshInfo, characterDefaultAnimData);
 
-		// Vector3 position(0.0f, 0.5f, 2.0f);
-		Vector3 position(0.0f, 0.47f, 5.0f);
+		Vector3 position(0.0f, 0.47f, 2.0f);
 		for (UINT64 i = 0, size = m_pCharacter->Meshes.size(); i < size; ++i)
 		{
 			Mesh* pCurMesh = m_pCharacter->Meshes[i];
@@ -435,7 +434,7 @@ void App::initExternalData()
 		// physx::PxRigidDynamic* pLeftFoot = nullptr;
 		physx::PxRigidDynamic* pRightFootTarget = nullptr;
 		physx::PxRigidDynamic* pLeftFootTarget = nullptr;
-		physx::PxSphereGeometry sphereGeom(0.025f);
+		physx::PxSphereGeometry sphereGeom(0.01f);
 		physx::PxShape* pSphereShape = pPhysics->createShape(sphereGeom, *(m_pPhysicsManager->pCommonMaterial));
 		if (!pSphereShape)
 		{
@@ -802,11 +801,11 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 		Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
 		Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
 		Vector3 hipPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, 0) * m_pCharacter->World).Translation();
-		{
+		/*{
 			char szDebugString[256];
 			sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z, leftFootPos.x, leftFootPos.y, leftFootPos.z);
 			OutputDebugStringA(szDebugString);
-		}
+		}*/
 	}
 
 	// 말단 위치 target position 설정.
@@ -835,11 +834,11 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 		physx::PxScene* pScene = GetPhysicsManager()->GetScene();
 		if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			rightFootTransform.p.y = hit.block.position.y + 0.025f;
+			rightFootTransform.p.y = hit.block.position.y + 0.01f;
 		}
 		if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			leftFootTransform.p.y = hit.block.position.y + 0.025f;
+			leftFootTransform.p.y = hit.block.position.y + 0.01f;
 		}
 		pRightFootTarget->setKinematicTarget(rightFootTransform);
 		pLeftFootTarget->setKinematicTarget(leftFootTransform);

@@ -1068,6 +1068,13 @@ void SkinnedMeshModel::updateChainPosition(const int CLIP_ID, const int FRAME)
 		pRightLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightLegPart->BoneID) * World).Translation();
 		pLeftLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftLegPart->BoneID) * World).Translation();
 	}
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "right foot pos: %f, %f, %f  left foot pos: %f, %f, %f\n\n", 
+				  RightArm.BodyChain[3].Position.x, RightArm.BodyChain[3].Position.y, RightArm.BodyChain[3].Position.z, 
+				  LeftArm.BodyChain[3].Position.x, LeftArm.BodyChain[3].Position.y, LeftArm.BodyChain[3].Position.z);
+		OutputDebugStringA(szDebugString);
+	}
 }
 
 void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
@@ -1104,13 +1111,6 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 	LeftHandMiddle.Center = m_ppLeftArm[3]->MeshConstantData.World.Transpose().Translation();
 	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
-	/*{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "right toe pos: %f, %f, %f and left toe pos: %f, %f, %f\n\n",
-				  RightToe.Center.x, RightToe.Center.y, RightToe.Center.z,
-				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);
-		OutputDebugStringA(szDebugString);
-	}*/
 }
 
 void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)
@@ -1126,20 +1126,33 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 	RightLeg.Reset();
 	LeftLeg.Reset();
 	updateChainPosition(CLIP_ID, FRAME);
-	for (int step = 0; step < 150; ++step)
+	for (int step = 0; step < 140; ++step)
 	{
-		RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
-		LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+		bool bContinueRight;
+		bool bContinueLeft;
+		bContinueRight = RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+		bContinueLeft = LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+
+		if (!bContinueRight && !bContinueLeft)
+		{
+			break;
+		}
 
 		int columnIndex = 0;
 		// Adjust right and left leg delta thetas.
 		for (int i = 0; i < 4; ++i)
 		{
-			Joint* pRightJoint = &RightLeg.BodyChain[i];
-			Joint* pLeftJoint = &LeftLeg.BodyChain[i];
+			if (bContinueRight)
+			{
+				Joint* pRightJoint = &RightLeg.BodyChain[i];
+				pRightJoint->ApplyJacobian(rightLegDeltaThetas[columnIndex], rightLegDeltaThetas[columnIndex + 1], rightLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
+			}
+			if (bContinueLeft)
+			{
+				Joint* pLeftJoint = &LeftLeg.BodyChain[i];
+				pLeftJoint->ApplyJacobian(leftLegDeltaThetas[columnIndex], leftLegDeltaThetas[columnIndex + 1], leftLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
+			}
 
-			pRightJoint->ApplyJacobian(rightLegDeltaThetas[columnIndex], rightLegDeltaThetas[columnIndex + 1], rightLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
-			pLeftJoint->ApplyJacobian(leftLegDeltaThetas[columnIndex], leftLegDeltaThetas[columnIndex + 1], leftLegDeltaThetas[columnIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
 			columnIndex += 3;
 		}
 

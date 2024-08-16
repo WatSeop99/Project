@@ -124,7 +124,7 @@ public:
 
 	void Reset();
 
-	void SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME);
+	bool SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME);
 
 public:
 	std::vector<Joint> BodyChain; // root ~ child.

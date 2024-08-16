@@ -386,59 +386,57 @@ void Chain::Reset()
 	m_DeltaTheta = Eigen::VectorXf(3 * BODY_CHAIN_SIZE);
 }
 
-void Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME)
+bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME)
 {
 	_ASSERT(pDeltaThetas);
 	_ASSERT(BodyChain.size() > 0);
+
+	bool bRetContinue = true;
 
 	const UINT64 TOTAL_JOINT = BodyChain.size();
 	Joint* pEndEffector = &BodyChain[TOTAL_JOINT - 1];
 
 	Vector3 deltaPos = targetPos - pEndEffector->Position;
 	float deltaPosLength = deltaPos.Length();
-
-	if (deltaPosLength <= 0.01f || deltaPosLength >= 0.5f)
+	if (deltaPosLength < 0.015f || deltaPosLength > 0.5f)
 	{
-		return;
-	}
-	{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "deltaPosLength: %f\n", deltaPosLength);
-		OutputDebugStringA(szDebugString);
+		bRetContinue = false;
+		goto LB_RET;
 	}
 
 	m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
 
-	int columnIndex = 0;
-	for (UINT64 i = 0; i < TOTAL_JOINT; ++i)
 	{
-		Joint* pJoint = &BodyChain[i];
-		Vector3 jointPos = pJoint->Position;
-		Vector3 partialX;
-		Vector3 partialY;
-		Vector3 partialZ;
-
-		Vector3 diff = targetPos - jointPos;
-
+		int columnIndex = 0;
+		for (UINT64 i = 0; i < TOTAL_JOINT; ++i)
 		{
-			Vector3 xAxis(1.0f, 0.0f, 0.0f);
-			partialX = xAxis.Cross(diff);
-		
-		}
-		{
-			Vector3 yAxis(0.0f, 1.0f, 0.0f);
-			partialY = yAxis.Cross(diff);
-		}
-		{
-			Vector3 zAxis(0.0f, 0.0f, 1.0f);
-			partialZ = zAxis.Cross(diff);
-		}
+			Joint* pJoint = &BodyChain[i];
+			Vector3 jointPos = pJoint->Position;
+			Vector3 partialX;
+			Vector3 partialY;
+			Vector3 partialZ;
 
-		m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
-		m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
-		m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;
+			Vector3 diff = targetPos - jointPos;
+			//diff.Normalize();
+			{
+				Vector3 xAxis(1.0f, 0.0f, 0.0f);
+				partialX = xAxis.Cross(diff);
+			}
+			{
+				Vector3 yAxis(0.0f, 1.0f, 0.0f);
+				partialY = yAxis.Cross(diff);
+			}
+			{
+				Vector3 zAxis(0.0f, 0.0f, 1.0f);
+				partialZ = zAxis.Cross(diff);
+			}
 
-		columnIndex += 3;
+			m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
+			m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
+			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;
+
+			columnIndex += 3;
+		}
 	}
 
 	m_DeltaTheta = m_JacobianMatrix.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(m_DeltaPos);
@@ -455,4 +453,7 @@ void Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 	{
 		pDeltaThetas[i] = m_DeltaTheta[i];
 	}
+
+LB_RET:
+	return bRetContinue;
 }
