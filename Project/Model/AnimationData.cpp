@@ -274,100 +274,101 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 	Quaternion originRot = key.Rotation;
 	Quaternion prevUpdateRot = clip.IKRotations[BoneID];
 
-	// 원래 각도에서 변환 각도 적용.
-	 Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
-	 newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
+	//// 원래 각도에서 변환 각도 적용.
+	// Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
+	// newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
 
-	// 적용 전, joint 전체 제한 값 테스트.
-	Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
-	float pitch = asin(-newUpdateRotMat._23);
-	float yaw = atan2(newUpdateRotMat._13, newUpdateRotMat._33);
-	float roll = atan2(newUpdateRotMat._21, newUpdateRotMat._22);
-	bool bUpdateFlag = false;
+	//// 적용 전, joint 전체 제한 값 테스트.
+	//Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
+	//float pitch = asin(-newUpdateRotMat._23);
+	//float yaw = atan2(newUpdateRotMat._13, newUpdateRotMat._33);
+	//float roll = atan2(newUpdateRotMat._21, newUpdateRotMat._22);
+	//bool bUpdateFlag = false;
 
-	// Restrict x-axis value.
-	if (pitch < AngleLimitation[JointAxis_X].x || pitch > AngleLimitation[JointAxis_X].y)
-	{
-		deltaThetaX = 0.0f;
-		bUpdateFlag = true;
-	}
-	/*if (pitch < AngleLimitation[JointAxis_X].x)
-	{
-		Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
-		Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
-		float tempPitch = asin(-tempRotMat._23);
+	//// Restrict x-axis value.
+	//if (pitch < AngleLimitation[JointAxis_X].x || pitch > AngleLimitation[JointAxis_X].y)
+	//{
+	//	deltaThetaX = 0.0f;
+	//	bUpdateFlag = true;
+	//}
+	///*if (pitch < AngleLimitation[JointAxis_X].x)
+	//{
+	//	Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//	Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
+	//	float tempPitch = asin(-tempRotMat._23);
 
-		pitch = AngleLimitation[JointAxis_X].x - tempPitch;
-		bUpdateFlag = true;
-	}
-	if (pitch > AngleLimitation[JointAxis_X].y)
-	{
-		Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
-		Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
-		float tempPitch = asin(-tempRotMat._23);
+	//	pitch = AngleLimitation[JointAxis_X].x - tempPitch;
+	//	bUpdateFlag = true;
+	//}
+	//if (pitch > AngleLimitation[JointAxis_X].y)
+	//{
+	//	Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//	Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
+	//	float tempPitch = asin(-tempRotMat._23);
 
-		pitch = AngleLimitation[JointAxis_X].y - tempPitch;
-		bUpdateFlag = true;
-	}*/
+	//	pitch = AngleLimitation[JointAxis_X].y - tempPitch;
+	//	bUpdateFlag = true;
+	//}*/
 
-	// Restrict y-axis value.
-	if (yaw < AngleLimitation[JointAxis_Y].x || yaw > AngleLimitation[JointAxis_Y].y)
-	{
-		deltaThetaY = 0.0f;
-		bUpdateFlag = true;
-	}
-	/*if (yaw < AngleLimitation[JointAxis_Y].x)
-	{
-		Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
-		Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
-		float tempYaw = atan2(tempRotMat._13, tempRotMat._33);
+	//// Restrict y-axis value.
+	//if (yaw < AngleLimitation[JointAxis_Y].x || yaw > AngleLimitation[JointAxis_Y].y)
+	//{
+	//	deltaThetaY = 0.0f;
+	//	bUpdateFlag = true;
+	//}
+	///*if (yaw < AngleLimitation[JointAxis_Y].x)
+	//{
+	//	Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//	Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
+	//	float tempYaw = atan2(tempRotMat._13, tempRotMat._33);
 
-		yaw = AngleLimitation[JointAxis_Y].x - tempYaw;
-		bUpdateFlag = true;
-	}
-	if (yaw > AngleLimitation[JointAxis_Y].y)
-	{
-		Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
-		Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
-		float tempYaw = atan2(tempRotMat._13, tempRotMat._33);
+	//	yaw = AngleLimitation[JointAxis_Y].x - tempYaw;
+	//	bUpdateFlag = true;
+	//}
+	//if (yaw > AngleLimitation[JointAxis_Y].y)
+	//{
+	//	Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//	Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
+	//	float tempYaw = atan2(tempRotMat._13, tempRotMat._33);
 
-		yaw = AngleLimitation[JointAxis_Y].y - tempYaw;
-		bUpdateFlag = true;
-	}*/
+	//	yaw = AngleLimitation[JointAxis_Y].y - tempYaw;
+	//	bUpdateFlag = true;
+	//}*/
 
-	// Restrict z-axis value.
-	if (roll < AngleLimitation[JointAxis_Z].x || roll > AngleLimitation[JointAxis_Z].y)
-	{
-		deltaThetaZ = 0.0f;
-		bUpdateFlag = true;
-	}
-	/*if (roll < AngleLimitation[JointAxis_Z].x)
-	{
-		Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
-		Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
-		float tempRoll = atan2(tempRotMat._21, tempRotMat._22);
+	//// Restrict z-axis value.
+	//if (roll < AngleLimitation[JointAxis_Z].x || roll > AngleLimitation[JointAxis_Z].y)
+	//{
+	//	deltaThetaZ = 0.0f;
+	//	bUpdateFlag = true;
+	//}
+	///*if (roll < AngleLimitation[JointAxis_Z].x)
+	//{
+	//	Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//	Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
+	//	float tempRoll = atan2(tempRotMat._21, tempRotMat._22);
 
-		roll = AngleLimitation[JointAxis_Z].x - tempRoll;
-		bUpdateFlag = true;
-	}
-	if (roll > AngleLimitation[JointAxis_Z].y)
-	{
-		Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
-		Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
-		float tempRoll = atan2(tempRotMat._21, tempRotMat._22);
+	//	roll = AngleLimitation[JointAxis_Z].x - tempRoll;
+	//	bUpdateFlag = true;
+	//}
+	//if (roll > AngleLimitation[JointAxis_Z].y)
+	//{
+	//	Quaternion temp = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//	Matrix tempRotMat = Matrix::CreateFromQuaternion(temp);
+	//	float tempRoll = atan2(tempRotMat._21, tempRotMat._22);
 
-		roll = AngleLimitation[JointAxis_Z].y - tempRoll;
-		bUpdateFlag = true;
-	}*/
+	//	roll = AngleLimitation[JointAxis_Z].y - tempRoll;
+	//	bUpdateFlag = true;
+	//}*/
 
-	if (bUpdateFlag)
-	{
-		deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
-		//deltaRot = Quaternion::CreateFromYawPitchRoll(yaw, pitch, roll);
-		newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
-	}
+	//if (bUpdateFlag)
+	//{
+	//	deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
+	//	//deltaRot = Quaternion::CreateFromYawPitchRoll(yaw, pitch, roll);
+	//	newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
+	//}
 
 	// 적용.
+	Quaternion newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
 	clip.IKRotations[BoneID] = newUpdateRot;
 }
 

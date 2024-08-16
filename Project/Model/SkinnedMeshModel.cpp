@@ -1125,7 +1125,8 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 
 	RightLeg.Reset();
 	LeftLeg.Reset();
-	for (int step = 0; step < 140; ++step)
+	updateChainPosition(CLIP_ID, FRAME);
+	for (int step = 0; step < 150; ++step)
 	{
 		RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
 		LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
