@@ -96,10 +96,6 @@ public:
 
 	void ApplyJacobian(float deltaX, float deltaY, float deltaZ, std::vector<AnimationClip>* pClips, int clipID, int frame);
 
-	void JacobianX(Vector3* pOutput, Vector3& parentPos);
-	void JacobianY(Vector3* pOutput, Vector3& parentPos);
-	void JacobianZ(Vector3* pOutput, Vector3& parentPos);
-
 public:
 	enum eJointAxis
 	{
@@ -117,8 +113,6 @@ public:
 	Matrix* pOffset = nullptr; 
 	Matrix* pParentMatrix = nullptr;	// parent bone transform.
 	Matrix* pJointTransform = nullptr; // bone transform.
-
-	Matrix CharacterWorld;	// Ä³¸¯ÅÍ world.
 };
 class Chain
 {

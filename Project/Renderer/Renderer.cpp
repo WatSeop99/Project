@@ -1415,7 +1415,7 @@ void Renderer::renderObjectBoundingModel()
 			{
 				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
 				// pCharacter->RenderBoundingSphere(RenderPSOType_Wire);
-				pCharacter->RenderBoundingCapsule(RenderPSOType_Wire);
+				// pCharacter->RenderBoundingCapsule(RenderPSOType_Wire);
 				pCharacter->RenderJointSphere(RenderPSOType_Wire);
 			}
 			break;
