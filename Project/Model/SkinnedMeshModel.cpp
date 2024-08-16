@@ -1132,6 +1132,7 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 		bool bContinueLeft;
 		bContinueRight = RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
 		bContinueLeft = LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+		deltaTime = 1.0f;
 
 		if (!bContinueRight && !bContinueLeft)
 		{
@@ -1165,5 +1166,5 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 	m_pTargetPos1->MeshConstantData.World = Matrix::CreateTranslation(targetPosRightLeg).Transpose();
 	m_pTargetPos2->MeshConstantData.World = Matrix::CreateTranslation(targetPosLeftLeg).Transpose();
 
-	CharacterAnimationData.ResetAllIKRotations(CLIP_ID);
+	// CharacterAnimationData.ResetAllIKRotations(CLIP_ID);
 }

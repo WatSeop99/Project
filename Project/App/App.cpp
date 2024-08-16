@@ -714,6 +714,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 				s_State = 0;
 				s_FrameCount = 0;
 				*pEndEffectorUpdateFlag = true;
+				pCharacter->CharacterAnimationData.ResetAllIKRotations(s_State);
 			}
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
