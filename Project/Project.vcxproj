@@ -120,7 +120,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug\libfbxsdk-md.lib;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug\libxml2-md.lib;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug\zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug\libfbxsdk-md.lib;D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug\libxml2-md.lib;D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug\zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -142,7 +142,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release\libfbxsdk-md.lib;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release\libxml2-md.lib;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release\zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release\libfbxsdk-md.lib;D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release\libxml2-md.lib;D:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\release\zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
