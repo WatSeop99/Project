@@ -5,15 +5,6 @@
 #include <vector>
 #include <string>
 
-//namespace Eigen
-//{
-//	/*template <typename T0, typename T1>
-//	class MatrixXf<T0, T1>;*/
-//
-//	/*template <typename T>
-//	class VectorXf<T>;*/
-//}
-
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Quaternion;
 using DirectX::SimpleMath::Vector3;
@@ -121,8 +112,6 @@ public:
 	~Chain() = default;
 
 	void Initialize(const int BODY_CHAIN_SIZE);
-
-	void Reset();
 
 	bool SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME);
 

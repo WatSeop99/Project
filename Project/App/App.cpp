@@ -82,8 +82,8 @@ void App::Update(const float DELTA_TIME)
 	for (UINT64 i = 0, size = m_Characters.size(); i < size; ++i)
 	{
 		SkinnedMeshModel* pCharacter = m_Characters[i];
+		
 		Vector3 deltaPos;
-
 		updateAnimationState(pCharacter, DELTA_TIME, &state, &frame, &deltaPos, &bEndEffectorUpdateFlag);
 		simulateCharacterContol(pCharacter, deltaPos, DELTA_TIME, state, frame, &bEndEffectorUpdateFlag);
 	}
@@ -93,8 +93,8 @@ void App::Update(const float DELTA_TIME)
 	for (UINT64 i = 0, size = m_Characters.size(); i < size; ++i)
 	{
 		SkinnedMeshModel* pCharacter = m_Characters[i];
-		SkinnedMeshModel::JointUpdateInfo updateInfo;
 
+		SkinnedMeshModel::JointUpdateInfo updateInfo;
 		ZeroMemory(&updateInfo, sizeof(SkinnedMeshModel::JointUpdateInfo));
 		updateEndEffectorPosition(pCharacter, &updateInfo);
 
@@ -760,7 +760,6 @@ void App::updateEndEffectorPosition(SkinnedMeshModel* pCharacter, SkinnedMeshMod
 	_ASSERT(pCharacter);
 	_ASSERT(pUpdateInfo);
 
-	// physx::PxRaycastBuffer hit;
 	physx::PxTransform rightFootTargetPos = pCharacter->pRightFootTarget->getGlobalPose();
 	physx::PxTransform leftFootTargetPos = pCharacter->pLeftFootTarget->getGlobalPose();
 
@@ -798,16 +797,15 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	physx::PxControllerCollisionFlags flags = pCharacter->pController->move(displacement, 0.001f, DELTA_TIME, filters);
 	pCharacter->CharacterAnimationData.Update(CLIP_ID, FRAME, DELTA_TIME);
 
-	{
-		Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
-		Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
-		Vector3 hipPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, 0) * m_pCharacter->World).Translation();
-		/*{
-			char szDebugString[256];
-			sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z, leftFootPos.x, leftFootPos.y, leftFootPos.z);
-			OutputDebugStringA(szDebugString);
-		}*/
-	}
+	//{
+	//	Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
+	//	Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
+	//	{
+	//		char szDebugString[256];
+	//		sprintf_s(szDebugString, 256, "rightFootPos: %f, %f, %f  leftFootPos: %f, %f, %f\n", rightFootPos.x, rightFootPos.y, rightFootPos.z, leftFootPos.x, leftFootPos.y, leftFootPos.z);
+	//		OutputDebugStringA(szDebugString);
+	//	}
+	//}
 
 	// 말단 위치 target position 설정.
 	if (*pEndEffectorUpdateFlag)
