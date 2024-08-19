@@ -48,13 +48,13 @@ public:
 
 	void ResetAllIKRotations(const int CLIP_ID);
 
+	void InterpolateKeyData(Vector3* pOutPosition, Quaternion* pOutRotation, Vector3* pOutScale, AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK);
+
 	Matrix Get(const int CLIP_ID, const int FRAME, const int BONE_ID);
 	Matrix GetRootBoneTransformWithoutLocalRot(const int CLIP_ID, const int FRAME);
 	Matrix GetGlobalBonePositionMatix(const int CLIP_ID, const int FRAME, const int BONE_ID);
 
 protected:
-	void interpolateKeyData(Vector3* pOutPosition, Quaternion* pOutRotation, Vector3* pOutScale, AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK);
-
 	UINT findIndex(AnimationClip* pClip, const int BONE_ID, const float ANIMATION_TIME_TICK);
 
 public:
@@ -85,7 +85,7 @@ public:
 	Joint();
 	~Joint() = default;
 
-	void ApplyJacobian(float deltaX, float deltaY, float deltaZ, std::vector<AnimationClip>* pClips, int clipID, int frame);
+	void ApplyJacobian(float deltaX, float deltaY, float deltaZ, AnimationData* pAnimationData, int clipID, int frame);
 
 public:
 	enum eJointAxis

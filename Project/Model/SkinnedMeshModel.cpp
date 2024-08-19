@@ -1150,11 +1150,11 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 
 			if (bContinueRight)
 			{
-				pRightJoint->ApplyJacobian(rightLegDeltaThetas[deltaIndex], rightLegDeltaThetas[deltaIndex + 1], rightLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
+				pRightJoint->ApplyJacobian(rightLegDeltaThetas[deltaIndex], rightLegDeltaThetas[deltaIndex + 1], rightLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
 			}
 			if (bContinueLeft)
 			{
-				pLeftJoint->ApplyJacobian(leftLegDeltaThetas[deltaIndex], leftLegDeltaThetas[deltaIndex + 1], leftLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData.Clips, CLIP_ID, FRAME);
+				pLeftJoint->ApplyJacobian(leftLegDeltaThetas[deltaIndex], leftLegDeltaThetas[deltaIndex + 1], leftLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
 			}
 
 			deltaIndex += 3;
