@@ -24,8 +24,16 @@ void AnimationData::Update(const int CLIP_ID, const int FRAME, const float DELTA
 		Vector3 interpolatedScale;
 		Quaternion interpolatedRot;
 		InterpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, 0, animationTimeTicks);
-		
-		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot);
+
+		if (CLIP_ID == 0)
+		{
+			interpolatedPos.y = 0.0f;
+			BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot) * Matrix::CreateTranslation(interpolatedPos);
+		}
+		else
+		{
+			BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot);
+		}
 	}
 
 	// 나머지 bone transform 업데이트.
@@ -58,7 +66,16 @@ void AnimationData::UpdateForIK(const int CLIP_ID, const int FRAME)
 		InterpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, 0, animationTimeTicks);
 
 		Quaternion newRot = Quaternion::Concatenate(interpolatedRot, clip.IKRotations[ROOT_BONE_ID]);
-		BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateFromQuaternion(clip.IKRotations[ROOT_BONE_ID]);
+		//BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(newRot);
+		if (CLIP_ID == 0)
+		{
+			interpolatedPos.y = 0.0f;
+			BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(newRot) * Matrix::CreateTranslation(interpolatedPos);
+		}
+		else
+		{
+			BoneTransforms[ROOT_BONE_ID] = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(newRot);
+		}
 	}
 
 	for (UINT64 boneID = 1, totalBone = BoneTransforms.size(); boneID < totalBone; ++boneID)
@@ -221,8 +238,8 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 	_ASSERT(BoneID != 0xffffffff);
 
 	// 변환 각도.
-	//Quaternion deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
-	Vector3 xAxis = Vector3(1.0f, 0.0f, 0.0f) * deltaThetaX;
+	Quaternion deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
+	/*Vector3 xAxis = Vector3(1.0f, 0.0f, 0.0f) * deltaThetaX;
 	Vector3 yAxis = Vector3(0.0f, 1.0f, 0.0f) * deltaThetaY;
 	Vector3 zAxis = Vector3(0.0f, 0.0f, 1.0f) * deltaThetaZ;
 	Quaternion xAxisRot;
@@ -263,7 +280,7 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 		}
 	}
 	Quaternion deltaRot = Quaternion::Concatenate(xAxisRot, yAxisRot);
-	deltaRot = Quaternion::Concatenate(deltaRot, zAxisRot);
+	deltaRot = Quaternion::Concatenate(deltaRot, zAxisRot);*/
 
 	// 원래 키 데이터에서의 변환 각도.
 	AnimationClip& clip = pAnimationData->Clips[clipID];
@@ -278,47 +295,47 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 	Quaternion originRot = interpolatedRot;
 	Quaternion prevUpdateRot = clip.IKRotations[BoneID];
 
-	//// 원래 각도에서 변환 각도 적용.
-	//Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
-	//newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
+	// 원래 각도에서 변환 각도 적용.
+	Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
+	newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
 
-	//// 적용 전, joint 전체 제한 값 테스트.
-	//Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
-	//float pitch = asin(-newUpdateRotMat._23);
-	//float yaw = atan2(newUpdateRotMat._13, newUpdateRotMat._33);
-	//float roll = atan2(newUpdateRotMat._21, newUpdateRotMat._22);
-	//bool bUpdateFlag = false;
+	// 적용 전, joint 전체 제한 값 테스트.
+	Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
+	float pitch = asin(-newUpdateRotMat._23);
+	float yaw = atan2(newUpdateRotMat._13, newUpdateRotMat._33);
+	float roll = atan2(newUpdateRotMat._21, newUpdateRotMat._22);
+	bool bUpdateFlag = false;
 
-	//// Restrict x-axis value.
-	//if (pitch < AngleLimitation[JointAxis_X].x || pitch > AngleLimitation[JointAxis_X].y)
-	//{
-	//	deltaThetaX = 0.0f;
-	//	bUpdateFlag = true;
-	//}
+	// Restrict x-axis value.
+	if (pitch < AngleLimitation[JointAxis_X].x || pitch > AngleLimitation[JointAxis_X].y)
+	{
+		deltaThetaX = 0.0f;
+		bUpdateFlag = true;
+	}
 
-	//// Restrict y-axis value.
-	//if (yaw < AngleLimitation[JointAxis_Y].x || yaw > AngleLimitation[JointAxis_Y].y)
-	//{
-	//	deltaThetaY = 0.0f;
-	//	bUpdateFlag = true;
-	//}
+	// Restrict y-axis value.
+	if (yaw < AngleLimitation[JointAxis_Y].x || yaw > AngleLimitation[JointAxis_Y].y)
+	{
+		deltaThetaY = 0.0f;
+		bUpdateFlag = true;
+	}
 
-	//// Restrict z-axis value.
-	//if (roll < AngleLimitation[JointAxis_Z].x || roll > AngleLimitation[JointAxis_Z].y)
-	//{
-	//	deltaThetaZ = 0.0f;
-	//	bUpdateFlag = true;
-	//}
+	// Restrict z-axis value.
+	if (roll < AngleLimitation[JointAxis_Z].x || roll > AngleLimitation[JointAxis_Z].y)
+	{
+		deltaThetaZ = 0.0f;
+		bUpdateFlag = true;
+	}
 
-	//if (bUpdateFlag)
-	//{
-	//	deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
-	//	newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
-	//}
+	if (bUpdateFlag)
+	{
+		deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
+		newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
+	}
 
 
-	//clip.IKRotations[BoneID] = newUpdateRot;
-	clip.IKRotations[BoneID] = Quaternion::Concatenate(prevUpdateRot, deltaRot);
+	clip.IKRotations[BoneID] = newUpdateRot;
+	//clip.IKRotations[BoneID] = Quaternion::Concatenate(prevUpdateRot, deltaRot);
 }
 
 void Chain::Initialize(const int BODY_CHAIN_SIZE)
@@ -348,6 +365,8 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "length: %f\n", deltaPosLength);
 		OutputDebugStringA(szDebugString);
+		/*sprintf_s(szDebugString, 256, "deltaPos: %f, %f, %f\n", deltaPos.x, deltaPos.y, deltaPos.z);
+		OutputDebugStringA(szDebugString);*/
 	}
 	if (deltaPosLength < 0.01f || deltaPosLength > 0.8f)
 	{
@@ -355,31 +374,37 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 		goto LB_RET;
 	}
 
-	//m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
-	m_DeltaPos(0, 0) = deltaPos.x;
+	m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
+	/*m_DeltaPos(0, 0) = deltaPos.x;
 	m_DeltaPos(1, 0) = deltaPos.y;
-	m_DeltaPos(2, 0) = deltaPos.z;
+	m_DeltaPos(2, 0) = deltaPos.z;*/
 
 	{
 		int columnIndex = 0;
-		Vector3 xAxis(1.0f, 0.0f, 0.0f);
-		Vector3 yAxis(0.0f, 1.0f, 0.0f);
-		Vector3 zAxis(0.0f, 0.0f, 1.0f);
+		const Vector3 X_AXIS(1.0f, 0.0f, 0.0f);
+		const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
+		const Vector3 Z_AXIS(0.0f, 0.0f, 1.0f);
 
-		for (UINT64 i = 1, end = TOTAL_JOINT - 1; i < end; ++i)
+		for (UINT64 i = TOTAL_JOINT - 1, end = 0; i > end; --i)
 		{
 			Joint* pJoint = &BodyChain[i];
-			Joint* pParentJoint = &BodyChain[i - 1];
-			Vector3 diff = pJoint->Position - pParentJoint->Position;
-			
-			Vector3 partialX = xAxis.Cross(diff);
-			Vector3 partialY = yAxis.Cross(diff);
-			Vector3 partialZ = zAxis.Cross(diff);
+			Joint* pChildJoint = &BodyChain[i + 1];
+			Vector3 diff = pChildJoint->Position - pJoint->Position;
+			//Vector3 diff = targetPos - pJoint->Position;
+			if (i == end - 1)
+			{
+				diff = targetPos - pJoint->Position;
+			}
 
-			// m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
-			// m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
-			// m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;
-			m_JacobianMatrix(0, columnIndex) = partialX.x;
+			// 3-dof.
+			Vector3 partialX = X_AXIS.Cross(diff);
+			Vector3 partialY = Y_AXIS.Cross(diff);
+			Vector3 partialZ = Z_AXIS.Cross(diff);
+
+			m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
+			m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
+			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;
+			/*m_JacobianMatrix(0, columnIndex) = partialX.x;
 			m_JacobianMatrix(1, columnIndex) = partialX.y;
 			m_JacobianMatrix(2, columnIndex) = partialX.z;
 			m_JacobianMatrix(0, columnIndex + 1) = partialY.x;
@@ -387,14 +412,14 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 			m_JacobianMatrix(2, columnIndex + 1) = partialY.z;
 			m_JacobianMatrix(0, columnIndex + 2) = partialZ.x;
 			m_JacobianMatrix(1, columnIndex + 2) = partialZ.y;
-			m_JacobianMatrix(2, columnIndex + 2) = partialZ.z;
+			m_JacobianMatrix(2, columnIndex + 2) = partialZ.z;*/
 
 			columnIndex += 3;
 		}
 	}
 
 	m_DeltaTheta = m_JacobianMatrix.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(m_DeltaPos);
-	m_DeltaTheta *= DELTA_TIME;
+	//m_DeltaTheta *= DELTA_TIME;
 	{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "Theta 1: %f, %f, %f  Theta 2: %f, %f, %f  Theta 3: %f, %f, %f  Theta 4: %f, %f, %f\n",

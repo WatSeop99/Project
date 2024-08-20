@@ -97,13 +97,8 @@ public:
 	};
 
 	UINT BoneID = 0xffffffff;
-
 	Vector3 Position;
 	Vector2 AngleLimitation[JointAxis_AxisCount]; // for all axis x, y, z. AngleLimitation[i].x = lower, AngleLimitation[i].y = upper.
-
-	Matrix* pOffset = nullptr; 
-	Matrix* pParentMatrix = nullptr;	// parent bone transform.
-	Matrix* pJointTransform = nullptr; // bone transform.
 };
 class Chain
 {

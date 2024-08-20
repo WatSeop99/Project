@@ -157,14 +157,19 @@ void SkinnedMeshModel::UpdateAnimation(const int CLIP_ID, const int FRAME, const
 	// 입력에 따른 변환행렬 업데이트.
 	// CharacterAnimationData.Update(clipID, frame);
 
-	// joint 위치 갱신.
-	updateChainPosition(CLIP_ID, FRAME);
-
 	// IK 계산. 서 있을 때만.
 	if (CLIP_ID == 0)
 	{
+		//CharacterAnimationData.UpdateForIK(CLIP_ID, FRAME);
+		updateChainPosition(CLIP_ID, FRAME);
 		solveCharacterIK(CLIP_ID, FRAME, DELTA_TIME, pUpdateInfo);
 	}
+	else
+	{
+		updateChainPosition(CLIP_ID, FRAME);
+	}
+
+	//updateChainPosition(CLIP_ID, FRAME);
 
 	// Update bone transform buffer.
 	BYTE* pBoneTransformMem = nullptr;
@@ -977,19 +982,13 @@ void SkinnedMeshModel::initChain()
 	for (int i = 0; i < 5; ++i)
 	{
 		const UINT BONE_ID = CharacterAnimationData.BoneNameToID[BONE_NAME[boneNameIndex]];
-		const UINT BONE_PARENT_ID = CharacterAnimationData.BoneParents[BONE_ID];
 		Joint* pJoint = &RightArm.BodyChain[i];
 
 		pJoint->BoneID = BONE_ID;
+		// pJoint->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, BONE_ID) * World).Translation();
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
-		if (BONE_PARENT_ID != -1)
-		{
-			pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
-		}
-		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
 
 		++boneNameIndex;
 	}
@@ -997,19 +996,13 @@ void SkinnedMeshModel::initChain()
 	for (int i = 0; i < 5; ++i)
 	{
 		const UINT BONE_ID = CharacterAnimationData.BoneNameToID[BONE_NAME[boneNameIndex]];
-		const UINT BONE_PARENT_ID = CharacterAnimationData.BoneParents[BONE_ID];
 		Joint* pJoint = &LeftArm.BodyChain[i];
 
 		pJoint->BoneID = BONE_ID;
+		// pJoint->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, BONE_ID) * World).Translation();
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
-		if (BONE_PARENT_ID != -1)
-		{
-			pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
-		}
-		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
 
 		++boneNameIndex;
 	}
@@ -1017,19 +1010,13 @@ void SkinnedMeshModel::initChain()
 	for (int i = 0; i < 5; ++i)
 	{
 		const UINT BONE_ID = CharacterAnimationData.BoneNameToID[BONE_NAME[boneNameIndex]];
-		const UINT BONE_PARENT_ID = CharacterAnimationData.BoneParents[BONE_ID];
 		Joint* pJoint = &RightLeg.BodyChain[i];
 
 		pJoint->BoneID = BONE_ID;
+		// pJoint->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, BONE_ID) * World).Translation();
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
-		if (BONE_PARENT_ID != -1)
-		{
-			pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
-		}
-		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
 
 		++boneNameIndex;
 	}
@@ -1037,19 +1024,13 @@ void SkinnedMeshModel::initChain()
 	for (int i = 0; i < 5; ++i)
 	{
 		const UINT BONE_ID = CharacterAnimationData.BoneNameToID[BONE_NAME[boneNameIndex]];
-		const UINT BONE_PARENT_ID = CharacterAnimationData.BoneParents[BONE_ID];
 		Joint* pJoint = &LeftLeg.BodyChain[i];
 
 		pJoint->BoneID = BONE_ID;
+		// pJoint->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, BONE_ID) * World).Translation();
 		pJoint->AngleLimitation[Joint::JointAxis_X] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_X];
 		pJoint->AngleLimitation[Joint::JointAxis_Y] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Y];
 		pJoint->AngleLimitation[Joint::JointAxis_Z] = ANGLE_LIMITATION[boneNameIndex][Joint::JointAxis_Z];
-		pJoint->pOffset = &CharacterAnimationData.OffsetMatrices[BONE_ID];
-		if (BONE_PARENT_ID != -1)
-		{
-			pJoint->pParentMatrix = &CharacterAnimationData.BoneTransforms[BONE_PARENT_ID];
-		}
-		pJoint->pJointTransform = &CharacterAnimationData.BoneTransforms[BONE_ID];
 
 		++boneNameIndex;
 	}
@@ -1057,6 +1038,8 @@ void SkinnedMeshModel::initChain()
 
 void SkinnedMeshModel::updateChainPosition(const int CLIP_ID, const int FRAME)
 {
+	const Vector3 ORIGIN(0.0f, 0.0f, 0.0f);
+
 	for (int i = 0; i < 5; ++i)
 	{
 		Joint* pRightArmPart = &RightArm.BodyChain[i];
@@ -1064,17 +1047,33 @@ void SkinnedMeshModel::updateChainPosition(const int CLIP_ID, const int FRAME)
 		Joint* pRightLegPart = &RightLeg.BodyChain[i];
 		Joint* pLeftLegPart = &LeftLeg.BodyChain[i];
 
-		pRightArmPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightArmPart->BoneID) * World).Translation();
-		pLeftArmPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftArmPart->BoneID) * World).Translation();
-		pRightLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightLegPart->BoneID) * World).Translation();
-		pLeftLegPart->Position = (CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftLegPart->BoneID) * World).Translation();
+		Matrix world1 = CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightArmPart->BoneID) * World;
+		Matrix world2 = CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftArmPart->BoneID) * World;
+		Matrix world3 = CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pRightLegPart->BoneID) * World;
+		Matrix world4 = CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pLeftLegPart->BoneID) * World;
+		pRightArmPart->Position = Vector3::Transform(ORIGIN, world1);
+		pLeftArmPart->Position = Vector3::Transform(ORIGIN, world2);
+		pRightLegPart->Position = Vector3::Transform(ORIGIN, world3);
+		pLeftLegPart->Position = Vector3::Transform(ORIGIN, world4);
 	}
 
 	{
 		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "right foot pos: %f, %f, %f  left foot pos: %f, %f, %f\n\n",
+		sprintf_s(szDebugString, 256, "right up leg pos: %f, %f, %f  left up leg pos: %f, %f, %f\n",
+				  RightLeg.BodyChain[1].Position.x, RightLeg.BodyChain[1].Position.y, RightLeg.BodyChain[1].Position.z,
+				  LeftLeg.BodyChain[1].Position.x, LeftLeg.BodyChain[1].Position.y, LeftLeg.BodyChain[1].Position.z);
+		OutputDebugStringA(szDebugString);
+		sprintf_s(szDebugString, 256, "right leg pos: %f, %f, %f  left leg pos: %f, %f, %f\n",
+				  RightLeg.BodyChain[2].Position.x, RightLeg.BodyChain[2].Position.y, RightLeg.BodyChain[2].Position.z,
+				  LeftLeg.BodyChain[2].Position.x, LeftLeg.BodyChain[2].Position.y, LeftLeg.BodyChain[2].Position.z);
+		OutputDebugStringA(szDebugString);
+		sprintf_s(szDebugString, 256, "right foot pos: %f, %f, %f  left foot pos: %f, %f, %f\n",
 				  RightLeg.BodyChain[3].Position.x, RightLeg.BodyChain[3].Position.y, RightLeg.BodyChain[3].Position.z,
 				  LeftLeg.BodyChain[3].Position.x, LeftLeg.BodyChain[3].Position.y, LeftLeg.BodyChain[3].Position.z);
+		OutputDebugStringA(szDebugString);
+		sprintf_s(szDebugString, 256, "right toe middle pos: %f, %f, %f  left toe middle pos: %f, %f, %f\n\n",
+				  RightLeg.BodyChain[4].Position.x, RightLeg.BodyChain[4].Position.y, RightLeg.BodyChain[4].Position.z,
+				  LeftLeg.BodyChain[4].Position.x, LeftLeg.BodyChain[4].Position.y, LeftLeg.BodyChain[4].Position.z);
 		OutputDebugStringA(szDebugString);
 	}
 }
@@ -1113,13 +1112,21 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 	LeftHandMiddle.Center = m_ppLeftArm[3]->MeshConstantData.World.Transpose().Translation();
 	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
+
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "right toe middle pos: %f, %f, %f  left toe middle pos: %f, %f, %f\n\n",
+				  RightToe.Center.x, RightToe.Center.y, RightToe.Center.z,
+				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);
+		OutputDebugStringA(szDebugString);
+	}
 }
 
 void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)
 {
 	// 두 다리만 한다고 가정.
 
-	const int STEP_COUNT = 50;
+	const int STEP_COUNT = 30;
 	float deltaTime = DELTA_TIME / (float)STEP_COUNT;
 	Vector3 targetPosRightLeg(pUpdateInfo->EndEffectorTargetPoses[JointPart_RightLeg]);
 	Vector3 targetPosLeftLeg(pUpdateInfo->EndEffectorTargetPoses[JointPart_LeftLeg]);
@@ -1131,12 +1138,20 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 
 	for (int step = 0; step < STEP_COUNT; ++step)
 	{
-		bool bContinueRight;
-		bool bContinueLeft;
-		bContinueRight = RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
-		bContinueLeft = LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+		bool bRightLegContinue = false;
+		bool bLeftLegContinue = false;
+		bRightLegContinue = RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
+		bLeftLegContinue = LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime);
 
-		if (!bContinueRight && !bContinueLeft)
+		{
+			char szDebugString[256];
+			sprintf_s(szDebugString, 256, "right target pos: %f, %f, %f  left target pos: %f, %f, %f\n", 
+					  targetPosRightLeg.x, targetPosRightLeg.y, targetPosRightLeg.z,
+					  targetPosLeftLeg.x, targetPosLeftLeg.y, targetPosLeftLeg.z);
+			OutputDebugStringA(szDebugString);
+		}
+
+		if (!bRightLegContinue && !bLeftLegContinue)
 		{
 			break;
 		}
@@ -1148,14 +1163,8 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 			Joint* pRightJoint = &RightLeg.BodyChain[i];
 			Joint* pLeftJoint = &LeftLeg.BodyChain[i];
 
-			if (bContinueRight)
-			{
-				pRightJoint->ApplyJacobian(rightLegDeltaThetas[deltaIndex], rightLegDeltaThetas[deltaIndex + 1], rightLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
-			}
-			if (bContinueLeft)
-			{
-				pLeftJoint->ApplyJacobian(leftLegDeltaThetas[deltaIndex], leftLegDeltaThetas[deltaIndex + 1], leftLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
-			}
+			pRightJoint->ApplyJacobian(rightLegDeltaThetas[deltaIndex], rightLegDeltaThetas[deltaIndex + 1], rightLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
+			pLeftJoint->ApplyJacobian(leftLegDeltaThetas[deltaIndex], leftLegDeltaThetas[deltaIndex + 1], leftLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
 
 			deltaIndex += 3;
 		}

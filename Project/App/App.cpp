@@ -434,7 +434,7 @@ void App::initExternalData()
 		// physx::PxRigidDynamic* pLeftFoot = nullptr;
 		physx::PxRigidDynamic* pRightFootTarget = nullptr;
 		physx::PxRigidDynamic* pLeftFootTarget = nullptr;
-		physx::PxSphereGeometry sphereGeom(0.01f);
+		physx::PxSphereGeometry sphereGeom(0.015f);
 		physx::PxShape* pSphereShape = pPhysics->createShape(sphereGeom, *(m_pPhysicsManager->pCommonMaterial));
 		if (!pSphereShape)
 		{
@@ -663,6 +663,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 			else if (s_FrameCount == ANIMATION_CLIP_SIZE || m_Keyboard.bPressed[VK_UP]) // 재생이 다 끝난다면.
 			{
 				s_FrameCount = 0; // 상태 변화 없이 반복.
+				//pCharacter->CharacterAnimationData.ResetAllIKRotations(0);
 			}
 		}
 		break;
@@ -714,7 +715,7 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 				s_State = 0;
 				s_FrameCount = 0;
 				*pEndEffectorUpdateFlag = true;
-				pCharacter->CharacterAnimationData.ResetAllIKRotations(s_State);
+				pCharacter->CharacterAnimationData.ResetAllIKRotations(0);
 			}
 			if (s_FrameCount == ANIMATION_CLIP_SIZE)
 			{
@@ -812,8 +813,8 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	{
 		physx::PxRigidDynamic* pRightFootTarget = pCharacter->pRightFootTarget;
 		physx::PxRigidDynamic* pLeftFootTarget = pCharacter->pLeftFootTarget;
-		Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
-		Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
+		Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[4].BoneID) * m_pCharacter->World).Translation();
+		Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[4].BoneID) * m_pCharacter->World).Translation();
 		Vector3 hipPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, 0) * m_pCharacter->World).Translation();
 
 
@@ -833,11 +834,11 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 		physx::PxScene* pScene = GetPhysicsManager()->GetScene();
 		if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			rightFootTransform.p.y = hit.block.position.y + 0.01f;
+			rightFootTransform.p.y = hit.block.position.y + 0.015f;
 		}
 		if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			leftFootTransform.p.y = hit.block.position.y + 0.01f;
+			leftFootTransform.p.y = hit.block.position.y + 0.015f;
 		}
 		pRightFootTarget->setKinematicTarget(rightFootTransform);
 		pLeftFootTarget->setKinematicTarget(leftFootTransform);
@@ -845,6 +846,11 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 
 	physx::PxExtendedVec3 nextPos = pCharacter->pController->getPosition();
 	Vector3 nextPosVec((float)nextPos.x, (float)nextPos.y, (float)nextPos.z);
+	{
+		char szDebugString[256];
+		sprintf_s(szDebugString, 256, "pos: %f, %f, %f\n", nextPosVec.x, nextPosVec.y, nextPosVec.z);
+		OutputDebugStringA(szDebugString);
+	}
 	
 	// 받아온 위치 기반 캐릭터 위치 갱신.
 	pCharacter->CharacterAnimationData.Position = nextPosVec;
