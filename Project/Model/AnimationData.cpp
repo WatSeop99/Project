@@ -385,16 +385,10 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 		const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
 		const Vector3 Z_AXIS(0.0f, 0.0f, 1.0f);
 
-		for (UINT64 i = TOTAL_JOINT - 1, end = 0; i > end; --i)
+		for (UINT64 i = 0, end = TOTAL_JOINT - 1; i < end; ++i)
 		{
 			Joint* pJoint = &BodyChain[i];
-			Joint* pChildJoint = &BodyChain[i + 1];
-			Vector3 diff = pChildJoint->Position - pJoint->Position;
-			//Vector3 diff = targetPos - pJoint->Position;
-			if (i == end - 1)
-			{
-				diff = targetPos - pJoint->Position;
-			}
+			Vector3 diff = pEndEffector->Position - pJoint->Position;
 
 			// 3-dof.
 			Vector3 partialX = X_AXIS.Cross(diff);
