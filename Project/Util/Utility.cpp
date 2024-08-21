@@ -295,7 +295,7 @@ Vector3 Max(const Vector3& V1, const Vector3& V2)
 	return Vector3(ret);
 }
 
-float Clamp(float x, float upper, float lower)
+float Clamp(const float VAL, const float LOWER, const float UPPER)
 {
-	return Max(lower, Min(x, upper));
+	return Min(Max(VAL, LOWER), UPPER);
 }

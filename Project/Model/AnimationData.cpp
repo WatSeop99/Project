@@ -250,33 +250,33 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 		const float xAxisAngle = xAxis.Length();
 		if (xAxisAngle < EPSILON)
 		{
-			xAxisRot = Quaternion(xAxis * sin(xAxisAngle), cos(xAxisAngle));
+			xAxisRot = Quaternion(xAxis * sinf(xAxisAngle), cosf(xAxisAngle));
 		}
 		else
 		{
-			xAxisRot = Quaternion((xAxis / xAxisAngle) * sin(xAxisAngle), cos(xAxisAngle));
+			xAxisRot = Quaternion((xAxis / xAxisAngle) * sin(xAxisAngle), cosf(xAxisAngle));
 		}
 	}
 	{
 		const float yAxisAngle = yAxis.Length();
 		if (yAxisAngle < EPSILON)
 		{
-			yAxisRot = Quaternion(yAxis * sin(yAxisAngle), cos(yAxisAngle));
+			yAxisRot = Quaternion(yAxis * sinf(yAxisAngle), cosf(yAxisAngle));
 		}
 		else
 		{
-			yAxisRot = Quaternion((yAxis / yAxisAngle) * sin(yAxisAngle), cos(yAxisAngle));
+			yAxisRot = Quaternion((yAxis / yAxisAngle) * sinf(yAxisAngle), cosf(yAxisAngle));
 		}
 	}
 	{
 		const float zAxisAngle = zAxis.Length();
 		if (zAxisAngle < EPSILON)
 		{
-			zAxisRot = Quaternion(zAxis * sin(zAxisAngle), cos(zAxisAngle));
+			zAxisRot = Quaternion(zAxis * sinf(zAxisAngle), cosf(zAxisAngle));
 		}
 		else
 		{
-			zAxisRot = Quaternion((zAxis / zAxisAngle) * sin(zAxisAngle), cos(zAxisAngle));
+			zAxisRot = Quaternion((zAxis / zAxisAngle) * sinf(zAxisAngle), cosf(zAxisAngle));
 		}
 	}
 	Quaternion deltaRot = Quaternion::Concatenate(xAxisRot, yAxisRot);
@@ -342,12 +342,12 @@ void Chain::Initialize(const int BODY_CHAIN_SIZE)
 {
 	BodyChain.resize(BODY_CHAIN_SIZE);
 
-	m_JacobianMatrix = Eigen::MatrixXf(3, 3 * (BODY_CHAIN_SIZE - 1));
+	m_JacobianMatrix = Eigen::MatrixXf(3, 3 * BODY_CHAIN_SIZE);
 	m_DeltaPos = Eigen::MatrixXf(3, 1);
-	m_DeltaTheta = Eigen::VectorXf(3 * (BODY_CHAIN_SIZE - 1));
+	m_DeltaTheta = Eigen::VectorXf(3 * BODY_CHAIN_SIZE);
 }
 
-bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME)
+bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME, Matrix& characterWorld)
 {
 	_ASSERT(pAnimationData);
 	_ASSERT(pDeltaThetas);
@@ -357,7 +357,7 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 
 	const UINT64 TOTAL_JOINT = BodyChain.size();
 	Joint* pEndEffector = &BodyChain[TOTAL_JOINT - 1];
-	ZeroMemory(pDeltaThetas, sizeof(float) * 3 * (TOTAL_JOINT - 1)); // hip 제외.
+	ZeroMemory(pDeltaThetas, sizeof(float) * 3 * TOTAL_JOINT); // hip 제외.
 
 	Vector3 deltaPos = targetPos - pEndEffector->Position;
 	float deltaPosLength = deltaPos.Length();
@@ -374,31 +374,33 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 		goto LB_RET;
 	}
 
-	m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
-	/*m_DeltaPos(0, 0) = deltaPos.x;
+	//m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
+	m_DeltaPos(0, 0) = deltaPos.x;
 	m_DeltaPos(1, 0) = deltaPos.y;
-	m_DeltaPos(2, 0) = deltaPos.z;*/
+	m_DeltaPos(2, 0) = deltaPos.z;
 
 	{
 		int columnIndex = 0;
-		const Vector3 X_AXIS(1.0f, 0.0f, 0.0f);
+		/*const Vector3 X_AXIS(1.0f, 0.0f, 0.0f);
 		const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
-		const Vector3 Z_AXIS(0.0f, 0.0f, 1.0f);
+		const Vector3 Z_AXIS(0.0f, 0.0f, 1.0f);*/
+		const Vector3 Z_AXIS(0.0f, 0.0f, -1.0f);
 
-		for (UINT64 i = 0, end = TOTAL_JOINT - 1; i < end; ++i)
+		for (UINT64 i = 0, end = TOTAL_JOINT; i < end; ++i)
 		{
 			Joint* pJoint = &BodyChain[i];
 			Vector3 diff = pEndEffector->Position - pJoint->Position;
+			diff.Normalize();
 
 			// 3-dof.
-			Vector3 partialX = X_AXIS.Cross(diff);
-			Vector3 partialY = Y_AXIS.Cross(diff);
+			Vector3 partialX = Vector3::UnitX.Cross(diff);
+			Vector3 partialY = Vector3::UnitY.Cross(diff);
 			Vector3 partialZ = Z_AXIS.Cross(diff);
 
-			m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
+			/*m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
 			m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
-			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;
-			/*m_JacobianMatrix(0, columnIndex) = partialX.x;
+			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;*/
+			m_JacobianMatrix(0, columnIndex) = partialX.x;
 			m_JacobianMatrix(1, columnIndex) = partialX.y;
 			m_JacobianMatrix(2, columnIndex) = partialX.z;
 			m_JacobianMatrix(0, columnIndex + 1) = partialY.x;
@@ -406,14 +408,14 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 			m_JacobianMatrix(2, columnIndex + 1) = partialY.z;
 			m_JacobianMatrix(0, columnIndex + 2) = partialZ.x;
 			m_JacobianMatrix(1, columnIndex + 2) = partialZ.y;
-			m_JacobianMatrix(2, columnIndex + 2) = partialZ.z;*/
+			m_JacobianMatrix(2, columnIndex + 2) = partialZ.z;
 
 			columnIndex += 3;
 		}
 	}
 
 	m_DeltaTheta = m_JacobianMatrix.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(m_DeltaPos);
-	//m_DeltaTheta *= DELTA_TIME;
+	m_DeltaTheta *= DELTA_TIME;
 	{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "Theta 1: %f, %f, %f  Theta 2: %f, %f, %f  Theta 3: %f, %f, %f  Theta 4: %f, %f, %f\n",
@@ -424,11 +426,165 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 		OutputDebugStringA(szDebugString);
 	}
 
-	for (UINT64 i = 0, end = 3 * (TOTAL_JOINT - 1); i < end; ++i)
+	for (UINT64 i = 0, end = 3 * TOTAL_JOINT; i < end; ++i)
 	{
 		pDeltaThetas[i] = m_DeltaTheta[i];
 	}
 
 LB_RET:
 	return bRetContinue;
+
+	// https://www.ryanjuckett.com/analytic-two-bone-ik-in-2d/
+	// leg 기준.
+
+	//float legLength = 0.0f;
+	//for (UINT64 i = 0, size = BodyChain.size() - 1; i < size; ++i) // upleg-leg-foot만 고려.
+	//{
+	//	legLength += BodyChain[i].Length;
+	//}
+
+	//// bool bReached = ((BodyChain[0].Position - targetPos).Length() <= legLength);
+	//
+	//AnimationClip& clip = pAnimationData->Clips[CLIP_ID];
+	//float timeInTicks = (float)(pAnimationData->TimeSinceLoaded * clip.TicksPerSec);
+	//float animationTimeTicks = fmod(timeInTicks, (float)clip.Duration);
+
+	//Joint& startJoint = BodyChain[0];
+	//Joint& midJoint = BodyChain[1];
+	//Joint& endJoint = BodyChain[2];
+	//Matrix inverseWorld = characterWorld.Invert();
+	//
+	//Vector3 interpolatedPos;
+	//Vector3 interpolatedScale;
+	//Quaternion interpolatedRot;
+	//Matrix transform;
+	//pAnimationData->InterpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, startJoint.BoneID, animationTimeTicks);
+	//transform = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot) * Matrix::CreateTranslation(interpolatedPos);
+
+	//Quaternion midIKRot;
+	//Quaternion startIKRot;
+	//float midJointAngle = 0.0f;
+	//// mid joint angle.
+	//{
+	//	Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
+	//	Vector3 targetPosInStartJointSpace = targetPos;
+	//	Vector3 startJointPos = startJoint.Position;
+	//	Vector3 midJointPos = midJoint.Position;
+	//	Vector3 endJointPos = endJoint.Position;
+
+	//	targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
+	//	startJointPos = Vector3::Transform(startJointPos, offset);
+	//	midJointPos = Vector3::Transform(midJointPos, offset);
+	//	endJointPos = Vector3::Transform(endJointPos, offset);
+
+	//	Vector3 startToTarget = targetPosInStartJointSpace - startJointPos;
+	//	Vector3 upLeg = midJointPos - startJointPos;
+	//	Vector3 leg = endJointPos - midJointPos;
+	//	startToTarget.x = 0.0;
+	//	upLeg.x = 0.0;
+	//	leg.x = 0.0;
+
+	//	const float UPLEG_TO_LEG_LENGTH = upLeg.Length();
+	//	const float LEG_TO_FOOT_LENGTH = leg.Length();
+	//	const float UPLEG_TO_TARGET = startToTarget.Length();
+
+	//	// rotate in x-axis(yx).
+	//	float cosTheta = (powf(UPLEG_TO_TARGET, 2.0f) - powf(UPLEG_TO_LEG_LENGTH, 2.0f) - powf(LEG_TO_FOOT_LENGTH, 2.0f)) / (2.0f * UPLEG_TO_LEG_LENGTH * LEG_TO_FOOT_LENGTH);
+	//	cosTheta = Clamp(cosTheta, -1.0f, 1.0f);
+	//	midJointAngle = acosf(cosTheta);
+	//	midJointAngle = Clamp(midJointAngle, 0.0f, DirectX::XM_PI); // [0, pi]로 제한.
+
+	//	midIKRot = Quaternion::CreateFromAxisAngle(Vector3::UnitX, midJointAngle);
+	//}
+
+	//// start joint angle.
+	//{
+	//	// xy(z-axis), yz(x-axis), zx(y-axis) 세 plane에서 바라본 target pos와의 각도를 구해야함.(in start joint space)
+	//	// 여기서 mid joint는 yz 평면에서만 회전하므로, 이 평면만 이론대로 계산하고, 나머지 두 평면은 간단히 arctan으로 계산.
+
+	//	// yx
+	//	Quaternion startIKRotInZ;
+	//	{
+	//		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
+	//		Vector3 targetPosInStartJointSpace = targetPos;
+	//		Vector3 startJointPos = startJoint.Position;
+	//		Vector3 midJointPos = midJoint.Position;
+	//		Vector3 endJointPos = endJoint.Position;
+
+	//		targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
+	//		startJointPos = Vector3::Transform(startJointPos, offset);
+	//		midJointPos = Vector3::Transform(midJointPos, offset);
+	//		endJointPos = Vector3::Transform(endJointPos, offset);
+
+	//		Vector3 startJointToEndJoint = endJointPos - startJointPos;
+	//		Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
+
+	//		startJointToEndJoint.z = 0.0f;
+	//		startJointToEndJoint.Normalize();
+	//		startJointToTarget.z = 0.0f;
+	//		startJointToTarget.Normalize();
+
+	//		float dot = startJointToEndJoint.Dot(startJointToTarget);
+	//		float angle = acosf(dot);
+	//		startIKRotInZ = Quaternion::CreateFromAxisAngle(Vector3::UnitZ, angle);
+	//	}
+
+	//	// zy
+	//	Quaternion startIKRotInX;
+	//	{
+	//		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
+	//		Vector3 targetPosInStartJointSpace = targetPos;
+	//		Vector3 startJointPos = startJoint.Position;
+	//		Vector3 midJointPos = midJoint.Position;
+	//		Vector3 endJointPos = endJoint.Position;
+
+	//		targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
+	//		startJointPos = Vector3::Transform(startJointPos, offset);
+	//		midJointPos = Vector3::Transform(midJointPos, offset);
+	//		endJointPos = Vector3::Transform(endJointPos, offset);
+
+	//		Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
+	//		Vector3 upLeg = midJointPos - startJointPos;
+	//		Vector3 leg = endJointPos - midJointPos;
+	//		startJointToTarget.x = 0.0;
+	//		upLeg.x = 0.0;
+	//		leg.x = 0.0;
+
+	//		const float UPLEG_TO_LEG_LENGTH = upLeg.Length();
+	//		const float LEG_TO_FOOT_LENGTH = leg.Length();
+	//		const float UPLEG_TO_TARGET = startJointToTarget.Length();
+	//		const float FIRST = UPLEG_TO_LEG_LENGTH + LEG_TO_FOOT_LENGTH * cosf(midJointAngle);
+	//		const float SECOND = LEG_TO_FOOT_LENGTH * sinf(midJointAngle);
+	//		float angle = atan2(startJointToTarget.y * FIRST - startJointToTarget.z * SECOND,
+	//							startJointToTarget.y * FIRST + startJointToTarget.z * SECOND);
+	//		startIKRotInX = Quaternion::CreateFromAxisAngle(Vector3::UnitX, angle);
+	//	}
+
+	//	// xz
+	//	Quaternion startIKRotInY;
+	//	{
+	//		/*Vector3 startJointToEndJoint = endJoint.Position - startJoint.Position;
+	//		Vector3 startJointToTarget = targetPos - startJoint.Position;
+	//		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID];
+
+	//		startJointToEndJoint = Vector3::Transform(startJointToEndJoint, offset);
+	//		startJointToEndJoint.y = 0.0f;
+	//		startJointToEndJoint.Normalize();
+	//		startJointToTarget = Vector3::Transform(startJointToTarget, offset);
+	//		startJointToTarget.y = 0.0f;
+	//		startJointToTarget.Normalize();
+
+	//		float dot = startJointToEndJoint.Dot(startJointToTarget);
+	//		float angle = acosf(dot);
+	//		startIKRotInY = Quaternion::CreateFromAxisAngle(Vector3::UnitY, angle);*/
+	//	}
+
+	//	startIKRot = Quaternion::Concatenate(startIKRotInX, startIKRotInY);
+	//	startIKRot = Quaternion::Concatenate(startIKRot, startIKRotInZ);
+	//}
+
+	//clip.IKRotations[startJoint.BoneID] = startIKRot;
+	//clip.IKRotations[midJoint.BoneID] = midIKRot;
+	//
+	//return true;
 }

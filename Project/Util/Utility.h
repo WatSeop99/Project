@@ -25,4 +25,4 @@ float Min(float x, float y);
 float Max(float x, float y);
 Vector3 Min(const Vector3& V1, const Vector3& V2);
 Vector3 Max(const Vector3& V1, const Vector3& V2);
-float Clamp(float x, float upper, float lower);
+float Clamp(const float VAL, const float LOWER, const float UPPER);

@@ -97,6 +97,7 @@ public:
 	};
 
 	UINT BoneID = 0xffffffff;
+	float Length = 0;
 	Vector3 Position;
 	Vector2 AngleLimitation[JointAxis_AxisCount]; // for all axis x, y, z. AngleLimitation[i].x = lower, AngleLimitation[i].y = upper.
 };
@@ -108,7 +109,7 @@ public:
 
 	void Initialize(const int BODY_CHAIN_SIZE);
 
-	bool SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME);
+	bool SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pDeltaThetas, const int CLIP_ID, const int FRAME, const float DELTA_TIME, Matrix& characterWorld);
 
 public:
 	std::vector<Joint> BodyChain; // root ~ child.
