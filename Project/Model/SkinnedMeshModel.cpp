@@ -1086,7 +1086,7 @@ void SkinnedMeshModel::updateChainPosition(const int CLIP_ID, const int FRAME)
 		pLeftLegPart->Position = Vector3::Transform(ORIGIN, world4);
 	}
 
-	{
+	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "right up leg pos: %f, %f, %f  left up leg pos: %f, %f, %f\n",
 				  RightLeg.BodyChain[0].Position.x, RightLeg.BodyChain[0].Position.y, RightLeg.BodyChain[0].Position.z,
@@ -1104,7 +1104,7 @@ void SkinnedMeshModel::updateChainPosition(const int CLIP_ID, const int FRAME)
 				  RightLeg.BodyChain[3].Position.x, RightLeg.BodyChain[3].Position.y, RightLeg.BodyChain[3].Position.z,
 				  LeftLeg.BodyChain[3].Position.x, LeftLeg.BodyChain[3].Position.y, LeftLeg.BodyChain[3].Position.z);
 		OutputDebugStringA(szDebugString);
-	}
+	}*/
 }
 
 void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
@@ -1142,13 +1142,13 @@ void SkinnedMeshModel::updateJointSpheres(const int CLIP_ID, const int FRAME)
 	RightToe.Center = m_ppRightLeg[3]->MeshConstantData.World.Transpose().Translation();
 	LeftToe.Center = m_ppLeftLeg[3]->MeshConstantData.World.Transpose().Translation();
 
-	{
+	/*{
 		char szDebugString[256];
 		sprintf_s(szDebugString, 256, "right toe middle pos: %f, %f, %f  left toe middle pos: %f, %f, %f\n\n",
 				  RightToe.Center.x, RightToe.Center.y, RightToe.Center.z,
 				  LeftToe.Center.x, LeftToe.Center.y, LeftToe.Center.z);
 		OutputDebugStringA(szDebugString);
-	}
+	}*/
 }
 
 void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, const float DELTA_TIME, JointUpdateInfo* pUpdateInfo)

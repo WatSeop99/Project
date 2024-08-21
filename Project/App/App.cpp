@@ -660,10 +660,10 @@ void App::updateAnimationState(SkinnedMeshModel* pCharacter, const float DELTA_T
 				pCharacter->CharacterAnimationData.UpdateVelocity(s_State, s_FrameCount);
 				pCharacter->CharacterAnimationData.ResetAllIKRotations(0);
 			}
-			else if (s_FrameCount == ANIMATION_CLIP_SIZE || m_Keyboard.bPressed[VK_UP]) // 재생이 다 끝난다면.
+			else if (s_FrameCount == ANIMATION_CLIP_SIZE) // 재생이 다 끝난다면.
 			{
 				s_FrameCount = 0; // 상태 변화 없이 반복.
-				//pCharacter->CharacterAnimationData.ResetAllIKRotations(0);
+				// pCharacter->CharacterAnimationData.ResetAllIKRotations(0);
 			}
 		}
 		break;
@@ -833,11 +833,11 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 		physx::PxScene* pScene = GetPhysicsManager()->GetScene();
 		if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			rightFootTransform.p.y = hit.block.position.y + 0.035f;
+			rightFootTransform.p.y = hit.block.position.y + 0.03f;
 		}
 		if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			leftFootTransform.p.y = hit.block.position.y + 0.035f;
+			leftFootTransform.p.y = hit.block.position.y + 0.03f;
 		}
 		pRightFootTarget->setKinematicTarget(rightFootTransform);
 		pLeftFootTarget->setKinematicTarget(leftFootTransform);

@@ -295,47 +295,47 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 	Quaternion originRot = interpolatedRot;
 	Quaternion prevUpdateRot = clip.IKRotations[BoneID];
 
-	// 원래 각도에서 변환 각도 적용.
-	Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
-	newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
+	//// 원래 각도에서 변환 각도 적용.
+	//Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
+	//newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
 
-	// 적용 전, joint 전체 제한 값 테스트.
-	Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
-	float pitch = asin(-newUpdateRotMat._23);
-	float yaw = atan2(newUpdateRotMat._13, newUpdateRotMat._33);
-	float roll = atan2(newUpdateRotMat._21, newUpdateRotMat._22);
-	bool bUpdateFlag = false;
+	//// 적용 전, joint 전체 제한 값 테스트.
+	//Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
+	//float pitch = asin(-newUpdateRotMat._23);
+	//float yaw = atan2(newUpdateRotMat._13, newUpdateRotMat._33);
+	//float roll = atan2(newUpdateRotMat._21, newUpdateRotMat._22);
+	//bool bUpdateFlag = false;
 
-	// Restrict x-axis value.
-	if (pitch < AngleLimitation[JointAxis_X].x || pitch > AngleLimitation[JointAxis_X].y)
-	{
-		deltaThetaX = 0.0f;
-		bUpdateFlag = true;
-	}
+	//// Restrict x-axis value.
+	//if (pitch < AngleLimitation[JointAxis_X].x || pitch > AngleLimitation[JointAxis_X].y)
+	//{
+	//	deltaThetaX = 0.0f;
+	//	bUpdateFlag = true;
+	//}
 
-	// Restrict y-axis value.
-	if (yaw < AngleLimitation[JointAxis_Y].x || yaw > AngleLimitation[JointAxis_Y].y)
-	{
-		deltaThetaY = 0.0f;
-		bUpdateFlag = true;
-	}
+	//// Restrict y-axis value.
+	//if (yaw < AngleLimitation[JointAxis_Y].x || yaw > AngleLimitation[JointAxis_Y].y)
+	//{
+	//	deltaThetaY = 0.0f;
+	//	bUpdateFlag = true;
+	//}
 
-	// Restrict z-axis value.
-	if (roll < AngleLimitation[JointAxis_Z].x || roll > AngleLimitation[JointAxis_Z].y)
-	{
-		deltaThetaZ = 0.0f;
-		bUpdateFlag = true;
-	}
+	//// Restrict z-axis value.
+	//if (roll < AngleLimitation[JointAxis_Z].x || roll > AngleLimitation[JointAxis_Z].y)
+	//{
+	//	deltaThetaZ = 0.0f;
+	//	bUpdateFlag = true;
+	//}
 
-	if (bUpdateFlag)
-	{
-		deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
-		newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
-	}
+	//if (bUpdateFlag)
+	//{
+	//	deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
+	//	newUpdateRot = Quaternion::Concatenate(prevUpdateRot, deltaRot);
+	//}
 
 
-	clip.IKRotations[BoneID] = newUpdateRot;
-	//clip.IKRotations[BoneID] = Quaternion::Concatenate(prevUpdateRot, deltaRot);
+	//clip.IKRotations[BoneID] = newUpdateRot;
+	clip.IKRotations[BoneID] = Quaternion::Concatenate(prevUpdateRot, deltaRot);
 }
 
 void Chain::Initialize(const int BODY_CHAIN_SIZE)
@@ -384,7 +384,6 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 		/*const Vector3 X_AXIS(1.0f, 0.0f, 0.0f);
 		const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
 		const Vector3 Z_AXIS(0.0f, 0.0f, 1.0f);*/
-		const Vector3 Z_AXIS(0.0f, 0.0f, -1.0f);
 
 		for (UINT64 i = 0, end = TOTAL_JOINT; i < end; ++i)
 		{
@@ -395,20 +394,20 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 			// 3-dof.
 			Vector3 partialX = Vector3::UnitX.Cross(diff);
 			Vector3 partialY = Vector3::UnitY.Cross(diff);
-			Vector3 partialZ = Z_AXIS.Cross(diff);
+			Vector3 partialZ = Vector3::UnitZ.Cross(diff);
 
 			/*m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
 			m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
 			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;*/
-			m_JacobianMatrix(0, columnIndex) = partialX.x;
-			m_JacobianMatrix(1, columnIndex) = partialX.y;
-			m_JacobianMatrix(2, columnIndex) = partialX.z;
+			m_JacobianMatrix(0, columnIndex) = partialZ.x;
+			m_JacobianMatrix(1, columnIndex) = partialZ.y;
+			m_JacobianMatrix(2, columnIndex) = partialZ.z;
 			m_JacobianMatrix(0, columnIndex + 1) = partialY.x;
 			m_JacobianMatrix(1, columnIndex + 1) = partialY.y;
 			m_JacobianMatrix(2, columnIndex + 1) = partialY.z;
-			m_JacobianMatrix(0, columnIndex + 2) = partialZ.x;
-			m_JacobianMatrix(1, columnIndex + 2) = partialZ.y;
-			m_JacobianMatrix(2, columnIndex + 2) = partialZ.z;
+			m_JacobianMatrix(0, columnIndex + 2) = partialX.x;
+			m_JacobianMatrix(1, columnIndex + 2) = partialX.y;
+			m_JacobianMatrix(2, columnIndex + 2) = partialX.z;
 
 			columnIndex += 3;
 		}
@@ -436,12 +435,6 @@ LB_RET:
 
 	// https://www.ryanjuckett.com/analytic-two-bone-ik-in-2d/
 	// leg 기준.
-
-	//float legLength = 0.0f;
-	//for (UINT64 i = 0, size = BodyChain.size() - 1; i < size; ++i) // upleg-leg-foot만 고려.
-	//{
-	//	legLength += BodyChain[i].Length;
-	//}
 
 	//// bool bReached = ((BodyChain[0].Position - targetPos).Length() <= legLength);
 	//
@@ -493,6 +486,11 @@ LB_RET:
 	//	cosTheta = Clamp(cosTheta, -1.0f, 1.0f);
 	//	midJointAngle = acosf(cosTheta);
 	//	midJointAngle = Clamp(midJointAngle, 0.0f, DirectX::XM_PI); // [0, pi]로 제한.
+	//	{
+	//		char szDebugString[256];
+	//		sprintf_s(szDebugString, 256, "midJointAngle: %f\n", midJointAngle);
+	//		OutputDebugStringA(szDebugString);
+	//	}
 
 	//	midIKRot = Quaternion::CreateFromAxisAngle(Vector3::UnitX, midJointAngle);
 	//}
@@ -532,7 +530,7 @@ LB_RET:
 	//	// zy
 	//	Quaternion startIKRotInX;
 	//	{
-	//		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
+	//		/*Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
 	//		Vector3 targetPosInStartJointSpace = targetPos;
 	//		Vector3 startJointPos = startJoint.Position;
 	//		Vector3 midJointPos = midJoint.Position;
@@ -557,20 +555,28 @@ LB_RET:
 	//		const float SECOND = LEG_TO_FOOT_LENGTH * sinf(midJointAngle);
 	//		float angle = atan2(startJointToTarget.y * FIRST - startJointToTarget.z * SECOND,
 	//							startJointToTarget.y * FIRST + startJointToTarget.z * SECOND);
-	//		startIKRotInX = Quaternion::CreateFromAxisAngle(Vector3::UnitX, angle);
+	//		startIKRotInX = Quaternion::CreateFromAxisAngle(Vector3::UnitX, angle);*/
 	//	}
 
 	//	// xz
 	//	Quaternion startIKRotInY;
 	//	{
-	//		/*Vector3 startJointToEndJoint = endJoint.Position - startJoint.Position;
-	//		Vector3 startJointToTarget = targetPos - startJoint.Position;
-	//		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID];
+	//		/*Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
+	//		Vector3 targetPosInStartJointSpace = targetPos;
+	//		Vector3 startJointPos = startJoint.Position;
+	//		Vector3 midJointPos = midJoint.Position;
+	//		Vector3 endJointPos = endJoint.Position;
 
-	//		startJointToEndJoint = Vector3::Transform(startJointToEndJoint, offset);
+	//		targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
+	//		startJointPos = Vector3::Transform(startJointPos, offset);
+	//		midJointPos = Vector3::Transform(midJointPos, offset);
+	//		endJointPos = Vector3::Transform(endJointPos, offset);
+
+	//		Vector3 startJointToEndJoint = endJointPos - startJointPos;
+	//		Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
+
 	//		startJointToEndJoint.y = 0.0f;
 	//		startJointToEndJoint.Normalize();
-	//		startJointToTarget = Vector3::Transform(startJointToTarget, offset);
 	//		startJointToTarget.y = 0.0f;
 	//		startJointToTarget.Normalize();
 
