@@ -69,3 +69,4 @@ https://github.com/guillaumeblanc/ozz-animation
 https://www.ryanjuckett.com/analytic-two-bone-ik-in-2d/
 https://guillaumeblanc.github.io/ozz-animation/documentation/ik/
 https://github.com/JuChenLin/Inverse-Kinematics-with-Jacobian-Transpose-method/tree/master/Code
+https://github.com/TheRealMJP/DeferredTexturing

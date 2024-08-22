@@ -53,7 +53,7 @@ void ConstantBufferPool::Initialize(ID3D12Device* pDevice, eConstantBufferType t
 	cbvDesc.SizeInBytes = m_SizePerCBV;
 
 	BYTE* pSystemMemPtr = m_pSystemMemAddr;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE	heapHandle(m_pCBVHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(m_pCBVHeap->GetCPUDescriptorHandleForHeapStart());
 
 	UINT descriptorSize = pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	for (UINT i = 0; i < m_MaxCBVNum; ++i)
