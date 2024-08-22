@@ -85,7 +85,7 @@ public:
 	Joint();
 	~Joint() = default;
 
-	void ApplyJacobian(float deltaX, float deltaY, float deltaZ, AnimationData* pAnimationData, int clipID, int frame);
+	void ApplyJacobian(float deltaX, float deltaY, float deltaZ, AnimationData* pAnimationData, int clipID, int frame, Matrix& characerWorld);
 
 public:
 	enum eJointAxis
@@ -116,6 +116,6 @@ public:
 
 private:
 	Eigen::MatrixXf m_JacobianMatrix;
-	Eigen::MatrixXf m_DeltaPos;
+	Eigen::VectorXf m_DeltaPos;
 	Eigen::VectorXf m_DeltaTheta;
 };

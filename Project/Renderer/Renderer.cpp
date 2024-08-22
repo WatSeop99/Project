@@ -1931,7 +1931,7 @@ void Renderer::processMouseControl(const float DELTA_TIME)
 		{
 			translation = s_pActiveModel->World.Translation();
 			s_pActiveModel->World.Translation(Vector3(0.0f));
-			s_pActiveModel->UpdateWorld(s_pActiveModel->World* Matrix::CreateFromQuaternion(dragRotation)* Matrix::CreateTranslation(dragTranslation + translation));
+			s_pActiveModel->UpdateWorld(s_pActiveModel->World * Matrix::CreateFromQuaternion(dragRotation)* Matrix::CreateTranslation(dragTranslation + translation));
 			s_pActiveModel->BoundingSphere.Center = s_pActiveModel->World.Translation();
 		}
 

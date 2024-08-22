@@ -951,13 +951,13 @@ void SkinnedMeshModel::initChain()
 		{ Vector2(-58.8f * TO_RADIAN, 70.3f * TO_RADIAN), Vector2(0.0f), Vector2(-10.0f * TO_RADIAN, 52.0f * TO_RADIAN) },
 		{ Vector2(-89.0f * TO_RADIAN, 0.0f), Vector2(0.0f), Vector2(0.0f) },
 		{ Vector2(-15.0f * TO_RADIAN, 10.0f * TO_RADIAN), Vector2(0.0f), Vector2(0.0f) },
-		{ Vector2(0.0f), Vector2(0.0f), Vector2(0.0f) },
+		{ Vector2(-15.0f * TO_RADIAN, 10.0f * TO_RADIAN), Vector2(0.0f), Vector2(0.0f) },
 
 		// left leg
 		{ Vector2(-58.8f * TO_RADIAN, 70.3f * TO_RADIAN), Vector2(0.0f), Vector2(-52.0f * TO_RADIAN, 10.0f * TO_RADIAN) },
 		{ Vector2(-89.0f * TO_RADIAN, 0.0f), Vector2(0.0f), Vector2(0.0f) },
 		{ Vector2(-15.0f * TO_RADIAN, 10.0f * TO_RADIAN), Vector2(0.0f), Vector2(0.0f) },
-		{ Vector2(0.0f), Vector2(0.0f), Vector2(0.0f) },
+		{ Vector2(-15.0f * TO_RADIAN, 10.0f * TO_RADIAN), Vector2(0.0f), Vector2(0.0f) },
 	};
 
 	RightArm.Initialize(4);
@@ -1019,6 +1019,9 @@ void SkinnedMeshModel::initChain()
 		++boneNameIndex;
 	}
 
+	CharacterAnimationData.UpdateForIK(0, 0);
+	updateChainPosition(0, 0);
+
 	// right leg.
 	for (int i = 0; i < 4; ++i)
 	{
@@ -1026,17 +1029,20 @@ void SkinnedMeshModel::initChain()
 		if (i != 3)
 		{
 			Joint* pChildJoint = &RightLeg.BodyChain[i + 1];
-			Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
-			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[pChildJoint->BoneID].Translation();
+			/*Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
+			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[pChildJoint->BoneID].Translation();*/
+			Vector3 curJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, pCurJoint->BoneID) * World).Translation();
+			Vector3 childJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, pChildJoint->BoneID) * World).Translation();
 
 			pCurJoint->Length = (childJointPos - curJointPos).Length();
-
 		}
 		else
 		{
 			const int CHILD_ID = CharacterAnimationData.BoneNameToID["mixamorig:mixamorig:RightToe_End"];
-			Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
-			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[CHILD_ID].Translation();
+			/*Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
+			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[CHILD_ID].Translation();*/
+			Vector3 curJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, pCurJoint->BoneID) * World).Translation();
+			Vector3 childJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, CHILD_ID) * World).Translation();
 
 			pCurJoint->Length = (childJointPos -  curJointPos).Length();
 		}
@@ -1048,8 +1054,10 @@ void SkinnedMeshModel::initChain()
 		if (i != 3)
 		{
 			Joint* pChildJoint = &LeftLeg.BodyChain[i + 1];
-			Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
-			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[pChildJoint->BoneID].Translation();
+			/*Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
+			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[pChildJoint->BoneID].Translation();*/
+			Vector3 curJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, pCurJoint->BoneID) * World).Translation();
+			Vector3 childJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, pChildJoint->BoneID) * World).Translation();
 
 			pCurJoint->Length = (childJointPos - curJointPos).Length();
 
@@ -1057,8 +1065,10 @@ void SkinnedMeshModel::initChain()
 		else
 		{
 			const int CHILD_ID = CharacterAnimationData.BoneNameToID["mixamorig:mixamorig:LeftToe_End"];
-			Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
-			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[CHILD_ID].Translation();
+			/*Vector3 curJointPos = CharacterAnimationData.InverseOffsetMatrices[pCurJoint->BoneID].Translation();
+			Vector3 childJointPos = CharacterAnimationData.InverseOffsetMatrices[CHILD_ID].Translation();*/
+			Vector3 curJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, pCurJoint->BoneID) * World).Translation();
+			Vector3 childJointPos = (CharacterAnimationData.GetGlobalBonePositionMatix(0, 0, CHILD_ID) * World).Translation();
 
 			pCurJoint->Length = (childJointPos - curJointPos).Length();
 		}
@@ -1155,7 +1165,7 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 {
 	// 두 다리만 한다고 가정.
 
-	const int STEP_COUNT = 30;
+	const int STEP_COUNT = 40;
 	float deltaTime = DELTA_TIME / (float)STEP_COUNT;
 	Vector3 targetPosRightLeg(pUpdateInfo->EndEffectorTargetPoses[JointPart_RightLeg]);
 	Vector3 targetPosLeftLeg(pUpdateInfo->EndEffectorTargetPoses[JointPart_LeftLeg]);
@@ -1163,47 +1173,52 @@ void SkinnedMeshModel::solveCharacterIK(const int CLIP_ID, const int FRAME, cons
 	float rightLegDeltaThetas[12];
 	float leftLegDeltaThetas[12];
 
-	for (int step = 0; step < STEP_COUNT; ++step)
-	{
-		bool bRightLegContinue = false;
-		bool bLeftLegContinue = false;
-		bRightLegContinue = RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
-		bLeftLegContinue = LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
+	//for (int step = 0; step < STEP_COUNT; ++step)
+	//{
+	//	bool bRightLegContinue = false;
+	//	bool bLeftLegContinue = false;
+	//	bRightLegContinue = RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
+	//	bLeftLegContinue = LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
 
-		{
-			char szDebugString[256];
-			sprintf_s(szDebugString, 256, "right target pos: %f, %f, %f  left target pos: %f, %f, %f\n", 
-					  targetPosRightLeg.x, targetPosRightLeg.y, targetPosRightLeg.z,
-					  targetPosLeftLeg.x, targetPosLeftLeg.y, targetPosLeftLeg.z);
-			OutputDebugStringA(szDebugString);
-		}
+	//	/*{
+	//		char szDebugString[256];
+	//		sprintf_s(szDebugString, 256, "right target pos: %f, %f, %f  left target pos: %f, %f, %f\n", 
+	//				  targetPosRightLeg.x, targetPosRightLeg.y, targetPosRightLeg.z,
+	//				  targetPosLeftLeg.x, targetPosLeftLeg.y, targetPosLeftLeg.z);
+	//		OutputDebugStringA(szDebugString);
+	//	}*/
 
-		if (!bRightLegContinue && !bLeftLegContinue)
-		{
-			break;
-		}
+	//	if (!bRightLegContinue && !bLeftLegContinue)
+	//	{
+	//		break;
+	//	}
 
-		int deltaIndex = 0;
-		// Adjust right and left leg delta thetas.
-		for (int i = 0; i < 4; ++i)
-		{
-			Joint* pRightJoint = &RightLeg.BodyChain[i];
-			Joint* pLeftJoint = &LeftLeg.BodyChain[i];
+	//	int deltaIndex = 0;
+	//	// Adjust right and left leg delta thetas.
+	//	for (int i = 0; i < 4; ++i)
+	//	{
+	//		Joint* pRightJoint = &RightLeg.BodyChain[i];
+	//		Joint* pLeftJoint = &LeftLeg.BodyChain[i];
 
-			pRightJoint->ApplyJacobian(rightLegDeltaThetas[deltaIndex], rightLegDeltaThetas[deltaIndex + 1], rightLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
-			pLeftJoint->ApplyJacobian(leftLegDeltaThetas[deltaIndex], leftLegDeltaThetas[deltaIndex + 1], leftLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME);
+	//		if(bRightLegContinue)
+	//		{
+	//			pRightJoint->ApplyJacobian(rightLegDeltaThetas[deltaIndex], rightLegDeltaThetas[deltaIndex + 1], rightLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME, World);
+	//		}
+	//		if(bLeftLegContinue)
+	//		{
+	//			pLeftJoint->ApplyJacobian(leftLegDeltaThetas[deltaIndex], leftLegDeltaThetas[deltaIndex + 1], leftLegDeltaThetas[deltaIndex + 2], &CharacterAnimationData, CLIP_ID, FRAME, World);
+	//		}
+	//		deltaIndex += 3;
+	//	}
 
-			deltaIndex += 3;
-		}
+	//	CharacterAnimationData.UpdateForIK(CLIP_ID, FRAME);
+	//	updateChainPosition(CLIP_ID, FRAME);
+	//}
 
-		CharacterAnimationData.UpdateForIK(CLIP_ID, FRAME);
-		updateChainPosition(CLIP_ID, FRAME);
-	}
-
-	/*RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
+	RightLeg.SolveIK(&CharacterAnimationData, targetPosRightLeg, rightLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
 	LeftLeg.SolveIK(&CharacterAnimationData, targetPosLeftLeg, leftLegDeltaThetas, CLIP_ID, FRAME, deltaTime, World);
 	CharacterAnimationData.UpdateForIK(CLIP_ID, FRAME);
-	updateChainPosition(CLIP_ID, FRAME);*/
+	updateChainPosition(CLIP_ID, FRAME);
 
 	m_pTargetPos1->MeshConstantData.World = Matrix::CreateTranslation(targetPosRightLeg).Transpose();
 	m_pTargetPos2->MeshConstantData.World = Matrix::CreateTranslation(targetPosLeftLeg).Transpose();

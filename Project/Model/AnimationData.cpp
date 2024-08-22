@@ -232,12 +232,22 @@ Joint::Joint()
 	}
 }
 
-void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaThetaZ, AnimationData* pAnimationData, int clipID, int frame)
+void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaThetaZ, AnimationData* pAnimationData, int clipID, int frame, Matrix& characerWorld)
 {
 	_ASSERT(pAnimationData);
 	_ASSERT(BoneID != 0xffffffff);
 
 	// 변환 각도.
+	
+	/*Matrix offset = characerWorld.Invert() * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[BoneID];
+	Vector3 xAxis = Vector3::Transform(Vector3::UnitX, offset);
+	Vector3 yAxis = Vector3::Transform(Vector3::UnitY, offset);
+	Vector3 zAxis = Vector3::Transform(Vector3::UnitZ, offset);
+
+	Quaternion deltaRot = Quaternion::CreateFromAxisAngle(xAxis, deltaThetaX);
+	deltaRot = Quaternion::Concatenate(deltaRot, Quaternion::CreateFromAxisAngle(yAxis, deltaThetaY));
+	deltaRot = Quaternion::Concatenate(deltaRot, Quaternion::CreateFromAxisAngle(zAxis, deltaThetaZ));*/
+
 	Quaternion deltaRot = Quaternion::CreateFromYawPitchRoll(deltaThetaY, deltaThetaX, deltaThetaZ);
 	/*Vector3 xAxis = Vector3(1.0f, 0.0f, 0.0f) * deltaThetaX;
 	Vector3 yAxis = Vector3(0.0f, 1.0f, 0.0f) * deltaThetaY;
@@ -295,9 +305,9 @@ void Joint::ApplyJacobian(float deltaThetaX, float deltaThetaY, float deltaTheta
 	Quaternion originRot = interpolatedRot;
 	Quaternion prevUpdateRot = clip.IKRotations[BoneID];
 
-	//// 원래 각도에서 변환 각도 적용.
-	//Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
-	//newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
+	// 원래 각도에서 변환 각도 적용.
+	Quaternion newUpdateRot = Quaternion::Concatenate(originRot, prevUpdateRot);
+	newUpdateRot = Quaternion::Concatenate(newUpdateRot, deltaRot);
 
 	//// 적용 전, joint 전체 제한 값 테스트.
 	//Matrix newUpdateRotMat = Matrix::CreateFromQuaternion(newUpdateRot);
@@ -343,7 +353,7 @@ void Chain::Initialize(const int BODY_CHAIN_SIZE)
 	BodyChain.resize(BODY_CHAIN_SIZE);
 
 	m_JacobianMatrix = Eigen::MatrixXf(3, 3 * BODY_CHAIN_SIZE);
-	m_DeltaPos = Eigen::MatrixXf(3, 1);
+	m_DeltaPos = Eigen::VectorXf(3);
 	m_DeltaTheta = Eigen::VectorXf(3 * BODY_CHAIN_SIZE);
 }
 
@@ -353,244 +363,247 @@ bool Chain::SolveIK(AnimationData* pAnimationData, Vector3& targetPos, float* pD
 	_ASSERT(pDeltaThetas);
 	_ASSERT(BodyChain.size() > 0);
 
-	bool bRetContinue = true;
-
-	const UINT64 TOTAL_JOINT = BodyChain.size();
-	Joint* pEndEffector = &BodyChain[TOTAL_JOINT - 1];
-	ZeroMemory(pDeltaThetas, sizeof(float) * 3 * TOTAL_JOINT); // hip 제외.
-
-	Vector3 deltaPos = targetPos - pEndEffector->Position;
-	float deltaPosLength = deltaPos.Length();
-	{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "length: %f\n", deltaPosLength);
-		OutputDebugStringA(szDebugString);
-		/*sprintf_s(szDebugString, 256, "deltaPos: %f, %f, %f\n", deltaPos.x, deltaPos.y, deltaPos.z);
-		OutputDebugStringA(szDebugString);*/
-	}
-	if (deltaPosLength < 0.01f || deltaPosLength > 0.8f)
-	{
-		bRetContinue = false;
-		goto LB_RET;
-	}
-
-	//m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
-	m_DeltaPos(0, 0) = deltaPos.x;
-	m_DeltaPos(1, 0) = deltaPos.y;
-	m_DeltaPos(2, 0) = deltaPos.z;
-
-	{
-		int columnIndex = 0;
-		/*const Vector3 X_AXIS(1.0f, 0.0f, 0.0f);
-		const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
-		const Vector3 Z_AXIS(0.0f, 0.0f, 1.0f);*/
-
-		for (UINT64 i = 0, end = TOTAL_JOINT; i < end; ++i)
-		{
-			Joint* pJoint = &BodyChain[i];
-			Vector3 diff = pEndEffector->Position - pJoint->Position;
-			diff.Normalize();
-
-			// 3-dof.
-			Vector3 partialX = Vector3::UnitX.Cross(diff);
-			Vector3 partialY = Vector3::UnitY.Cross(diff);
-			Vector3 partialZ = Vector3::UnitZ.Cross(diff);
-
-			/*m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
-			m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
-			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;*/
-			m_JacobianMatrix(0, columnIndex) = partialZ.x;
-			m_JacobianMatrix(1, columnIndex) = partialZ.y;
-			m_JacobianMatrix(2, columnIndex) = partialZ.z;
-			m_JacobianMatrix(0, columnIndex + 1) = partialY.x;
-			m_JacobianMatrix(1, columnIndex + 1) = partialY.y;
-			m_JacobianMatrix(2, columnIndex + 1) = partialY.z;
-			m_JacobianMatrix(0, columnIndex + 2) = partialX.x;
-			m_JacobianMatrix(1, columnIndex + 2) = partialX.y;
-			m_JacobianMatrix(2, columnIndex + 2) = partialX.z;
-
-			columnIndex += 3;
-		}
-	}
-
-	m_DeltaTheta = m_JacobianMatrix.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(m_DeltaPos);
-	m_DeltaTheta *= DELTA_TIME;
-	{
-		char szDebugString[256];
-		sprintf_s(szDebugString, 256, "Theta 1: %f, %f, %f  Theta 2: %f, %f, %f  Theta 3: %f, %f, %f  Theta 4: %f, %f, %f\n",
-				  m_DeltaTheta[0], m_DeltaTheta[1], m_DeltaTheta[2],
-				  m_DeltaTheta[3], m_DeltaTheta[4], m_DeltaTheta[5],
-				  m_DeltaTheta[6], m_DeltaTheta[7], m_DeltaTheta[8],
-				  m_DeltaTheta[9], m_DeltaTheta[10], m_DeltaTheta[11]);
-		OutputDebugStringA(szDebugString);
-	}
-
-	for (UINT64 i = 0, end = 3 * TOTAL_JOINT; i < end; ++i)
-	{
-		pDeltaThetas[i] = m_DeltaTheta[i];
-	}
-
-LB_RET:
-	return bRetContinue;
+//	bool bRetContinue = true;
+//
+//	const UINT64 TOTAL_JOINT = BodyChain.size();
+//	Joint* pEndEffector = &BodyChain[TOTAL_JOINT - 1];
+//	ZeroMemory(pDeltaThetas, sizeof(float) * 3 * TOTAL_JOINT); // hip 제외.
+//
+//	Vector3 deltaPos = targetPos - pEndEffector->Position;
+//	float deltaPosLength = deltaPos.Length();
+//	{
+//		/*char szDebugString[256];
+//		sprintf_s(szDebugString, 256, "length: %f\n", deltaPosLength);
+//		OutputDebugStringA(szDebugString);*/
+//	}
+//	/*if (deltaPosLength < 0.01f || deltaPosLength > 0.8f)
+//	{
+//		bRetContinue = false;
+//		goto LB_RET;
+//	}*/
+//
+//	{
+//		Vector3 startToTarget = targetPos - BodyChain[0].Position;
+//		const float START_TO_TARGET_LENGTH = startToTarget.Length();
+//		const float LENGTH = (BodyChain[TOTAL_JOINT - 1].Position - BodyChain[0].Position).Length();
+//		float length = 0.0f;
+//		for (UINT64 i = 0; i < TOTAL_JOINT; ++i)
+//		{
+//			length += BodyChain[i].Length;
+//		}
+//		//if (length < START_TO_TARGET_LENGTH)
+//		//{
+//		//	/*char szDebugString[256];
+//		//	sprintf_s(szDebugString, 256, "length: %f targetLength: %f\n", LENGTH, START_TO_TARGET_LENGTH);
+//		//	OutputDebugStringA(szDebugString);*/
+//
+//		//	bRetContinue = false;
+//		//	goto LB_RET;
+//		//}
+//	}
+//
+//	//m_DeltaPos << deltaPos.x, deltaPos.y, deltaPos.z;
+//	m_DeltaPos[0] = deltaPos.x;
+//	m_DeltaPos[1] = deltaPos.y;
+//	m_DeltaPos[2] = deltaPos.z;
+//
+//	{
+//		int columnIndex = 0;
+//		Matrix inverseWorld = characterWorld.Invert();
+//		for (UINT64 i = 0, end = TOTAL_JOINT; i < end; ++i)
+//		{
+//			Joint* pJoint = &BodyChain[i];
+//			Vector3 diff = pEndEffector->Position - pJoint->Position;
+//			diff.Normalize();
+//
+//			Matrix offset = pAnimationData->InverseOffsetMatrices[pJoint->BoneID] * pAnimationData->DefaultTransform * characterWorld;
+//			Vector3 xAxis = Vector3::Transform(Vector3::UnitX, offset);
+//			Vector3 yAxis = Vector3::Transform(Vector3::UnitY, offset);
+//			Vector3 zAxis = Vector3::Transform(Vector3::UnitZ, offset);
+//
+//			Vector3 partialX = xAxis.Cross(diff);
+//			Vector3 partialY = yAxis.Cross(diff);
+//			Vector3 partialZ = zAxis.Cross(diff);
+//			/*Vector3 partialX = Vector3::UnitX.Cross(diff);
+//			Vector3 partialY = Vector3::UnitY.Cross(diff);
+//			Vector3 partialZ = Vector3::UnitZ.Cross(diff);*/
+//
+//			// 3-dof.
+//			/*m_JacobianMatrix.col(columnIndex) << partialX.x, partialX.y, partialX.z;
+//			m_JacobianMatrix.col(columnIndex + 1) << partialY.x, partialY.y, partialY.z;
+//			m_JacobianMatrix.col(columnIndex + 2) << partialZ.x, partialZ.y, partialZ.z;*/
+//			m_JacobianMatrix(0, columnIndex) = partialX.x;
+//			m_JacobianMatrix(1, columnIndex) = partialX.y;
+//			m_JacobianMatrix(2, columnIndex) = partialX.z;
+//			m_JacobianMatrix(0, columnIndex + 1) = partialY.x;
+//			m_JacobianMatrix(1, columnIndex + 1) = partialY.y;
+//			m_JacobianMatrix(2, columnIndex + 1) = partialY.z;
+//			m_JacobianMatrix(0, columnIndex + 2) = partialZ.x;
+//			m_JacobianMatrix(1, columnIndex + 2) = partialZ.y;
+//			m_JacobianMatrix(2, columnIndex + 2) = partialZ.z;
+//
+//			columnIndex += 3;
+//		}
+//	}
+//
+//	m_DeltaTheta = m_JacobianMatrix.bdcSvd(Eigen::ComputeFullU | Eigen::ComputeThinV).solve(m_DeltaPos);
+//	m_DeltaTheta *= DELTA_TIME;
+//	{
+//		char szDebugString[256];
+//		sprintf_s(szDebugString, 256, "Theta 1: %f, %f, %f  Theta 2: %f, %f, %f  Theta 3: %f, %f, %f  Theta 4: %f, %f, %f\n",
+//				  m_DeltaTheta[0], m_DeltaTheta[1], m_DeltaTheta[2],
+//				  m_DeltaTheta[3], m_DeltaTheta[4], m_DeltaTheta[5],
+//				  m_DeltaTheta[6], m_DeltaTheta[7], m_DeltaTheta[8],
+//				  m_DeltaTheta[9], m_DeltaTheta[10], m_DeltaTheta[11]);
+//		OutputDebugStringA(szDebugString);
+//	}
+//
+//	for (UINT64 i = 0, end = 3 * TOTAL_JOINT; i < end; ++i)
+//	{
+//		pDeltaThetas[i] = m_DeltaTheta[i];
+//	}
+//
+//LB_RET:
+//	return bRetContinue;
 
 	// https://www.ryanjuckett.com/analytic-two-bone-ik-in-2d/
 	// leg 기준.
 
-	//// bool bReached = ((BodyChain[0].Position - targetPos).Length() <= legLength);
-	//
-	//AnimationClip& clip = pAnimationData->Clips[CLIP_ID];
-	//float timeInTicks = (float)(pAnimationData->TimeSinceLoaded * clip.TicksPerSec);
-	//float animationTimeTicks = fmod(timeInTicks, (float)clip.Duration);
+	// bool bReached = ((BodyChain[0].Position - targetPos).Length() <= legLength);
+	
+	AnimationClip& clip = pAnimationData->Clips[CLIP_ID];
+	float timeInTicks = (float)(pAnimationData->TimeSinceLoaded * clip.TicksPerSec);
+	float animationTimeTicks = fmod(timeInTicks, (float)clip.Duration);
 
-	//Joint& startJoint = BodyChain[0];
-	//Joint& midJoint = BodyChain[1];
-	//Joint& endJoint = BodyChain[2];
-	//Matrix inverseWorld = characterWorld.Invert();
-	//
-	//Vector3 interpolatedPos;
-	//Vector3 interpolatedScale;
-	//Quaternion interpolatedRot;
-	//Matrix transform;
-	//pAnimationData->InterpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, startJoint.BoneID, animationTimeTicks);
-	//transform = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot) * Matrix::CreateTranslation(interpolatedPos);
+	Joint& startJoint = BodyChain[0];
+	Joint& midJoint = BodyChain[1];
+	Joint& endJoint = BodyChain[2];
+	Matrix inverseWorld = characterWorld.Invert();
+	
+	Vector3 interpolatedPos;
+	Vector3 interpolatedScale;
+	Quaternion interpolatedRot;
+	Matrix transform;
+	pAnimationData->InterpolateKeyData(&interpolatedPos, &interpolatedRot, &interpolatedScale, &clip, startJoint.BoneID, animationTimeTicks);
+	transform = Matrix::CreateScale(interpolatedScale) * Matrix::CreateFromQuaternion(interpolatedRot) * Matrix::CreateTranslation(interpolatedPos);
 
-	//Quaternion midIKRot;
-	//Quaternion startIKRot;
-	//float midJointAngle = 0.0f;
-	//// mid joint angle.
-	//{
-	//	Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
-	//	Vector3 targetPosInStartJointSpace = targetPos;
-	//	Vector3 startJointPos = startJoint.Position;
-	//	Vector3 midJointPos = midJoint.Position;
-	//	Vector3 endJointPos = endJoint.Position;
+	Quaternion midIKRot;
+	Quaternion startIKRot;
+	float midJointAngle = 0.0f;
+	// mid joint angle.
+	{
+		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID];
+		Vector3 targetPosInStartJointSpace = Vector3::Transform(targetPos, offset);
+		Vector3 startJointPos = Vector3::Transform(startJoint.Position, offset);
+		Vector3 midJointPos = Vector3::Transform(midJoint.Position, offset);
+		Vector3 endJointPos = Vector3::Transform(endJoint.Position, offset);
 
-	//	targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
-	//	startJointPos = Vector3::Transform(startJointPos, offset);
-	//	midJointPos = Vector3::Transform(midJointPos, offset);
-	//	endJointPos = Vector3::Transform(endJointPos, offset);
+		Vector3 startToTarget = targetPosInStartJointSpace - startJointPos;
+		Vector3 upLeg = midJointPos - startJointPos;
+		Vector3 leg = endJointPos - midJointPos;
+		startToTarget.x = 0.0f;
+		upLeg.x = 0.0f;
+		leg.x = 0.0f;
 
-	//	Vector3 startToTarget = targetPosInStartJointSpace - startJointPos;
-	//	Vector3 upLeg = midJointPos - startJointPos;
-	//	Vector3 leg = endJointPos - midJointPos;
-	//	startToTarget.x = 0.0;
-	//	upLeg.x = 0.0;
-	//	leg.x = 0.0;
+		const float UPLEG_TO_LEG_LENGTH = upLeg.Length();
+		const float LEG_TO_FOOT_LENGTH = leg.Length();
+		const float UPLEG_TO_TARGET = startToTarget.Length();
 
-	//	const float UPLEG_TO_LEG_LENGTH = upLeg.Length();
-	//	const float LEG_TO_FOOT_LENGTH = leg.Length();
-	//	const float UPLEG_TO_TARGET = startToTarget.Length();
+		// rotate in x-axis(yx).
+		float cosTheta = ((UPLEG_TO_TARGET * UPLEG_TO_TARGET) - (UPLEG_TO_LEG_LENGTH * UPLEG_TO_LEG_LENGTH) - (LEG_TO_FOOT_LENGTH * LEG_TO_FOOT_LENGTH)) / (2.0f * UPLEG_TO_LEG_LENGTH * LEG_TO_FOOT_LENGTH);
+		cosTheta = Clamp(cosTheta, -1.0f, 1.0f);
+		midJointAngle = acosf(cosTheta);
+		midJointAngle = Clamp(midJointAngle, 0.0f, DirectX::XM_PI);
+		{
+			char szDebugString[256];
+			sprintf_s(szDebugString, 256, "midJointAngle: %f\n", midJointAngle);
+			OutputDebugStringA(szDebugString);
+		}
 
-	//	// rotate in x-axis(yx).
-	//	float cosTheta = (powf(UPLEG_TO_TARGET, 2.0f) - powf(UPLEG_TO_LEG_LENGTH, 2.0f) - powf(LEG_TO_FOOT_LENGTH, 2.0f)) / (2.0f * UPLEG_TO_LEG_LENGTH * LEG_TO_FOOT_LENGTH);
-	//	cosTheta = Clamp(cosTheta, -1.0f, 1.0f);
-	//	midJointAngle = acosf(cosTheta);
-	//	midJointAngle = Clamp(midJointAngle, 0.0f, DirectX::XM_PI); // [0, pi]로 제한.
-	//	{
-	//		char szDebugString[256];
-	//		sprintf_s(szDebugString, 256, "midJointAngle: %f\n", midJointAngle);
-	//		OutputDebugStringA(szDebugString);
-	//	}
+		midIKRot = Quaternion::CreateFromAxisAngle(Vector3::UnitX, midJointAngle);
+	}
 
-	//	midIKRot = Quaternion::CreateFromAxisAngle(Vector3::UnitX, midJointAngle);
-	//}
+	// start joint angle.
+	{
+		// xy(z-axis), yz(x-axis), zx(y-axis) 세 plane에서 바라본 target pos와의 각도를 구해야함.(in start joint space)
+		// 여기서 mid joint는 yz 평면에서만 회전하므로, 이 평면만 이론대로 계산하고, 나머지 두 평면은 간단히 arctan으로 계산.
 
-	//// start joint angle.
-	//{
-	//	// xy(z-axis), yz(x-axis), zx(y-axis) 세 plane에서 바라본 target pos와의 각도를 구해야함.(in start joint space)
-	//	// 여기서 mid joint는 yz 평면에서만 회전하므로, 이 평면만 이론대로 계산하고, 나머지 두 평면은 간단히 arctan으로 계산.
+		// yx
+		Quaternion startIKRotInZ;
+		{
+			Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID];
+			Vector3 targetPosInStartJointSpace = Vector3::Transform(targetPos, offset);
+			Vector3 startJointPos = Vector3::Transform(startJoint.Position, offset);
+			Vector3 midJointPos = Vector3::Transform(midJoint.Position, offset);
+			Vector3 endJointPos = Vector3::Transform(endJoint.Position, offset);
 
-	//	// yx
-	//	Quaternion startIKRotInZ;
-	//	{
-	//		Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
-	//		Vector3 targetPosInStartJointSpace = targetPos;
-	//		Vector3 startJointPos = startJoint.Position;
-	//		Vector3 midJointPos = midJoint.Position;
-	//		Vector3 endJointPos = endJoint.Position;
+			Vector3 startJointToEndJoint = endJointPos - startJointPos;
+			Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
 
-	//		targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
-	//		startJointPos = Vector3::Transform(startJointPos, offset);
-	//		midJointPos = Vector3::Transform(midJointPos, offset);
-	//		endJointPos = Vector3::Transform(endJointPos, offset);
+			startJointToEndJoint.z = 0.0f;
+			startJointToEndJoint.Normalize();
+			startJointToTarget.z = 0.0f;
+			startJointToTarget.Normalize();
 
-	//		Vector3 startJointToEndJoint = endJointPos - startJointPos;
-	//		Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
+			float dot = startJointToEndJoint.Dot(startJointToTarget);
+			float angle = acosf(dot);
+			startIKRotInZ = Quaternion::CreateFromAxisAngle(Vector3::UnitZ, angle);
+		}
 
-	//		startJointToEndJoint.z = 0.0f;
-	//		startJointToEndJoint.Normalize();
-	//		startJointToTarget.z = 0.0f;
-	//		startJointToTarget.Normalize();
+		// zy
+		Quaternion startIKRotInX;
+		{
+			Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID];
+			Vector3 targetPosInStartJointSpace = Vector3::Transform(targetPos, offset);
+			Vector3 startJointPos = Vector3::Transform(startJoint.Position, offset);
+			Vector3 midJointPos = Vector3::Transform(midJoint.Position, offset);
+			Vector3 endJointPos = Vector3::Transform(endJoint.Position, offset);
 
-	//		float dot = startJointToEndJoint.Dot(startJointToTarget);
-	//		float angle = acosf(dot);
-	//		startIKRotInZ = Quaternion::CreateFromAxisAngle(Vector3::UnitZ, angle);
-	//	}
+			Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
+			Vector3 upLeg = midJointPos - startJointPos;
+			Vector3 leg = endJointPos - midJointPos;
+			startJointToTarget.x = 0.0f;
+			upLeg.x = 0.0f;
+			leg.x = 0.0f;
 
-	//	// zy
-	//	Quaternion startIKRotInX;
-	//	{
-	//		/*Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
-	//		Vector3 targetPosInStartJointSpace = targetPos;
-	//		Vector3 startJointPos = startJoint.Position;
-	//		Vector3 midJointPos = midJoint.Position;
-	//		Vector3 endJointPos = endJoint.Position;
+			const float UPLEG_TO_LEG_LENGTH = upLeg.Length();
+			const float LEG_TO_FOOT_LENGTH = leg.Length();
+			const float UPLEG_TO_TARGET = startJointToTarget.Length();
+			const float FIRST = UPLEG_TO_LEG_LENGTH + LEG_TO_FOOT_LENGTH * cosf(midJointAngle);
+			const float SECOND = LEG_TO_FOOT_LENGTH * sinf(midJointAngle);
+			float angle = atan2(startJointToTarget.z * FIRST + startJointToTarget.y * SECOND,
+								startJointToTarget.y * FIRST - startJointToTarget.z * SECOND);
+			startIKRotInX = Quaternion::CreateFromAxisAngle(Vector3::UnitX, angle);
+		}
 
-	//		targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
-	//		startJointPos = Vector3::Transform(startJointPos, offset);
-	//		midJointPos = Vector3::Transform(midJointPos, offset);
-	//		endJointPos = Vector3::Transform(endJointPos, offset);
+		// xz
+		Quaternion startIKRotInY;
+		{
+			Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID];
+			Vector3 targetPosInStartJointSpace = Vector3::Transform(targetPos, offset);
+			Vector3 startJointPos = Vector3::Transform(startJoint.Position, offset);
+			Vector3 midJointPos = Vector3::Transform(midJoint.Position, offset);
+			Vector3 endJointPos = Vector3::Transform(endJoint.Position, offset);
 
-	//		Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
-	//		Vector3 upLeg = midJointPos - startJointPos;
-	//		Vector3 leg = endJointPos - midJointPos;
-	//		startJointToTarget.x = 0.0;
-	//		upLeg.x = 0.0;
-	//		leg.x = 0.0;
+			Vector3 startJointToEndJoint = endJointPos - startJointPos;
+			Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
 
-	//		const float UPLEG_TO_LEG_LENGTH = upLeg.Length();
-	//		const float LEG_TO_FOOT_LENGTH = leg.Length();
-	//		const float UPLEG_TO_TARGET = startJointToTarget.Length();
-	//		const float FIRST = UPLEG_TO_LEG_LENGTH + LEG_TO_FOOT_LENGTH * cosf(midJointAngle);
-	//		const float SECOND = LEG_TO_FOOT_LENGTH * sinf(midJointAngle);
-	//		float angle = atan2(startJointToTarget.y * FIRST - startJointToTarget.z * SECOND,
-	//							startJointToTarget.y * FIRST + startJointToTarget.z * SECOND);
-	//		startIKRotInX = Quaternion::CreateFromAxisAngle(Vector3::UnitX, angle);*/
-	//	}
+			startJointToEndJoint.y = 0.0f;
+			startJointToEndJoint.Normalize();
+			startJointToTarget.y = 0.0f;
+			startJointToTarget.Normalize();
 
-	//	// xz
-	//	Quaternion startIKRotInY;
-	//	{
-	//		/*Matrix offset = inverseWorld * pAnimationData->InverseDefaultTransform * pAnimationData->OffsetMatrices[startJoint.BoneID] * transform;
-	//		Vector3 targetPosInStartJointSpace = targetPos;
-	//		Vector3 startJointPos = startJoint.Position;
-	//		Vector3 midJointPos = midJoint.Position;
-	//		Vector3 endJointPos = endJoint.Position;
+			float dot = startJointToEndJoint.Dot(startJointToTarget);
+			float angle = acosf(dot);
+			startIKRotInY = Quaternion::CreateFromAxisAngle(Vector3::UnitY, angle);
+		}
 
-	//		targetPosInStartJointSpace = Vector3::Transform(targetPosInStartJointSpace, offset);
-	//		startJointPos = Vector3::Transform(startJointPos, offset);
-	//		midJointPos = Vector3::Transform(midJointPos, offset);
-	//		endJointPos = Vector3::Transform(endJointPos, offset);
+		startIKRot = Quaternion::Concatenate(startIKRotInX, startIKRotInY);
+		startIKRot = Quaternion::Concatenate(startIKRot, startIKRotInZ);
+	}
 
-	//		Vector3 startJointToEndJoint = endJointPos - startJointPos;
-	//		Vector3 startJointToTarget = targetPosInStartJointSpace - startJointPos;
-
-	//		startJointToEndJoint.y = 0.0f;
-	//		startJointToEndJoint.Normalize();
-	//		startJointToTarget.y = 0.0f;
-	//		startJointToTarget.Normalize();
-
-	//		float dot = startJointToEndJoint.Dot(startJointToTarget);
-	//		float angle = acosf(dot);
-	//		startIKRotInY = Quaternion::CreateFromAxisAngle(Vector3::UnitY, angle);*/
-	//	}
-
-	//	startIKRot = Quaternion::Concatenate(startIKRotInX, startIKRotInY);
-	//	startIKRot = Quaternion::Concatenate(startIKRot, startIKRotInZ);
-	//}
-
-	//clip.IKRotations[startJoint.BoneID] = startIKRot;
-	//clip.IKRotations[midJoint.BoneID] = midIKRot;
-	//
-	//return true;
+	clip.IKRotations[startJoint.BoneID] = startIKRot;
+	clip.IKRotations[midJoint.BoneID] = midIKRot;
+	
+	return true;
 }

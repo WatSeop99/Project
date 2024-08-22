@@ -813,8 +813,8 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 	{
 		physx::PxRigidDynamic* pRightFootTarget = pCharacter->pRightFootTarget;
 		physx::PxRigidDynamic* pLeftFootTarget = pCharacter->pLeftFootTarget;
-		Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
-		Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[3].BoneID) * m_pCharacter->World).Translation();
+		Vector3 rightFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->RightLeg.BodyChain[2].BoneID) * m_pCharacter->World).Translation();
+		Vector3 leftFootPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, pCharacter->LeftLeg.BodyChain[2].BoneID) * m_pCharacter->World).Translation();
 		Vector3 hipPos = (pCharacter->CharacterAnimationData.GetGlobalBonePositionMatix(CLIP_ID, FRAME, 0) * m_pCharacter->World).Translation();
 
 		physx::PxTransform rightFootTransform(physx::PxVec3(rightFootPos.x, rightFootPos.y, rightFootPos.z));
@@ -833,11 +833,11 @@ void App::simulateCharacterContol(SkinnedMeshModel* pCharacter, const Vector3& D
 		physx::PxScene* pScene = GetPhysicsManager()->GetScene();
 		if (pScene->raycast(rayOrigin1, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			rightFootTransform.p.y = hit.block.position.y + 0.03f;
+			rightFootTransform.p.y = hit.block.position.y + 0.035f;
 		}
 		if (pScene->raycast(rayOrigin2, rayDir, 1.0f, hit, physx::PxHitFlag::eDEFAULT, filterDataForRay))
 		{
-			leftFootTransform.p.y = hit.block.position.y + 0.03f;
+			leftFootTransform.p.y = hit.block.position.y + 0.035f;
 		}
 		pRightFootTarget->setKinematicTarget(rightFootTransform);
 		pLeftFootTarget->setKinematicTarget(leftFootTransform);
