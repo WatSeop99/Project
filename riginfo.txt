@@ -70,3 +70,17 @@ https://www.ryanjuckett.com/analytic-two-bone-ik-in-2d/
 https://guillaumeblanc.github.io/ozz-animation/documentation/ik/
 https://github.com/JuChenLin/Inverse-Kinematics-with-Jacobian-Transpose-method/tree/master/Code
 https://github.com/TheRealMJP/DeferredTexturing
+https://logins.github.io/graphics/2021/05/31/RenderGraphs.html
+https://github.com/tippesi/Atlas-Engine
+https://github.com/cryham/ogre3ter-demo
+https://logins.github.io/graphics/2021/05/31/RenderGraphs.html
+
+
+// todo list
+graphics 품질 보강.
+bindless resource
+render graph
+terrain(지형, 바다)
+ray tracing
+two bone ik
+full body ik

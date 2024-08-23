@@ -50,7 +50,7 @@
 #include <process.h>
 #include <synchapi.h>
 
-// #define USE_MULTI_THREAD
+//#define USE_MULTI_THREAD
 
 #include "Graphics/EnumType.h"
 #include "Renderer/Renderer.h"

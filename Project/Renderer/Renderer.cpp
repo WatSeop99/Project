@@ -991,7 +991,9 @@ void Renderer::beginRender()
 
 	CommandListPool* pCommandListPool = m_pppCommandListPool[m_FrameIndex][0];
 	ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
-	
+	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
+	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
+
 	const CD3DX12_RESOURCE_BARRIER BARRIERs[2] =
 	{
 		CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET),
@@ -999,10 +1001,10 @@ void Renderer::beginRender()
 	};
 	pCommandList->ResourceBarrier(2, BARRIERs);
 
-	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->m_RTVDescriptorSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+	const UINT RTV_DESCRIPTOR_SIZE = m_pResourceManager->RTVDescriptorSize;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_MainRenderTargetOffset + m_FrameIndex, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE floatRtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, RTV_DESCRIPTOR_SIZE);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart());
 
 	const float COLOR[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	pCommandList->ClearRenderTargetView(rtvHandle, COLOR, 0, nullptr);
@@ -1043,17 +1045,17 @@ void Renderer::renderShadowmap()
 		switch (pCurLight->Property.LightType & TOTAL_LIGHT_TYPE)
 		{
 			case LIGHT_DIRECTIONAL:
-				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetDirectionalLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetDirectionalLightShadowBufferPtr()->pTextureResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 				renderPSO = RenderPSOType_DepthOnlyCascadeDefault;
 				break;
 
 			case LIGHT_POINT:
-				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetPointLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetPointLightShadowBufferPtr()->pTextureResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 				renderPSO = RenderPSOType_DepthOnlyCubeDefault;
 				break;
 
 			case LIGHT_SPOT:
-				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetSpotLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetSpotLightShadowBufferPtr()->pTextureResource, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 				renderPSO = RenderPSOType_DepthOnlyDefault;
 				break;
 
@@ -1367,24 +1369,24 @@ void Renderer::renderObjectBoundingModel()
 				break;
 		}
 
-		m_pResourceManager->SetCommonState(RenderPSOType_Wire);
-		switch (pCurModel->ModelType)
-		{
-			case RenderObjectType_DefaultType:
-				// pCurModel->RenderBoundingSphere(pRenderer, RenderPSOType_Wire);
-				break;
+		//m_pResourceManager->SetCommonState(RenderPSOType_Wire);
+		//switch (pCurModel->ModelType)
+		//{
+		//	case RenderObjectType_DefaultType:
+		//		// pCurModel->RenderBoundingSphere(RenderPSOType_Wire);
+		//		break;
 
-			case RenderObjectType_SkinnedType:
-			{
-				SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
-				pCharacter->RenderBoundingCapsule(pRenderer, RenderPSOType_Wire);
-				pCharacter->RenderJointSphere(pRenderer, RenderPSOType_Wire);
-			}
-			break;
+		//	case RenderObjectType_SkinnedType:
+		//	{
+		//		SkinnedMeshModel* pCharacter = (SkinnedMeshModel*)pCurModel;
+		//		pCharacter->RenderBoundingCapsule(RenderPSOType_Wire);
+		//		pCharacter->RenderJointSphere(RenderPSOType_Wire);
+		//	}
+		//	break;
 
-			default:
-				break;
-		}
+		//	default:
+		//		break;
+		//}
 
 		if (!pRenderQue->Add(&item))
 		{
@@ -1526,15 +1528,15 @@ void Renderer::endRender()
 		switch (pCurLight->Property.LightType & TOTAL_LIGHT_TYPE)
 		{
 			case LIGHT_DIRECTIONAL:
-				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetDirectionalLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetDirectionalLightShadowBufferPtr()->pTextureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
 				break;
 
 			case LIGHT_POINT:
-				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetPointLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetPointLightShadowBufferPtr()->pTextureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
 				break;
 
 			case LIGHT_SPOT:
-				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetSpotLightShadowBufferPtr()->GetResource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+				barrier = CD3DX12_RESOURCE_BARRIER::Transition(pCurLight->LightShadowMap.GetSpotLightShadowBufferPtr()->pTextureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
 				break;
 
 			default:
@@ -1555,19 +1557,23 @@ void Renderer::endRender()
 
 	// mirror pass.
 	// stencil process.
+	ID3D12DescriptorHeap* pRTVHeap = m_pRTVAllocator->GetDescriptorHeap();
+	ID3D12DescriptorHeap* pDSVHeap = m_pDSVAllocator->GetDescriptorHeap();
 	{
 		ID3D12GraphicsCommandList* pCommandList = pCommandListPool->GetCurrentCommandList();
 		DynamicDescriptorPool* pDescriptorPool = m_pppDescriptorPool[m_FrameIndex][0];
 		ConstantBufferManager* pConstantBufferManager = m_pppConstantBufferManager[m_FrameIndex][0];
+		
+		
 		ID3D12DescriptorHeap* ppDescriptorHeaps[2] =
 		{
 			pDescriptorPool->GetDescriptorHeap(),
 			m_pResourceManager->m_pSamplerHeap,
 		};
-		CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
-		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+		CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->RTVDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart());
 		
-		m_PostProcessor.SetViewportsAndScissorRects(pCommandList);
+		m_pPostProcessor->SetViewportsAndScissorRects(pCommandList);
 		pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
 		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
 		m_pResourceManager->SetCommonState(0, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_StencilMask);
@@ -1590,10 +1596,10 @@ void Renderer::endRender()
 			pDescriptorPool->GetDescriptorHeap(),
 			m_pResourceManager->m_pSamplerHeap,
 		};
-		CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(m_pResourceManager->m_pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->m_RTVDescriptorSize);
-		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_pResourceManager->m_pDSVHeap->GetCPUDescriptorHandleForHeapStart());
+		CD3DX12_CPU_DESCRIPTOR_HANDLE floatBufferRtvHandle(pRTVHeap->GetCPUDescriptorHandleForHeapStart(), m_FloatBufferRTVOffset, m_pResourceManager->RTVDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pDSVHeap->GetCPUDescriptorHandleForHeapStart());
 
-		m_PostProcessor.SetViewportsAndScissorRects(pCommandList);
+		m_pPostProcessor->SetViewportsAndScissorRects(pCommandList);
 		pCommandList->OMSetRenderTargets(1, &floatBufferRtvHandle, FALSE, &dsvHandle);
 		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
 		m_pResourceManager->SetCommonState(0, pCommandList, pDescriptorPool, pConstantBufferManager, RenderPSOType_MirrorBlend);
@@ -1617,7 +1623,7 @@ void Renderer::endRender()
 		};
 		
 		pCommandList->SetDescriptorHeaps(2, ppDescriptorHeaps);
-		m_PostProcessor.Render(0, pCommandList, pDescriptorPool, pConstantBufferManager, m_pResourceManager, m_FrameIndex);
+		m_pPostProcessor->Render(0, pCommandList, pDescriptorPool, pConstantBufferManager, m_pResourceManager, m_FrameIndex);
 	
 		const CD3DX12_RESOURCE_BARRIER RTV_AFTER_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(m_pRenderTargets[m_FrameIndex], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
 		pCommandList->ResourceBarrier(1, &RTV_AFTER_BARRIER);
